@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# 虛擬環境
+.venv/
+venv/
+
+# 環境變數
+.env
