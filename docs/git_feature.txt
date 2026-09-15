@@ -1,0 +1,6 @@
+feature/login：永富，註冊／登入
+feature/course-management：姿彣，課程管理
+feature/student-management：Ken，學生管理
+feature/messaging：Ollie，老師／學生訊息
+feature/admin：宇鈞，管理員功能
+feature/database：禹銨、雄哥，資料庫設計
