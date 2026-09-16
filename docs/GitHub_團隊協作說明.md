@@ -1,15 +1,16 @@
 # GitHub 團隊協作超簡版
+# 千萬別動別人的程式碼!!!!
 
 ## 1. 每個人的分支
 
-| 負責人 | 分支 |
-|---|---|
-| 永富 | `feature/login` |
-| 姿彣 | `feature/course-management` |
-| Ken | `feature/student-management` |
-| Ollie | `feature/messaging` |
-| 宇鈞 | `feature/admin` |
-| 禹銨、雄哥 | `feature/database` |
+| 負責人     | 分支                           |
+| ---------- | ------------------------------ |
+| 永富       | `feature/login`              |
+| 姿彣       | `feature/course-management`  |
+| Ken        | `feature/student-management` |
+| Ollie      | `feature/messaging`          |
+| 宇鈞       | `feature/admin`              |
+| 禹銨、雄哥 | `feature/database`           |
 
 ---
 
@@ -29,12 +30,9 @@ cd AIPE04_group3
 
 ### Step 3：切到自己功能的分支
 
-
-
 ```bash
 git switch feature/功能名稱
 ```
-
 
 切完就可以開始寫自己的功能。
 
