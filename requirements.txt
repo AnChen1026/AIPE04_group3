@@ -1,0 +1,8 @@
+# FastAPI 相關
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+
+# 資料分析相關
+pandas>=2.2.0
+numpy>=1.26.0
+scipy>=1.12.0

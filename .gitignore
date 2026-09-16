@@ -11,3 +11,16 @@ venv/
 
 # 環境變數
 .env
+
+# 編輯器私人設定 (針對 VS Code 與 Cursor)
+.vscode/
+.idea/
+*.swp
+
+# 科學計算與測試快取 (針對 Pandas, Numpy, Scipy)
+.pytest_cache/
+.coverage
+.ipynb_checkpoints/
+
+# Windows 系統隱形垃圾
+Thumbs.db
