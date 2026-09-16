@@ -1,11 +1,10 @@
-from flask import Flask, render_template
-app = Flask(__name__)
+from fastapi import FastAPI
+import uvicorn
+app = FastAPI()
 
-@app.route('/')
+@app.get('/')
 def index():
-    return 'Hello world'
+    return {'message':'Hello world'}
 
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    uvicorn.run("app:app", reload=True)
