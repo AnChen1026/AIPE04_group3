@@ -16,19 +16,19 @@
 
 開始請 Agent 幫忙寫程式前，請先讓它閱讀：
 
-1. `docs/TEAM_AGENT_GUIDELINES.md`（本文件）
-2. `docs/CURSOR_PROJECT_CONTEXT.md`
+1. `docs/團隊Agent開發規範.md`（本文件）
+2. `docs/AI_Agent專案交接文件.md`
 3. `docs/GitHub_團隊協作說明.md`
 4. 與自己功能直接相關的文件
 
 可直接複製下面這段給 Agent，並把名字改成自己的：
 
 ```text
-請先閱讀 docs/TEAM_AGENT_GUIDELINES.md、docs/CURSOR_PROJECT_CONTEXT.md、docs/GitHub_團隊協作說明.md。
+請先閱讀 docs/團隊Agent開發規範.md、docs/AI_Agent專案交接文件.md、docs/GitHub_團隊協作說明.md。
 
 我是：<請填自己的名字>
 
-先不要修改任何檔案。請先對照 TEAM_AGENT_GUIDELINES.md 第 3 節表格確認：
+先不要修改任何檔案。請先對照 團隊Agent開發規範.md 第 3 節表格確認：
 1. 我適用哪個 Git 分支。
 2. 這個分支對應的負責範圍，以及可以改／不可以改什麼。
 3. 我目前實際所在的分支是否與上表一致。
@@ -131,7 +131,7 @@ Agent 不是專案負責人。它只能協助目前這位組員完成自己負�
 | `.gitignore` | 影響哪些檔案會被提交 |
 | `.env` / Secret 相關檔案 | 不可提交，也不可寫入真實金鑰 |
 | `sql_test/data_schema_v0.1.md` | 資料表由資料庫負責人維護 |
-| `docs/CURSOR_PROJECT_CONTEXT.md` | 專案上下文，需全組對齊後再改 |
+| `docs/AI_Agent專案交接文件.md` | 專案上下文，需全組對齊後再改 |
 | `docs/GitHub_團隊協作說明.md` | 協作流程文件 |
 
 如果任務「看起來一定要改共用檔案」，Agent 應該：
@@ -397,9 +397,9 @@ Agent 會跟著使用者的指示走。組員請避免這樣下指令：
 
 | 文件 | 用途 |
 | --- | --- |
-| `docs/TEAM_AGENT_GUIDELINES.md` | 給 Agent 與組員的開發紅線 |
+| `docs/團隊Agent開發規範.md` | 給 Agent 與組員的開發紅線 |
 | `docs/GitHub_團隊協作說明.md` | Git 分支與提交的超簡版流程 |
-| `docs/CURSOR_PROJECT_CONTEXT.md` | 產品範圍、技術選型與目前進度 |
+| `docs/AI_Agent專案交接文件.md` | 產品範圍、技術選型與目前進度 |
 | `sql_test/data_schema_v0.1.md` | 第一階段資料表初稿 |
 
 若本文件與實際 Repository 不同，先以實際分支、檔案與組長決議為準，並回報差異，不要自行覆蓋其他人的工作。
