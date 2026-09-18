@@ -1,16 +1,16 @@
 -- ============================================================
--- 個人工作室智慧管理平台 Data Schema v0.1（MySQL 版）
--- 來源：docs/data_schema_v0.1.md
+-- 個人工作室智慧管理平台 Data Schema v0.1（MySQL 測試版）
+-- 來源：sql_test/data_schema_v0.1.md
 -- 適用：MySQL 8.0 以上
 --
--- 型別對照（文件是 PostgreSQL，這裡改成 MySQL）：
---   uuid        → CHAR(36)
---   varchar     → VARCHAR(長度)
---   text        → TEXT
---   numeric     → DECIMAL
---   integer     → INT
---   date        → DATE
---   timestamptz → DATETIME(6)
+-- 這是先用 MySQL 練習建表的版本，之後再改 PostgreSQL。
+-- 與文件差異：
+--   文件主鍵是 uuid      → 這裡用 INT AUTO_INCREMENT
+--   timestamptz          → DATETIME(6)
+--   numeric              → DECIMAL
+--
+-- 若先前已用 UUID 版建過表，請先刪除資料庫再建：
+--   DROP DATABASE IF EXISTS aipe04_group3;
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS aipe04_group3
@@ -19,12 +19,28 @@ CREATE DATABASE IF NOT EXISTS aipe04_group3
 
 USE aipe04_group3;
 
+-- 刪表順序：先刪「有外鍵的子表」，再刪「被參考的父表」
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS conversation_messages;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS binding_codes;
+DROP TABLE IF EXISTS line_accounts;
+DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS studio_student_bindings;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS platform_admins;
+DROP TABLE IF EXISTS studio_members;
+DROP TABLE IF EXISTS student_profiles;
+DROP TABLE IF EXISTS studios;
+DROP TABLE IF EXISTS users;
+SET FOREIGN_KEY_CHECKS = 1;
+
 -- ------------------------------------------------------------
 -- 2. Account / Studio
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS users (
-  id CHAR(36) NOT NULL COMMENT '使用者 ID',
+CREATE TABLE users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '使用者 ID',
   email VARCHAR(255) NOT NULL COMMENT '登入 Email',
   password_hash VARCHAR(255) NOT NULL COMMENT '密碼雜湊，不可存明碼',
   display_name VARCHAR(100) NOT NULL COMMENT '顯示名稱',
@@ -35,8 +51,8 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY uk_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='平台帳號';
 
-CREATE TABLE IF NOT EXISTS studios (
-  id CHAR(36) NOT NULL COMMENT '工作室 ID',
+CREATE TABLE studios (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '工作室 ID',
   name VARCHAR(100) NOT NULL COMMENT '工作室名稱',
   description TEXT NULL COMMENT '工作室介紹',
   status VARCHAR(32) NOT NULL COMMENT 'active / suspended / closed',
@@ -45,10 +61,10 @@ CREATE TABLE IF NOT EXISTS studios (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工作室基本資料';
 
-CREATE TABLE IF NOT EXISTS studio_members (
-  id CHAR(36) NOT NULL COMMENT '關聯 ID',
-  studio_id CHAR(36) NOT NULL COMMENT '工作室 ID',
-  user_id CHAR(36) NOT NULL COMMENT '使用者 ID',
+CREATE TABLE studio_members (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '關聯 ID',
+  studio_id INT UNSIGNED NOT NULL COMMENT '工作室 ID',
+  user_id INT UNSIGNED NOT NULL COMMENT '使用者 ID',
   role VARCHAR(32) NOT NULL COMMENT 'owner / admin / teacher / assistant',
   status VARCHAR(32) NOT NULL COMMENT 'active / disabled',
   joined_at DATETIME(6) NULL COMMENT '加入時間',
@@ -62,9 +78,9 @@ CREATE TABLE IF NOT EXISTS studio_members (
     FOREIGN KEY (user_id) REFERENCES users (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='使用者與工作室的成員關係';
 
-CREATE TABLE IF NOT EXISTS platform_admins (
-  id CHAR(36) NOT NULL COMMENT '管理員 ID',
-  user_id CHAR(36) NOT NULL COMMENT '平台帳號 ID',
+CREATE TABLE platform_admins (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '管理員 ID',
+  user_id INT UNSIGNED NOT NULL COMMENT '平台帳號 ID',
   status VARCHAR(32) NOT NULL COMMENT 'active / disabled',
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '建立時間',
   updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新時間',
@@ -78,10 +94,10 @@ CREATE TABLE IF NOT EXISTS platform_admins (
 -- 3. Course
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS courses (
-  id CHAR(36) NOT NULL COMMENT '課程 ID',
-  studio_id CHAR(36) NOT NULL COMMENT '工作室 ID',
-  teacher_user_id CHAR(36) NOT NULL COMMENT '老師的使用者 ID',
+CREATE TABLE courses (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '課程 ID',
+  studio_id INT UNSIGNED NOT NULL COMMENT '工作室 ID',
+  teacher_user_id INT UNSIGNED NOT NULL COMMENT '老師的使用者 ID',
   title VARCHAR(200) NOT NULL COMMENT '課程名稱',
   description TEXT NULL COMMENT '課程介紹',
   price_amount DECIMAL(12,2) NULL COMMENT '課程價格',
@@ -101,8 +117,8 @@ CREATE TABLE IF NOT EXISTS courses (
 -- 4. Student
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS student_profiles (
-  id CHAR(36) NOT NULL COMMENT '學生 ID',
+CREATE TABLE student_profiles (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '學生 ID',
   name VARCHAR(100) NOT NULL COMMENT '學生姓名',
   status VARCHAR(32) NOT NULL COMMENT 'active / inactive / deleted',
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '建立時間',
@@ -110,10 +126,10 @@ CREATE TABLE IF NOT EXISTS student_profiles (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='學生基本資料';
 
-CREATE TABLE IF NOT EXISTS studio_student_bindings (
-  id CHAR(36) NOT NULL COMMENT '綁定 ID',
-  studio_id CHAR(36) NOT NULL COMMENT '工作室 ID',
-  student_id CHAR(36) NOT NULL COMMENT '學生 ID',
+CREATE TABLE studio_student_bindings (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '綁定 ID',
+  studio_id INT UNSIGNED NOT NULL COMMENT '工作室 ID',
+  student_id INT UNSIGNED NOT NULL COMMENT '學生 ID',
   status VARCHAR(32) NOT NULL COMMENT 'pending / active / revoked',
   bound_at DATETIME(6) NULL COMMENT '綁定時間',
   revoked_at DATETIME(6) NULL COMMENT '解除時間',
@@ -127,11 +143,11 @@ CREATE TABLE IF NOT EXISTS studio_student_bindings (
     FOREIGN KEY (student_id) REFERENCES student_profiles (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='學生與工作室綁定';
 
-CREATE TABLE IF NOT EXISTS enrollments (
-  id CHAR(36) NOT NULL COMMENT '修課關係 ID',
-  studio_id CHAR(36) NOT NULL COMMENT '工作室 ID',
-  student_id CHAR(36) NOT NULL COMMENT '學生 ID',
-  course_id CHAR(36) NOT NULL COMMENT '課程 ID',
+CREATE TABLE enrollments (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '修課關係 ID',
+  studio_id INT UNSIGNED NOT NULL COMMENT '工作室 ID',
+  student_id INT UNSIGNED NOT NULL COMMENT '學生 ID',
+  course_id INT UNSIGNED NOT NULL COMMENT '課程 ID',
   status VARCHAR(32) NOT NULL COMMENT 'active / paused / completed / cancelled',
   started_at DATE NULL COMMENT '開始日期',
   ended_at DATE NULL COMMENT '結束日期',
@@ -150,9 +166,9 @@ CREATE TABLE IF NOT EXISTS enrollments (
 -- 5. LINE / Binding
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS line_accounts (
-  id CHAR(36) NOT NULL COMMENT 'LINE 帳號 ID',
-  student_id CHAR(36) NOT NULL COMMENT '學生 ID',
+CREATE TABLE line_accounts (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'LINE 帳號 ID',
+  student_id INT UNSIGNED NOT NULL COMMENT '學生 ID',
   line_user_id_hash VARCHAR(255) NOT NULL COMMENT 'LINE User ID Hash',
   line_user_id_ciphertext TEXT NOT NULL COMMENT '加密後 LINE User ID',
   display_name VARCHAR(100) NULL COMMENT 'LINE 顯示名稱',
@@ -166,15 +182,15 @@ CREATE TABLE IF NOT EXISTS line_accounts (
     FOREIGN KEY (student_id) REFERENCES student_profiles (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='學生 LINE 身份';
 
-CREATE TABLE IF NOT EXISTS binding_codes (
-  id CHAR(36) NOT NULL COMMENT '綁定碼 ID',
-  studio_id CHAR(36) NOT NULL COMMENT '工作室 ID',
+CREATE TABLE binding_codes (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '綁定碼 ID',
+  studio_id INT UNSIGNED NOT NULL COMMENT '工作室 ID',
   code_hash VARCHAR(255) NOT NULL COMMENT '綁定碼 Hash',
   expires_at DATETIME(6) NOT NULL COMMENT '到期時間',
   max_uses INT NOT NULL COMMENT '最大使用次數',
   used_count INT NOT NULL DEFAULT 0 COMMENT '已使用次數',
   status VARCHAR(32) NOT NULL COMMENT 'active / used / expired / revoked',
-  created_by CHAR(36) NOT NULL COMMENT '建立者使用者 ID',
+  created_by INT UNSIGNED NOT NULL COMMENT '建立者使用者 ID',
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '建立時間',
   updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新時間',
   PRIMARY KEY (id),
@@ -189,10 +205,10 @@ CREATE TABLE IF NOT EXISTS binding_codes (
 -- 6. Message
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS conversations (
-  id CHAR(36) NOT NULL COMMENT '對話 ID',
-  student_id CHAR(36) NULL COMMENT '學生 ID',
-  line_account_id CHAR(36) NULL COMMENT 'LINE 帳號 ID',
+CREATE TABLE conversations (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '對話 ID',
+  student_id INT UNSIGNED NULL COMMENT '學生 ID',
+  line_account_id INT UNSIGNED NULL COMMENT 'LINE 帳號 ID',
   channel VARCHAR(32) NOT NULL COMMENT 'line / web',
   status VARCHAR(32) NOT NULL COMMENT 'active / closed',
   last_message_at DATETIME(6) NULL COMMENT '最後訊息時間',
@@ -205,11 +221,11 @@ CREATE TABLE IF NOT EXISTS conversations (
     FOREIGN KEY (line_account_id) REFERENCES line_accounts (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='師生或系統對話';
 
-CREATE TABLE IF NOT EXISTS conversation_messages (
-  id CHAR(36) NOT NULL COMMENT '訊息 ID',
-  conversation_id CHAR(36) NOT NULL COMMENT '對話 ID',
+CREATE TABLE conversation_messages (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '訊息 ID',
+  conversation_id INT UNSIGNED NOT NULL COMMENT '對話 ID',
   sender_type VARCHAR(32) NOT NULL COMMENT 'student / teacher / system',
-  sender_id CHAR(36) NULL COMMENT '發送者 ID',
+  sender_id INT UNSIGNED NULL COMMENT '發送者 ID',
   content TEXT NOT NULL COMMENT '訊息內容',
   delivery_status VARCHAR(32) NOT NULL COMMENT 'received / pending / sent / failed',
   external_event_id VARCHAR(255) NULL COMMENT 'LINE Event ID',
