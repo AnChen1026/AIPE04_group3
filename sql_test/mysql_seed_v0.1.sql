@@ -10,21 +10,6 @@
 
 USE aipe04_group3;
 
--- 若要重跑假資料，先清空子表再清空父表，AUTO_INCREMENT 會重設回 1
-SET FOREIGN_KEY_CHECKS = 0;
-TRUNCATE TABLE conversation_messages;
-TRUNCATE TABLE conversations;
-TRUNCATE TABLE binding_codes;
-TRUNCATE TABLE line_accounts;
-TRUNCATE TABLE enrollments;
-TRUNCATE TABLE studio_student_bindings;
-TRUNCATE TABLE courses;
-TRUNCATE TABLE platform_admins;
-TRUNCATE TABLE studio_members;
-TRUNCATE TABLE student_profiles;
-TRUNCATE TABLE studios;
-TRUNCATE TABLE users;
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- ------------------------------------------------------------
 -- users（10 筆）插入後 id 會是 1~10
