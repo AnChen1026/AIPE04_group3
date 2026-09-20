@@ -1,0 +1,12 @@
+{
+    "teachers": {
+        "T-757f0cdd": {
+            "name": "123",
+            "gender": "男",
+            "email": "",
+            "phone": "0800000000",
+            "password_hash": "scrypt:32768:8:1$nMq9h2vtBD9YCBUG$258ec8dcd9868607c77851a2d49410b3bd95225f4e74d194947f310025ede9f2f9d8d9f17b9242c81fc494202b6a22674490784817426a1b99dca386f9fefe6e"
+        }
+    },
+    "students": {}
+}
