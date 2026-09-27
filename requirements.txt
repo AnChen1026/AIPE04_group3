@@ -15,3 +15,8 @@ onnxruntime
 setuptools<81
 # basic-pitch 在 Mac + Python 3.12 不能直接 pip install（會要求舊版 tensorflow-macos）
 # 請另外執行：pip install basic-pitch==0.4.0 --no-deps
+# --no-deps 不會自動裝下面這些，所以要自己列出
+mir_eval
+resampy>=0.2.2,<0.4.3
+scikit-learn
+google-genai>=1.0.0

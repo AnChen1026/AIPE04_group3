@@ -1,4 +1,4 @@
-# 演奏評分測試：目前做到步驟 1～11
+# 演奏評分測試：目前做到步驟 1～13
 # 1. 準備標準答案 MIDI
 # 2. 準備測試音檔（先用現成檔，不用瀏覽器錄音）
 # 3. 讀取標準答案 MIDI
@@ -10,18 +10,22 @@
 # 9. 比對節奏（先估整體速度，再比 IOI 比例）
 # 10. 依標準答案切小節（不支援弱起）
 # 11. 計算整首總分與每小節摘要
+# 12. 用 Pydantic 整理成結構化結果
+# 13. 把結構化結果交給 LLM，產生文字回饋
 #
 # 使用方式：
 #   1. 把標準答案 MIDI 放到 score_test/midi_test_data/
 #   2. 把測試音檔放到 score_test/audio_test_data/
 #   3. 先安裝套件：pip install -r requirements.txt
-#   4. 在專案根目錄執行：python score_test/midi_test.py
+#   4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY=你的key
+#   5. 在專案根目錄執行：python score_test/midi_test.py
 
 from pathlib import Path  # 處理檔案路徑，避免自己拼字串
 import argparse  # 讀取指令列參數，例如 --midi、--audio
-import os  # 設定環境變數，例如 numba 快取目錄
+import os  # 設定環境變數，例如 numba 快取目錄、Gemini API key
 import sys  # 結束程式時回傳成功或失敗代碼
 import tempfile  # 取得系統暫存資料夾
+import time  # 計算整支程式執行秒數；Gemini 忙碌時也用來稍等再重試
 
 import librosa  # 讀取音檔、轉單聲道、去掉靜音；後面也用來做 DTW
 import numpy  # 建立 DTW 需要的成本矩陣
@@ -29,6 +33,9 @@ import pretty_midi  # 讀取與解析 MIDI 檔
 import soundfile  # 把處理後的音波寫回 wav 檔
 from basic_pitch import FilenameSuffix, build_icassp_2022_model_path  # 選 ONNX 模型，避開 TensorFlow
 from basic_pitch.inference import predict  # 把音檔轉成 MIDI / 音符
+from google import genai  # 步驟 13：呼叫 Gemini 寫回饋
+from google.genai import types  # 設定 Gemini 的系統提示與溫度
+from pydantic import BaseModel  # 步驟 12：把評分結果整理成固定格式
 
 # librosa / numba 需要可寫入的快取目錄，否則轉 MIDI 可能失敗
 numba_cache_dir = Path(tempfile.gettempdir()) / "numba_cache"
@@ -49,7 +56,7 @@ MIDI_PATH = MIDI_DIR / "test1.mid"
 # ======================================================
 # 步驟 2：測試音檔（請把檔案放到這個相對路徑）
 # ======================================================
-AUDIO_PATH = AUDIO_DIR / "test2.mp3"
+AUDIO_PATH = AUDIO_DIR / "test3.mp3"
 
 # 前處理後的音檔，會用這個取樣率存檔
 PROCESS_SAMPLE_RATE = 22050
@@ -75,6 +82,59 @@ DTW_DIFFERENT_PITCH_COST = 100.0
 
 # 標準 MIDI 沒有 Tempo 時的預設速度
 DEFAULT_TEMPO_BPM = 120.0
+
+# 步驟 13：測試回饋使用 Gemini 免費額度較夠的模型
+GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_RETRY_TIMES = 3
+GEMINI_RETRY_WAIT_SECONDS = 3
+
+
+# ======================================================
+# 步驟 12：評分結果的固定格式
+# 之後 LLM 與 API 都讀這個結構，不要再自己拼不固定的 dict
+# ======================================================
+class ErrorNote(BaseModel):
+    """一筆錯音：在第幾小節、是哪個音、發生什麼問題。"""
+
+    measure_number: int
+    note_in_measure: int | None = None
+    pitch_name: str
+    reason: str
+
+
+class MeasureSummary(BaseModel):
+    """一個小節的摘要，用來指出問題位置。"""
+
+    measure_number: int
+    standard_note_count: int
+    correct_pitch_count: int
+    missing_notes: int
+    wrong_notes: int
+    extra_notes: int
+    pitch_text: str
+    rhythm_text: str
+
+
+class ScoreReport(BaseModel):
+    """整首評分的結構化結果。"""
+
+    standard_midi: str
+    student_audio: str
+    time_signature: str
+    tempo_bpm: float
+    pickup_supported: bool
+    standard_note_count: int
+    student_note_count: int
+    correct_pitch_count: int
+    missing_notes: int
+    extra_notes: int
+    pitch_score: float
+    rhythm_score: float
+    tempo_ratio: float
+    raw_total: float
+    final_score: int
+    measures: list[MeasureSummary]
+    error_notes: list[ErrorNote]
 
 
 # ======================================================
@@ -852,9 +912,152 @@ def describe_rhythm_error(ioi_detail, tempo_ratio):
 
 
 # ======================================================
-# 最後只印測試摘要：檔案、讀取是否成功、音符數、分數
+# 步驟 12：把評分 dict 轉成 Pydantic 結構
 # ======================================================
-def print_test_summary(midi_path, audio_path, read_ok, standard_note_count, student_note_count, score_result):
+def build_score_report(midi_path, audio_path, standard_midi, student_midi, score_result):
+    """檢查欄位後，產出之後可以轉成 JSON 的評分報告。"""
+    report = ScoreReport(
+        standard_midi=str(midi_path),
+        student_audio=str(audio_path),
+        time_signature=standard_midi["time_signature"],
+        tempo_bpm=standard_midi["tempo_bpm"],
+        pickup_supported=False,
+        standard_note_count=standard_midi["note_count"],
+        student_note_count=student_midi["note_count"],
+        correct_pitch_count=score_result["correct_pitch_count"],
+        missing_notes=score_result["missing_notes"],
+        extra_notes=score_result["extra_notes"],
+        pitch_score=score_result["pitch_score"],
+        rhythm_score=score_result["rhythm_score"],
+        tempo_ratio=score_result["tempo_ratio"],
+        raw_total=score_result["raw_total"],
+        final_score=score_result["final_score"],
+        measures=score_result["measures"],
+        error_notes=score_result["error_notes"],
+    )
+    return report
+
+
+# ======================================================
+# 從環境變數或專案根目錄 .env 讀取指定名稱的 key
+# ======================================================
+def read_env_value(name):
+    """先看系統環境變數，再看 .env 檔。找不到就回傳 None。"""
+    value = os.environ.get(name)
+    if value:
+        return value.strip()
+
+    env_path = BASE_DIR.parent / ".env"
+    if env_path.exists() is False:
+        return None
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        text = line.strip()
+        if text.startswith("#") or ("=" not in text):
+            continue
+        key_name, key_value = text.split("=", 1)
+        if key_name.strip() == name:
+            cleaned = key_value.strip().strip('"').strip("'")
+            if cleaned:
+                return cleaned
+    return None
+
+
+# ======================================================
+# 步驟 13：把結構化結果交給 Gemini，產生給學生看的文字回饋
+# ======================================================
+def generate_feedback(score_report):
+    """回傳 (回饋文字, 錯誤訊息)。成功時錯誤訊息是 None。"""
+    api_key = read_env_value("GEMINI_API_KEY")
+    if api_key is None:
+        return None, "沒有設定 GEMINI_API_KEY，請在專案根目錄 .env 貼上你的 key。"
+
+    teacher_prompt = (
+        """你是一位溫柔、簡潔、清楚的鋼琴老師。
+
+        請根據「本次練習評分 JSON」以及「上次練習紀錄（如果有）」，
+        用繁體中文給學生簡短的鋼琴練習回饋。
+
+        回饋規則：
+
+        1. 回饋只需要 3～4 句，不要逐一列出所有錯誤。
+
+        2. 第一句先簡單肯定學生這次做得好的地方。
+
+        3. 從本次練習中挑選最多 1～2 個最值得改善的問題即可。
+        優先挑選：
+        - 錯誤數量較多的小節
+        - 重複出現的問題
+        - 對整體演奏影響較大的問題
+
+        4. 不需要逐一說明「第幾小節第幾個音」。
+        可以用概括方式，例如：
+        「第 5、7、9 小節有幾個錯音，可以確認樂譜後再試一次。」
+        或：
+        「這次節奏有些不穩，幾個地方稍微偏快，可以搭配節拍器練習。」
+
+        5. 漏音、多彈、錯音、節奏問題不需要全部回饋。
+        只有當該問題較明顯時才需要提到。
+
+        6. 如果有多彈的音，只需要簡單寫：
+        「有幾個地方出現多彈的音，彈奏時可以再注意一下。」
+        不要猜測是誤觸、麥克風、辨識錯誤或其他原因。
+
+        7. 如果有提供「上次練習紀錄」，請先比較本次與上次的結果。
+        - 有明顯進步時，要優先指出進步的地方。
+        - 如果某個問題持續出現，可以簡單提醒學生繼續加強。
+        - 不需要列出詳細數字差異，除非差異很有意義。
+
+        8. 如果沒有上次練習紀錄，就只根據本次結果回饋，不要提到「上次」。
+
+        9. 不要編造 JSON 中不存在的小節、音符、錯誤或進步。
+
+        10. 語氣要像老師直接對學生說話，簡單、自然、鼓勵，不要像系統分析報告。
+
+        11. 最後一句給一個簡單、實際的練習建議或鼓勵。
+
+        理想回覆風格：
+
+        「這次整體彈得很不錯！第 5、7、9 小節還有幾個音需要再確認一下，可以看著樂譜慢慢練一次。另外這次節奏偶爾有點偏快，建議跟著節拍器再練一遍。繼續保持，你已經進步很多了！」
+
+        只輸出給學生看的回饋，不要輸出分析過程、JSON、標題或條列。"""
+    )
+
+    client = genai.Client(api_key=api_key)
+    last_error = None
+    try_count = 1
+
+    while try_count <= GEMINI_RETRY_TIMES:
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=score_report.model_dump_json(indent=2),
+                config=types.GenerateContentConfig(
+                    system_instruction=teacher_prompt,
+                    temperature=0.4,
+                ),
+            )
+            feedback_text = response.text
+            if feedback_text:
+                return feedback_text.strip(), None
+            return None, "Gemini 有回應，但沒有文字內容。"
+        except Exception as error:
+            last_error = str(error)
+            busy_now = ("503" in last_error) or ("UNAVAILABLE" in last_error) or ("high demand" in last_error)
+            if busy_now and try_count < GEMINI_RETRY_TIMES:
+                print("Gemini 目前忙碌，" + str(GEMINI_RETRY_WAIT_SECONDS) + " 秒後重試第 " + str(try_count + 1) + " 次...")
+                time.sleep(GEMINI_RETRY_WAIT_SECONDS)
+                try_count = try_count + 1
+            else:
+                return None, "呼叫 Gemini 失敗：" + last_error
+
+    return None, "呼叫 Gemini 失敗：" + str(last_error)
+
+
+# ======================================================
+# 最後只印測試摘要：檔案、讀取是否成功、音符數、分數、回饋
+# ======================================================
+def print_test_summary(midi_path, audio_path, read_ok, score_report, feedback_text, feedback_error):
     """印出這次測試最需要看的結果。"""
     print("測試檔案")
     print("標準答案 MIDI：" + str(midi_path))
@@ -864,12 +1067,18 @@ def print_test_summary(midi_path, audio_path, read_ok, standard_note_count, stud
         return
 
     print("讀取結果：成功")
-    print("標準答案音符數：" + str(standard_note_count))
-    print("使用者音符數：" + str(student_note_count))
-    print("音高分數：" + str(score_result["pitch_score"]) + " 分")
-    print("節奏分數：" + str(score_result["rhythm_score"]) + " 分")
-    print("最後分數：" + str(score_result["final_score"]) + " 分")
-    print_error_notes(score_result["error_notes"])
+    print("標準答案音符數：" + str(score_report.standard_note_count))
+    print("使用者音符數：" + str(score_report.student_note_count))
+    print("音高分數：" + str(score_report.pitch_score) + " 分")
+    print("節奏分數：" + str(score_report.rhythm_score) + " 分")
+    print("最後分數：" + str(score_report.final_score) + " 分")
+    print_error_notes(score_report.error_notes)
+
+    print("AI 回饋：")
+    if feedback_text:
+        print(feedback_text)
+    else:
+        print(feedback_error)
 
 
 # ======================================================
@@ -885,32 +1094,34 @@ def print_error_notes(error_notes):
     error_index = 0
     while error_index < len(error_notes):
         item = error_notes[error_index]
-        if item["note_in_measure"] is None:
-            place = "第 " + str(item["measure_number"]) + " 小節 " + item["pitch_name"]
+        if item.note_in_measure is None:
+            place = "第 " + str(item.measure_number) + " 小節 " + item.pitch_name
         else:
             place = (
                 "第 "
-                + str(item["measure_number"])
+                + str(item.measure_number)
                 + " 小節第 "
-                + str(item["note_in_measure"])
+                + str(item.note_in_measure)
                 + " 顆 "
-                + item["pitch_name"]
+                + item.pitch_name
             )
-        print(place + "：" + item["reason"])
+        print(place + "：" + item.reason)
         error_index = error_index + 1
 
 
 # ======================================================
-# 測試入口：檢查檔案 → 前處理 → 轉 MIDI → 對齊 → 評分
+# 測試入口：檢查檔案 → 前處理 → 轉 MIDI → 對齊 → 評分 → 回饋
 # ======================================================
 def main():
-    """依序執行步驟 1 到 11，最後只印測試摘要。"""
+    """依序執行步驟 1 到 13，最後只印測試摘要。"""
+    start_time = time.time()
     args = parse_args()
 
     midi_ok = check_input_file(args.midi, MIDI_SUFFIXES, "標準答案 MIDI")
     audio_ok = check_input_file(args.audio, AUDIO_SUFFIXES, "測試音檔")
     if midi_ok is False or audio_ok is False:
         print_test_summary(args.midi, args.audio, False, None, None, None)
+        print_elapsed_seconds(start_time)
         return 1
 
     processed_audio_path = PROCESSED_DIR / (args.audio.stem + "_processed.wav")
@@ -924,15 +1135,33 @@ def main():
 
     alignment = align_notes_with_dtw(standard_midi["notes"], student_midi["notes"])
     score_result = score_performance(standard_midi, student_midi, alignment)
+    score_report = build_score_report(
+        args.midi,
+        args.audio,
+        standard_midi,
+        student_midi,
+        score_result,
+    )
+    feedback_text, feedback_error = generate_feedback(score_report)
     print_test_summary(
         args.midi,
         args.audio,
         True,
-        standard_midi["note_count"],
-        student_midi["note_count"],
-        score_result,
+        score_report,
+        feedback_text,
+        feedback_error,
     )
+    print_elapsed_seconds(start_time)
     return 0
+
+
+# ======================================================
+# 算出從開始執行到現在過了幾秒
+# ======================================================
+def print_elapsed_seconds(start_time):
+    """印出這次測試總共花了多少秒。"""
+    elapsed = time.time() - start_time
+    print("執行時間：" + str(round(elapsed, 2)) + " 秒")
 
 
 if __name__ == "__main__":
