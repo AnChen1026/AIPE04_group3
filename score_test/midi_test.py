@@ -1,24 +1,26 @@
-# 演奏評分測試：目前做到步驟 1～13
-# 1. 準備標準答案 MIDI
-# 2. 準備測試音檔（先用現成檔，不用瀏覽器錄音）
-# 3. 讀取標準答案 MIDI
-# 4. 音訊前處理
-# 5. 把處理後的音檔轉成 MIDI
-# 6. 讀取轉出來的學生 MIDI
-# 7. 用 DTW 把學生音符對到標準答案
-# 8. 比對音高
-# 9. 比對節奏（先估整體速度，再比 IOI 比例）
-# 10. 依標準答案切小節（不支援弱起）
-# 11. 計算整首總分與每小節摘要
-# 12. 用 Pydantic 整理成結構化結果
-# 13. 把結構化結果交給 LLM，產生文字回饋
-#
-# 使用方式：
-#   1. 把標準答案 MIDI 放到 score_test/midi_test_data/
-#   2. 把測試音檔放到 score_test/audio_test_data/
-#   3. 先安裝套件：pip install -r requirements.txt
-#   4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY=你的key
-#   5. 在專案根目錄執行：python score_test/midi_test.py
+'''
+演奏評分測試：目前做到步驟 1～13
+1. 準備標準答案 MIDI
+2. 準備測試音檔（先用現成檔，不用瀏覽器錄音）
+3. 讀取標準答案 MIDI
+4. 音訊前處理
+5. 把處理後的音檔轉成 MIDI
+6. 讀取轉出來的學生 MIDI
+7. 用 DTW 把學生音符對到標準答案
+8. 比對音高
+9. 比對節奏（先估整體速度，再比 IOI 比例）
+10. 依標準答案切小節（不支援弱起）
+11. 計算整首總分與每小節摘要
+12. 用 Pydantic 整理成結構化結果
+13. 把結構化結果交給 LLM，產生文字回饋
+
+使用方式：
+  1. 把標準答案 MIDI 放到 score_test/midi_test_data/
+  2. 把測試音檔放到 score_test/audio_test_data/
+  3. 先安裝套件：pip install -r requirements.txt
+  4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY=你的key
+  5. 在專案根目錄執行：python score_test/midi_test.py
+'''
 
 from pathlib import Path  # 處理檔案路徑，避免自己拼字串
 import argparse  # 讀取指令列參數，例如 --midi、--audio
@@ -51,12 +53,12 @@ CONVERTED_DIR = BASE_DIR / "converted_midi"
 # ======================================================
 # 步驟 1：標準答案 MIDI（請把檔案放到這個相對路徑）
 # ======================================================
-MIDI_PATH = MIDI_DIR / "test1.mid"
+MIDI_PATH = MIDI_DIR / "test2.mid"
 
 # ======================================================
 # 步驟 2：測試音檔（請把檔案放到這個相對路徑）
 # ======================================================
-AUDIO_PATH = AUDIO_DIR / "test3.mp3"
+AUDIO_PATH = AUDIO_DIR / "test1.wav"
 
 # 前處理後的音檔，會用這個取樣率存檔
 PROCESS_SAMPLE_RATE = 22050
