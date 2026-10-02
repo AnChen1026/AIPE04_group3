@@ -7,3 +7,20 @@ services:
     volumes:
       - .:/app # 核心傳送門：開發者目前的 Git 資料夾 ＝ 容器內的 /app
     command: sleep infinity # 核心發呆指令：維持開機，方便開發者一邊用 Cursor 改扣、一邊手動測試
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    container_name: aipe04-postgres
+    environment:
+      POSTGRES_USER: aipe04
+      POSTGRES_PASSWORD: aipe04
+      POSTGRES_DB: aipe04
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
