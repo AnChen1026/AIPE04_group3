@@ -19,22 +19,6 @@ CREATE DATABASE IF NOT EXISTS aipe04_group3
 
 USE aipe04_group3;
 
--- 刪表順序：先刪「有外鍵的子表」，再刪「被參考的父表」
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS conversation_messages;
-DROP TABLE IF EXISTS conversations;
-DROP TABLE IF EXISTS binding_codes;
-DROP TABLE IF EXISTS line_accounts;
-DROP TABLE IF EXISTS enrollments;
-DROP TABLE IF EXISTS studio_student_bindings;
-DROP TABLE IF EXISTS courses;
-DROP TABLE IF EXISTS platform_admins;
-DROP TABLE IF EXISTS studio_members;
-DROP TABLE IF EXISTS student_profiles;
-DROP TABLE IF EXISTS studios;
-DROP TABLE IF EXISTS users;
-SET FOREIGN_KEY_CHECKS = 1;
-
 -- ------------------------------------------------------------
 -- 2. Account / Studio
 -- ------------------------------------------------------------

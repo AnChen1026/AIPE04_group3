@@ -9,3 +9,17 @@ sqlalchemy>=2.0.0
 pandas>=2.2.0
 numpy>=1.26.0
 scipy>=1.12.0
+
+# 演奏評分測試：讀 MIDI、音檔轉 MIDI
+pretty_midi>=0.2.9
+librosa>=0.8.0
+soundfile>=0.12.1
+onnxruntime
+setuptools<81
+# basic-pitch 在 Mac + Python 3.12 不能直接 pip install（會要求舊版 tensorflow-macos）
+# 請另外執行：pip install basic-pitch==0.4.0 --no-deps
+# --no-deps 不會自動裝下面這些，所以要自己列出
+mir_eval
+resampy>=0.2.2,<0.4.3
+scikit-learn
+google-genai>=1.0.0
