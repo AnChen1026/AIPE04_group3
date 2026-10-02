@@ -12,11 +12,10 @@
 開始任何開發任務前依序閱讀：
 
 1. 本文件。
-2. `README.md`。
-3. `PRD.md`、`SRS.md`。
-4. `SAD系統架構設計.md`。
-5. 與本次任務直接相關的 User Flow、API、Database、AI 或測試文件。
-6. 實際 Repository 結構與程式碼。
+2. `鋼琴教學管理與課程推廣平台_PRD.md`、`SRS功能文件.md`。
+3. `SAD系統架構設計.md`。
+4. 與本次任務直接相關的 `User_Flow.md`、`資料表設計.md`、`功能製作與分工說明.md`。
+5. 實際 Repository 結構與程式碼。
 
 ## 2. 最高原則
 
