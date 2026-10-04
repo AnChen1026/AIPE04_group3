@@ -1,9 +1,16 @@
 # FastAPI 相關
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
+email-validator>=2.0.0
+argon2-cffi>=23.1.0
+jinja2>=3.1.0
+python-multipart>=0.0.9
+itsdangerous>=2.2.0
 
 # 資料庫
 sqlalchemy>=2.0.0
+psycopg[binary]>=3.1.0
+alembic>=1.13.0
 
 # 資料分析相關
 pandas>=2.2.0

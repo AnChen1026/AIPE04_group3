@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "老師" if role == "teacher" else "學生" }}註冊{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>{{ "老師" if role == "teacher" else "學生" }}註冊</h1>
+
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+
+    <form method="post" action="/register/{{ role }}">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required>
+
+        <label for="password">密碼</label>
+        <input id="password" name="password" type="password" required>
+
+        <label for="name">姓名</label>
+        <input id="name" name="name" type="text" maxlength="100" required>
+
+        <label for="phone_number">電話（選填）</label>
+        <input id="phone_number" name="phone_number" type="tel" maxlength="50">
+
+        <label for="birthdate">生日（選填）</label>
+        <input id="birthdate" name="birthdate" type="date">
+
+        <label for="sex">性別（選填）</label>
+        <select id="sex" name="sex">
+            <option value="">不填寫</option>
+            <option value="male">男</option>
+            <option value="female">女</option>
+            <option value="other">其他</option>
+        </select>
+
+        <div class="actions">
+            <button type="submit">建立帳號</button>
+            <a class="button secondary" href="/register">返回</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
