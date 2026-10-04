@@ -4,7 +4,7 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.user import User
 from backend.repositories.user import get_user_by_id
-from backend.schemas.user import UserRegister
+from backend.schemas.user import UserRegister, UserResponse
 from backend.services.user import (
     EmailAlreadyRegisteredError,
     authenticate_user,
@@ -175,6 +175,16 @@ def logout(request: Request):
     """清除登入 Session。"""
     request.session.clear()
     return RedirectResponse("/", status_code=303)
+
+
+@router.get("/api/auth/me", response_model=UserResponse)
+def current_user(request: Request, db: Session = Depends(get_db)):
+    """回傳目前登入的使用者資料。"""
+    user = get_session_user(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="尚未登入。")
+
+    return user
 
 
 @router.get("/teacher", response_class=HTMLResponse)
