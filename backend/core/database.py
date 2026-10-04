@@ -1,5 +1,4 @@
 # 建立 PostgreSQL 連線與 Session。
-# 這一步只負責「連得到資料庫」，還不會建立 users 表，也不會做登入。
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
