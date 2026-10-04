@@ -8,6 +8,7 @@ __pycache__/
 # 虛擬環境
 .venv/
 venv/
+.venv311/
 
 # 環境變數
 .env
