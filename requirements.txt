@@ -1,6 +1,7 @@
 # FastAPI 相關
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
+email-validator>=2.0.0
 
 # 資料庫
 sqlalchemy>=2.0.0
