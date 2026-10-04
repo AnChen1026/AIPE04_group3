@@ -1,6 +1,5 @@
 """登入與註冊測試頁面。"""
 
-import uuid
 from datetime import date
 from pathlib import Path
 
@@ -11,8 +10,8 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.dependencies import get_current_user, get_session_user
 from backend.models.user import User
-from backend.repositories.user import get_user_by_id
 from backend.schemas.user import UserLogin, UserRegister, UserResponse
 from backend.services.user import (
     EmailAlreadyRegisteredError,
@@ -24,24 +23,6 @@ router = APIRouter()
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
-
-
-def get_session_user(request: Request, db: Session) -> User | None:
-    """依 Session Cookie 取得目前登入的使用者。"""
-    user_id_text = request.session.get("user_id")
-    if user_id_text is None:
-        return None
-
-    try:
-        user_id = uuid.UUID(user_id_text)
-    except ValueError:
-        request.session.clear()
-        return None
-
-    user = get_user_by_id(db, user_id)
-    if user is None:
-        request.session.clear()
-    return user
 
 
 def redirect_user_home(user: User):
@@ -216,12 +197,8 @@ def api_logout(request: Request) -> dict[str, str]:
 
 
 @router.get("/api/auth/me", response_model=UserResponse)
-def current_user(request: Request, db: Session = Depends(get_db)):
+def current_user(user: User = Depends(get_current_user)):
     """回傳目前登入的使用者資料。"""
-    user = get_session_user(request, db)
-    if user is None:
-        raise HTTPException(status_code=401, detail="尚未登入。")
-
     return user
 
 
