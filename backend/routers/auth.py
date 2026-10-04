@@ -196,6 +196,13 @@ def api_login(
     return user
 
 
+@router.post("/api/auth/logout")
+def api_logout(request: Request) -> dict[str, str]:
+    """清除前端登入使用的 Session。"""
+    request.session.clear()
+    return {"message": "登出成功。"}
+
+
 @router.get("/api/auth/me", response_model=UserResponse)
 def current_user(request: Request, db: Session = Depends(get_db)):
     """回傳目前登入的使用者資料。"""
