@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.models.user import User
 from backend.repositories.user import get_user_by_id
-from backend.schemas.user import UserRegister, UserResponse
+from backend.schemas.user import UserLogin, UserRegister, UserResponse
 from backend.services.user import (
     EmailAlreadyRegisteredError,
     authenticate_user,
@@ -175,6 +175,25 @@ def logout(request: Request):
     """清除登入 Session。"""
     request.session.clear()
     return RedirectResponse("/", status_code=303)
+
+
+@router.post("/api/auth/login", response_model=UserResponse)
+def api_login(
+    request: Request,
+    login_data: UserLogin,
+    db: Session = Depends(get_db),
+):
+    """驗證 JSON 登入資料並建立 Session。"""
+    user = authenticate_user(db, login_data.email, login_data.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Email 或密碼錯誤。")
+
+    if user.is_active is False and user.role != "teacher":
+        raise HTTPException(status_code=403, detail="此帳號目前無法登入。")
+
+    request.session.clear()
+    request.session["user_id"] = str(user.id)
+    return user
 
 
 @router.get("/api/auth/me", response_model=UserResponse)

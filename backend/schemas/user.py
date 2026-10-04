@@ -19,6 +19,13 @@ class UserRegister(BaseModel):
     role: Literal["teacher", "student"]
 
 
+class UserLogin(BaseModel):
+    """前端登入時需要傳送的資料。"""
+
+    email: EmailStr
+    password: str
+
+
 class UserResponse(BaseModel):
     """可以安全回傳給前端的使用者資料。"""
 
