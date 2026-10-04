@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}音樂教學平台測試{% endblock %}</title>
+    <style>
+        body {
+            margin: 0;
+            color: #222;
+            background: #f5f6f8;
+            font-family: Arial, "Microsoft JhengHei", sans-serif;
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 32px;
+            background: #20283a;
+            color: white;
+        }
+        nav a {
+            margin-left: 12px;
+            color: white;
+            text-decoration: none;
+        }
+        main {
+            width: min(760px, calc(100% - 40px));
+            margin: 48px auto;
+        }
+        .card {
+            padding: 28px;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+        }
+        .button, button {
+            display: inline-block;
+            padding: 10px 18px;
+            border: 0;
+            border-radius: 7px;
+            background: #3157d5;
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .secondary {
+            background: #687086;
+        }
+        label {
+            display: block;
+            margin-top: 14px;
+            font-weight: bold;
+        }
+        input, select {
+            box-sizing: border-box;
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            border: 1px solid #c9ced9;
+            border-radius: 6px;
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 22px;
+        }
+        .error {
+            padding: 10px;
+            color: #9f1d1d;
+            background: #ffe8e8;
+        }
+        .success {
+            padding: 10px;
+            color: #17652d;
+            background: #e4f7e8;
+        }
+        .inline-form {
+            display: inline;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">音樂教學平台測試</a>
+        <div>
+            {% if user %}
+                <span>{{ user.name }}</span>
+                <form class="inline-form" method="post" action="/logout">
+                    <button class="secondary" type="submit">登出</button>
+                </form>
+            {% else %}
+                <a href="/login">登入</a>
+                <a href="/register">註冊</a>
+            {% endif %}
+        </div>
+    </nav>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

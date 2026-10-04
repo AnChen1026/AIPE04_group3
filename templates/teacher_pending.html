@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}等待老師審核{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>老師帳號等待審核</h1>
+    <p>{{ user.name }}，你的帳號已建立，但目前還不能使用老師功能。</p>
+    <p>老師審核機制尚未完成，之後會加入平台管理員審核流程。</p>
+</section>
+{% endblock %}

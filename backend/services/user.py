@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from backend.core.security import hash_password
+from backend.core.security import hash_password, verify_password
 from backend.models.user import User
 from backend.repositories.user import add_user, get_user_by_email
 from backend.schemas.user import UserRegister
@@ -28,6 +28,7 @@ def register_user(db: Session, register_data: UserRegister) -> User:
         birthdate=register_data.birthdate,
         sex=register_data.sex,
         role=register_data.role,
+        is_active=register_data.role == "student",
     )
 
     add_user(db, user)
@@ -39,4 +40,18 @@ def register_user(db: Session, register_data: UserRegister) -> User:
         raise
 
     db.refresh(user)
+    return user
+
+
+def authenticate_user(db: Session, email: str, password: str) -> User | None:
+    """檢查帳號與密碼，成功時回傳使用者。"""
+    normalized_email = email.strip().lower()
+    user = get_user_by_email(db, normalized_email)
+
+    if user is None:
+        return None
+
+    if verify_password(password, user.password_hash) is False:
+        return None
+
     return user

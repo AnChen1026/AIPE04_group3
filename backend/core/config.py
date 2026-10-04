@@ -39,3 +39,13 @@ def get_database_url():
             "沒有設定 DATABASE_URL，請在專案根目錄 .env 寫入連線字串。"
         )
     return database_url
+
+
+def get_session_secret_key():
+    """取得簽署登入 Session Cookie 的密鑰。"""
+    secret_key = read_env_value("SESSION_SECRET_KEY")
+    if secret_key is None:
+        raise RuntimeError(
+            "沒有設定 SESSION_SECRET_KEY，請在專案根目錄 .env 設定隨機密鑰。"
+        )
+    return secret_key
