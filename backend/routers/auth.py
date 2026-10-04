@@ -177,6 +177,18 @@ def logout(request: Request):
     return RedirectResponse("/", status_code=303)
 
 
+@router.post("/api/auth/register", response_model=UserResponse, status_code=201)
+def api_register(
+    register_data: UserRegister,
+    db: Session = Depends(get_db),
+):
+    """接收 JSON 註冊資料並建立使用者。"""
+    try:
+        return register_user(db, register_data)
+    except EmailAlreadyRegisteredError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
 @router.post("/api/auth/login", response_model=UserResponse)
 def api_login(
     request: Request,
