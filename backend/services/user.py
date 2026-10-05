@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from backend.core.security import hash_password, verify_password
 from backend.models.user import User
 from backend.repositories.user import add_user, get_user_by_email
-from backend.schemas.user import UserRegister, UserUpdate
+from backend.repositories.teacher_application import get_application_by_user_id
+from backend.schemas.user import UserRegister, UserResponse, UserUpdate
 
 
 class EmailAlreadyRegisteredError(ValueError):
@@ -76,3 +77,26 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
         return None
 
     return user
+
+
+def build_user_response(db: Session, user: User) -> UserResponse:
+    """把使用者轉成前端可用的 JSON；老師會附上申請狀態。"""
+    application_status = None
+    if user.role == "teacher":
+        application = get_application_by_user_id(db, user.id)
+        if application is not None:
+            application_status = application.status
+
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        phone_number=user.phone_number,
+        birthdate=user.birthdate,
+        sex=user.sex,
+        role=user.role,
+        is_active=user.is_active,
+        auth_provider=user.auth_provider,
+        application_status=application_status,
+        created_at=user.created_at,
+    )

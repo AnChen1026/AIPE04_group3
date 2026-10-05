@@ -17,7 +17,9 @@ from backend.dependencies import get_current_user, get_session_user
 from backend.models.user import User
 from backend.repositories.teacher_application import get_application_by_user_id
 from backend.schemas.user import (
+    GoogleUrlResponse,
     TeacherApplicationForm,
+    TeacherApplicationResponse,
     TeacherRegister,
     UserLogin,
     UserRegister,
@@ -35,12 +37,14 @@ from backend.services.google_auth import (
 from backend.services.teacher import (
     InvalidProofFileError,
     TeacherApplicationExistsError,
+    build_application_response,
     register_teacher,
     submit_teacher_application,
 )
 from backend.services.user import (
     EmailAlreadyRegisteredError,
     authenticate_user,
+    build_user_response,
     register_user,
     update_user_profile,
 )
@@ -538,11 +542,57 @@ def api_register(
     register_data: UserRegister,
     db: Session = Depends(get_db),
 ):
-    """接收 JSON 註冊資料並建立使用者。"""
+    """JSON：建立學生帳號。"""
     try:
-        return register_user(db, register_data)
+        user = register_user(db, register_data)
     except EmailAlreadyRegisteredError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    return build_user_response(db, user)
+
+
+@router.post("/api/auth/register/teacher", response_model=UserResponse, status_code=201)
+def api_register_teacher(
+    email: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    name: str = Form(...),
+    phone_number: str = Form(...),
+    birthdate: str = Form(...),
+    sex: str = Form(...),
+    teaching_subjects: str = Form(...),
+    teaching_experience: str = Form(...),
+    bio: str = Form(...),
+    proof_file: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+):
+    """JSON／FormData：建立老師帳號與 pending 申請。證明文件選填。"""
+    if email_format_is_valid(email) is False:
+        raise HTTPException(status_code=400, detail="請輸入正確的 Email 格式。")
+    if phone_format_is_valid(phone_number) is False:
+        raise HTTPException(status_code=400, detail="請輸入正確的電話格式，例如 0912345678。")
+    if password != password_confirm:
+        raise HTTPException(status_code=400, detail="兩次輸入的密碼不一致。")
+
+    try:
+        register_data = TeacherRegister(
+            email=email,
+            password=password,
+            name=name,
+            phone_number=phone_number,
+            birthdate=date.fromisoformat(birthdate),
+            sex=sex,
+            teaching_subjects=teaching_subjects,
+            teaching_experience=teaching_experience,
+            bio=bio,
+        )
+        user = register_teacher(db, register_data, proof_file)
+    except EmailAlreadyRegisteredError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except InvalidProofFileError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except (ValidationError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="註冊資料格式不正確，請重新檢查。") from error
+    return build_user_response(db, user)
 
 
 @router.post("/api/auth/login", response_model=UserResponse)
@@ -551,7 +601,7 @@ def api_login(
     login_data: UserLogin,
     db: Session = Depends(get_db),
 ):
-    """驗證 JSON 登入資料並建立 Session。"""
+    """JSON：驗證帳密並建立 Session。"""
     user = authenticate_user(db, login_data.email, login_data.password)
     if user is None:
         raise HTTPException(status_code=401, detail="Email 或密碼錯誤。")
@@ -561,20 +611,104 @@ def api_login(
 
     request.session.clear()
     request.session["user_id"] = str(user.id)
-    return user
+    return build_user_response(db, user)
 
 
 @router.post("/api/auth/logout")
 def api_logout(request: Request) -> dict[str, str]:
-    """清除前端登入使用的 Session。"""
+    """JSON：清除 Session。"""
     request.session.clear()
     return {"message": "登出成功。"}
 
 
 @router.get("/api/auth/me", response_model=UserResponse)
-def current_user(user: User = Depends(get_current_user)):
-    """回傳目前登入的使用者資料。"""
-    return user
+def api_current_user(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """JSON：目前登入者；老師會帶 application_status。"""
+    return build_user_response(db, user)
+
+
+@router.patch("/api/auth/me", response_model=UserResponse)
+def api_update_me(
+    profile_data: UserUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """JSON：更新基本資料。"""
+    try:
+        update_user_profile(db, user, profile_data)
+    except (ValidationError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="基本資料格式不正確，請重新檢查。") from error
+    return build_user_response(db, user)
+
+
+@router.get("/api/auth/teacher-application", response_model=TeacherApplicationResponse)
+def api_teacher_application(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """JSON：目前登入老師的申請狀態。"""
+    if user.role != "teacher":
+        raise HTTPException(status_code=403, detail="只有老師可以查看申請。")
+
+    application = get_application_by_user_id(db, user.id)
+    if application is None:
+        raise HTTPException(status_code=404, detail="尚未送出老師申請。")
+    application.user = user
+    return build_application_response(application)
+
+
+@router.post("/api/auth/teacher-application", response_model=TeacherApplicationResponse)
+def api_submit_teacher_application(
+    teaching_subjects: str = Form(...),
+    teaching_experience: str = Form(...),
+    bio: str = Form(...),
+    proof_file: UploadFile | None = File(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """JSON／FormData：Google 老師補送申請資料。"""
+    if user.role != "teacher":
+        raise HTTPException(status_code=403, detail="只有老師可以送出申請。")
+
+    try:
+        form_data = TeacherApplicationForm(
+            teaching_subjects=teaching_subjects,
+            teaching_experience=teaching_experience,
+            bio=bio,
+        )
+        application = submit_teacher_application(db, user, form_data, proof_file)
+    except TeacherApplicationExistsError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except InvalidProofFileError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except (ValidationError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="申請資料格式不正確，請重新檢查。") from error
+    application.user = user
+    return build_application_response(application)
+
+
+@router.get("/api/auth/google-url", response_model=GoogleUrlResponse)
+def api_google_url(
+    request: Request,
+    role: str = "student",
+    intent: str = "register",
+):
+    """JSON：回傳 Google 導向網址。前端拿到後再開這個網址。"""
+    if get_google_settings() is None:
+        raise HTTPException(status_code=503, detail="尚未設定 Google 登入。")
+    if intent not in ("register", "login"):
+        raise HTTPException(status_code=400, detail="intent 只能是 register 或 login。")
+    if intent == "register" and role not in ("student", "teacher"):
+        raise HTTPException(status_code=400, detail="請選擇 student 或 teacher。")
+
+    state = secrets.token_urlsafe(16)
+    request.session["google_oauth_state"] = state
+    request.session["google_register_role"] = role
+    request.session["google_intent"] = intent
+    return GoogleUrlResponse(url=build_google_auth_url(state))
 
 
 @router.get("/teacher", response_class=HTMLResponse)

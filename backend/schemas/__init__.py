@@ -2,7 +2,9 @@
 # 定義 API 收到和回傳的資料格式，並做資料驗證。
 
 from backend.schemas.user import (
+    GoogleUrlResponse,
     TeacherApplicationForm,
+    TeacherApplicationResponse,
     TeacherRegister,
     UserRegister,
     UserResponse,
@@ -10,7 +12,9 @@ from backend.schemas.user import (
 )
 
 __all__ = [
+    "GoogleUrlResponse",
     "TeacherApplicationForm",
+    "TeacherApplicationResponse",
     "TeacherRegister",
     "UserRegister",
     "UserResponse",

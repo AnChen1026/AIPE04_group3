@@ -53,7 +53,7 @@ class UserUpdate(BaseModel):
     """登入後可自行修改的基本資料；Email、角色與密碼不在這一步。"""
 
     name: str = Field(min_length=1, max_length=100)
-    phone_number: str | None = Field(default=None, max_length=50)
+    phone_number: str | None = Field(default=None, pattern=r"^09\d{8}$")
     birthdate: date | None = None
     sex: Literal["male", "female"]
 
@@ -72,4 +72,37 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     auth_provider: str
+    application_status: str | None = None
     created_at: datetime
+
+
+class UserBrief(BaseModel):
+    """申請列表裡需要的使用者摘要。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    name: str
+    role: str
+    is_active: bool
+
+
+class TeacherApplicationResponse(BaseModel):
+    """老師申請資料，給前端判斷 pending／approved／rejected。"""
+
+    id: uuid.UUID
+    teaching_subjects: str
+    teaching_experience: str
+    bio: str
+    proof_file_name: str | None
+    has_proof: bool
+    status: str
+    created_at: datetime
+    user: UserBrief
+
+
+class GoogleUrlResponse(BaseModel):
+    """前端拿到這個網址後，導向 Google。"""
+
+    url: str

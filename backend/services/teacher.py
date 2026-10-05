@@ -15,7 +15,12 @@ from backend.repositories.teacher_application import (
     get_application_by_user_id,
 )
 from backend.repositories.user import add_user, get_user_by_email
-from backend.schemas.user import TeacherApplicationForm, TeacherRegister
+from backend.schemas.user import (
+    TeacherApplicationForm,
+    TeacherApplicationResponse,
+    TeacherRegister,
+    UserBrief,
+)
 from backend.services.user import EmailAlreadyRegisteredError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -182,3 +187,18 @@ def reject_teacher_application(
 
     db.refresh(application)
     return application
+
+
+def build_application_response(application: TeacherApplication) -> TeacherApplicationResponse:
+    """把老師申請轉成前端 JSON。"""
+    return TeacherApplicationResponse(
+        id=application.id,
+        teaching_subjects=application.teaching_subjects,
+        teaching_experience=application.teaching_experience,
+        bio=application.bio,
+        proof_file_name=application.proof_file_name,
+        has_proof=application.proof_file_path is not None,
+        status=application.status,
+        created_at=application.created_at,
+        user=UserBrief.model_validate(application.user),
+    )
