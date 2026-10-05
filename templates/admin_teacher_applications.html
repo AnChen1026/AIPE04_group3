@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}老師註冊申請{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>老師註冊申請</h1>
+    <p>核准後 role 會是 teacher，並啟用老師功能；駁回後維持 rejected。</p>
+
+    {% if applications %}
+    <table>
+        <thead>
+            <tr>
+                <th>姓名／Email</th>
+                <th>申請資料</th>
+                <th>狀態</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in applications %}
+            <tr>
+                <td>
+                    <strong>{{ item.user.name }}</strong><br>
+                    {{ item.user.email }}
+                </td>
+                <td>
+                    教學項目：{{ item.teaching_subjects }}<br>
+                    經歷：{{ item.teaching_experience }}<br>
+                    簡介：{{ item.bio }}<br>
+                    {% if item.proof_file_path %}
+                    <a href="/admin/teacher-applications/{{ item.id }}/proof">下載證明文件</a>
+                    {% else %}
+                    未上傳證明文件
+                    {% endif %}
+                </td>
+                <td>{{ item.status }}</td>
+                <td>
+                    {% if item.status != "approved" %}
+                    <form class="inline-form" method="post" action="/admin/teacher-applications/{{ item.id }}/approve">
+                        <button type="submit">核准</button>
+                    </form>
+                    {% endif %}
+                    {% if item.status == "pending" %}
+                    <form class="inline-form" method="post" action="/admin/teacher-applications/{{ item.id }}/reject">
+                        <button class="danger" type="submit">駁回</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>目前沒有老師申請。</p>
+    {% endif %}
+</section>
+{% endblock %}

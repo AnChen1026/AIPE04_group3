@@ -2,5 +2,22 @@
 # 專門跟資料庫拿資料或存資料。
 
 from backend.repositories.user import add_user, get_user_by_email, get_user_by_id
+from backend.repositories.teacher_application import (
+    add_application,
+    get_application_by_id,
+    get_application_by_user_id,
+    list_applications,
+)
+from backend.repositories.auth_identity import add_identity, get_identity
 
-__all__ = ["add_user", "get_user_by_email", "get_user_by_id"]
+__all__ = [
+    "add_user",
+    "get_user_by_email",
+    "get_user_by_id",
+    "add_application",
+    "get_application_by_id",
+    "get_application_by_user_id",
+    "list_applications",
+    "add_identity",
+    "get_identity",
+]

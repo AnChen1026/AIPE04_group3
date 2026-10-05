@@ -11,12 +11,35 @@ class UserRegister(BaseModel):
     """一般使用者註冊資料；公開註冊不允許 admin。"""
 
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=100)
-    phone_number: str | None = Field(default=None, max_length=50)
-    birthdate: date | None = None
-    sex: str | None = Field(default=None, max_length=32)
-    role: Literal["teacher", "student"]
+    phone_number: str = Field(pattern=r"^09\d{8}$")
+    birthdate: date
+    sex: Literal["male", "female"]
+    role: Literal["student"] = "student"
+
+
+class TeacherRegister(BaseModel):
+    """老師帳密註冊；公開註冊後仍須管理員審核。"""
+
+    email: EmailStr
+    password: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
+    phone_number: str = Field(pattern=r"^09\d{8}$")
+    birthdate: date
+    sex: Literal["male", "female"]
+    teaching_subjects: str = Field(min_length=1, max_length=200)
+    teaching_experience: str = Field(min_length=1)
+    bio: str = Field(min_length=1)
+    role: Literal["teacher"] = "teacher"
+
+
+class TeacherApplicationForm(BaseModel):
+    """已有帳號的老師補填申請資料，例如 Google 註冊後。"""
+
+    teaching_subjects: str = Field(min_length=1, max_length=200)
+    teaching_experience: str = Field(min_length=1)
+    bio: str = Field(min_length=1)
 
 
 class UserLogin(BaseModel):
@@ -24,6 +47,15 @@ class UserLogin(BaseModel):
 
     email: EmailStr
     password: str
+
+
+class UserUpdate(BaseModel):
+    """登入後可自行修改的基本資料；Email、角色與密碼不在這一步。"""
+
+    name: str = Field(min_length=1, max_length=100)
+    phone_number: str | None = Field(default=None, pattern=r"^09\d{8}$")
+    birthdate: date | None = None
+    sex: Literal["male", "female"]
 
 
 class UserResponse(BaseModel):
@@ -39,4 +71,38 @@ class UserResponse(BaseModel):
     sex: str | None
     role: str
     is_active: bool
+    auth_provider: str
+    application_status: str | None = None
     created_at: datetime
+
+
+class UserBrief(BaseModel):
+    """申請列表裡需要的使用者摘要。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    name: str
+    role: str
+    is_active: bool
+
+
+class TeacherApplicationResponse(BaseModel):
+    """老師申請資料，給前端判斷 pending／approved／rejected。"""
+
+    id: uuid.UUID
+    teaching_subjects: str
+    teaching_experience: str
+    bio: str
+    proof_file_name: str | None
+    has_proof: bool
+    status: str
+    created_at: datetime
+    user: UserBrief
+
+
+class GoogleUrlResponse(BaseModel):
+    """前端拿到這個網址後，導向 Google。"""
+
+    url: str

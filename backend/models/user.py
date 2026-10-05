@@ -24,6 +24,10 @@ class User(Base):
             "role IN ('teacher', 'student', 'admin')",
             name="ck_users_role",
         ),
+        CheckConstraint(
+            "auth_provider IN ('password', 'google')",
+            name="ck_users_auth_provider",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -32,7 +36,13 @@ class User(Base):
         default=uuid.uuid4,
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    auth_provider: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="password",
+        server_default="password",
+    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     phone_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
     birthdate: Mapped[date | None] = mapped_column(Date, nullable=True)
