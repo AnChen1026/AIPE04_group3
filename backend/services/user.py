@@ -13,7 +13,7 @@ class EmailAlreadyRegisteredError(ValueError):
 
 
 def register_user(db: Session, register_data: UserRegister) -> User:
-    """檢查 Email、雜湊密碼並建立使用者。"""
+    """檢查 Email、雜湊密碼並建立學生帳號。"""
     normalized_email = str(register_data.email).strip().lower()
 
     existing_user = get_user_by_email(db, normalized_email)
@@ -23,12 +23,13 @@ def register_user(db: Session, register_data: UserRegister) -> User:
     user = User(
         email=normalized_email,
         password_hash=hash_password(register_data.password),
+        auth_provider="password",
         name=register_data.name,
         phone_number=register_data.phone_number,
         birthdate=register_data.birthdate,
         sex=register_data.sex,
-        role=register_data.role,
-        is_active=register_data.role == "student",
+        role="student",
+        is_active=True,
     )
 
     add_user(db, user)
@@ -66,6 +67,9 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     user = get_user_by_email(db, normalized_email)
 
     if user is None:
+        return None
+
+    if user.password_hash is None:
         return None
 
     if verify_password(password, user.password_hash) is False:

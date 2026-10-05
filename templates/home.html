@@ -10,7 +10,9 @@
     {% if user %}
         <p>目前登入角色：{{ user.role }}</p>
         <div class="actions">
-            {% if user.role == "teacher" %}
+            {% if user.role == "admin" %}
+                <a class="button" href="/admin/teacher-applications">老師審核</a>
+            {% elif user.role == "teacher" %}
                 <a class="button" href="/teacher">進入老師頁面</a>
             {% else %}
                 <a class="button" href="/student">進入學生頁面</a>

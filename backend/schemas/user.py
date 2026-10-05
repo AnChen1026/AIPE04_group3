@@ -15,8 +15,31 @@ class UserRegister(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     phone_number: str = Field(pattern=r"^09\d{8}$")
     birthdate: date
-    sex: Literal["male", "female", "other"]
-    role: Literal["teacher", "student"]
+    sex: Literal["male", "female"]
+    role: Literal["student"] = "student"
+
+
+class TeacherRegister(BaseModel):
+    """老師帳密註冊；公開註冊後仍須管理員審核。"""
+
+    email: EmailStr
+    password: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
+    phone_number: str = Field(pattern=r"^09\d{8}$")
+    birthdate: date
+    sex: Literal["male", "female"]
+    teaching_subjects: str = Field(min_length=1, max_length=200)
+    teaching_experience: str = Field(min_length=1)
+    bio: str = Field(min_length=1)
+    role: Literal["teacher"] = "teacher"
+
+
+class TeacherApplicationForm(BaseModel):
+    """已有帳號的老師補填申請資料，例如 Google 註冊後。"""
+
+    teaching_subjects: str = Field(min_length=1, max_length=200)
+    teaching_experience: str = Field(min_length=1)
+    bio: str = Field(min_length=1)
 
 
 class UserLogin(BaseModel):
@@ -32,7 +55,7 @@ class UserUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     phone_number: str | None = Field(default=None, max_length=50)
     birthdate: date | None = None
-    sex: str | None = Field(default=None, max_length=32)
+    sex: Literal["male", "female"]
 
 
 class UserResponse(BaseModel):
@@ -48,4 +71,5 @@ class UserResponse(BaseModel):
     sex: str | None
     role: str
     is_active: bool
+    auth_provider: str
     created_at: datetime

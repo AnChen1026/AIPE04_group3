@@ -6,8 +6,10 @@
 <section class="card">
     <h1>登入</h1>
 
-    {% if registered %}
-        <p class="success">註冊成功，請使用新帳號登入。</p>
+    {% if registered == "student" %}
+        <p class="success">學生註冊成功，請使用新帳號登入。</p>
+    {% elif registered == "teacher" %}
+        <p class="success">老師申請已送出，請登入查看審核狀態。</p>
     {% endif %}
 
     {% if error %}
@@ -24,10 +26,17 @@
         <label for="password">密碼</label>
         <input id="password" name="password" type="password" required>
 
-        <div class="actions">
+        <div class="actions stack">
             <button type="submit">登入</button>
-            <a class="button secondary" href="/register">建立帳號</a>
         </div>
     </form>
+
+    {% with google_href="/auth/google?intent=login", google_label="使用 Google 帳號登入" %}
+        {% include "_google_auth.html" %}
+    {% endwith %}
+
+    <div class="actions">
+        <a class="button secondary" href="/register">建立帳號</a>
+    </div>
 </section>
 {% endblock %}
