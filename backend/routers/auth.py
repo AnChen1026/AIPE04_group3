@@ -2,27 +2,44 @@
 
 from datetime import date
 from pathlib import Path
+import re
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from email_validator import EmailNotValidError, validate_email
 
 from backend.core.database import get_db
 from backend.dependencies import get_current_user, get_session_user
 from backend.models.user import User
-from backend.schemas.user import UserLogin, UserRegister, UserResponse
+from backend.schemas.user import UserLogin, UserRegister, UserResponse, UserUpdate
 from backend.services.user import (
     EmailAlreadyRegisteredError,
     authenticate_user,
     register_user,
+    update_user_profile,
 )
 
 router = APIRouter()
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+def email_format_is_valid(email: str) -> bool:
+    """檢查 Email 是否為 name@example.com 這種格式。"""
+    try:
+        validate_email(email, check_deliverability=False)
+        return True
+    except EmailNotValidError:
+        return False
+
+
+def phone_format_is_valid(phone_number: str) -> bool:
+    """檢查台灣手機號碼：09 開頭，共 10 碼數字。"""
+    return re.fullmatch(r"09\d{8}", phone_number.strip()) is not None
 
 
 def redirect_user_home(user: User):
@@ -72,25 +89,49 @@ def submit_register(
     role: str,
     email: str = Form(...),
     password: str = Form(...),
+    password_confirm: str = Form(...),
     name: str = Form(...),
-    phone_number: str = Form(""),
-    birthdate: str = Form(""),
-    sex: str = Form(""),
+    phone_number: str = Form(...),
+    birthdate: str = Form(...),
+    sex: str = Form(...),
     db: Session = Depends(get_db),
 ):
     """驗證表單並建立老師或學生帳號。"""
     if role not in ("teacher", "student"):
         return RedirectResponse("/register", status_code=303)
 
+    if email_format_is_valid(email) is False:
+        return templates.TemplateResponse(
+            request=request,
+            name="register_form.html",
+            context={"role": role, "error": "請輸入正確的 Email 格式。"},
+            status_code=400,
+        )
+
+    if phone_format_is_valid(phone_number) is False:
+        return templates.TemplateResponse(
+            request=request,
+            name="register_form.html",
+            context={"role": role, "error": "請輸入正確的電話格式，例如 0912345678。"},
+            status_code=400,
+        )
+
+    if password != password_confirm:
+        return templates.TemplateResponse(
+            request=request,
+            name="register_form.html",
+            context={"role": role, "error": "兩次輸入的密碼不一致。"},
+            status_code=400,
+        )
+
     try:
-        birthdate_value = date.fromisoformat(birthdate) if birthdate else None
         register_data = UserRegister(
             email=email,
             password=password,
             name=name,
-            phone_number=phone_number or None,
-            birthdate=birthdate_value,
-            sex=sex or None,
+            phone_number=phone_number,
+            birthdate=date.fromisoformat(birthdate),
+            sex=sex,
             role=role,
         )
         register_user(db, register_data)
@@ -128,6 +169,14 @@ def submit_login(
     db: Session = Depends(get_db),
 ):
     """檢查帳號密碼並建立登入 Session。"""
+    if email_format_is_valid(email) is False:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"error": "請輸入正確的 Email 格式。", "registered": False},
+            status_code=400,
+        )
+
     user = authenticate_user(db, email, password)
 
     if user is None:
@@ -149,6 +198,72 @@ def submit_login(
     request.session.clear()
     request.session["user_id"] = str(user.id)
     return redirect_user_home(user)
+
+
+@router.get("/profile", response_class=HTMLResponse)
+def profile_page(request: Request, db: Session = Depends(get_db)):
+    """顯示目前登入使用者的基本資料。"""
+    user = get_session_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="profile.html",
+        context={"user": user, "error": None, "updated": False},
+    )
+
+
+@router.post("/profile", response_class=HTMLResponse)
+def submit_profile(
+    request: Request,
+    name: str = Form(...),
+    phone_number: str = Form(""),
+    birthdate: str = Form(""),
+    sex: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """更新目前登入使用者的基本資料。"""
+    user = get_session_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    if phone_number and phone_format_is_valid(phone_number) is False:
+        return templates.TemplateResponse(
+            request=request,
+            name="profile.html",
+            context={
+                "user": user,
+                "error": "請輸入正確的電話格式，例如 0912345678。",
+                "updated": False,
+            },
+            status_code=400,
+        )
+
+    try:
+        birthdate_value = date.fromisoformat(birthdate) if birthdate else None
+        profile_data = UserUpdate(
+            name=name,
+            phone_number=phone_number or None,
+            birthdate=birthdate_value,
+            sex=sex or None,
+        )
+        update_user_profile(db, user, profile_data)
+    except (ValidationError, ValueError):
+        error_message = "基本資料格式不正確，請重新檢查。"
+    else:
+        return templates.TemplateResponse(
+            request=request,
+            name="profile.html",
+            context={"user": user, "error": None, "updated": True},
+        )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="profile.html",
+        context={"user": user, "error": error_message, "updated": False},
+        status_code=400,
+    )
 
 
 @router.post("/logout")

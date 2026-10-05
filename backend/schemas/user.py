@@ -11,11 +11,11 @@ class UserRegister(BaseModel):
     """一般使用者註冊資料；公開註冊不允許 admin。"""
 
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=100)
-    phone_number: str | None = Field(default=None, max_length=50)
-    birthdate: date | None = None
-    sex: str | None = Field(default=None, max_length=32)
+    phone_number: str = Field(pattern=r"^09\d{8}$")
+    birthdate: date
+    sex: Literal["male", "female", "other"]
     role: Literal["teacher", "student"]
 
 
@@ -24,6 +24,15 @@ class UserLogin(BaseModel):
 
     email: EmailStr
     password: str
+
+
+class UserUpdate(BaseModel):
+    """登入後可自行修改的基本資料；Email、角色與密碼不在這一步。"""
+
+    name: str = Field(min_length=1, max_length=100)
+    phone_number: str | None = Field(default=None, max_length=50)
+    birthdate: date | None = None
+    sex: str | None = Field(default=None, max_length=32)
 
 
 class UserResponse(BaseModel):

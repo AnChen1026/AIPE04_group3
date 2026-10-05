@@ -12,23 +12,33 @@
 
     <form method="post" action="/register/{{ role }}">
         <label for="email">Email</label>
-        <input id="email" name="email" type="email" required>
+        <input id="email" name="email" type="email" required maxlength="255"
+               placeholder="name@example.com"
+               pattern="[^@\s]+@[^@\s]+\.[^@\s]+"
+               title="請輸入正確的 Email，例如 name@example.com">
 
         <label for="password">密碼</label>
         <input id="password" name="password" type="password" required>
 
+        <label for="password_confirm">再次確認密碼</label>
+        <input id="password_confirm" name="password_confirm" type="password" required>
+
         <label for="name">姓名</label>
         <input id="name" name="name" type="text" maxlength="100" required>
 
-        <label for="phone_number">電話（選填）</label>
-        <input id="phone_number" name="phone_number" type="tel" maxlength="50">
+        <label for="phone_number">電話</label>
+        <input id="phone_number" name="phone_number" type="tel" required
+               inputmode="numeric" maxlength="10"
+               placeholder="0912345678"
+               pattern="09[0-9]{8}"
+               title="請輸入台灣手機號碼，例如 0912345678">
 
-        <label for="birthdate">生日（選填）</label>
-        <input id="birthdate" name="birthdate" type="date">
+        <label for="birthdate">生日</label>
+        <input id="birthdate" name="birthdate" type="date" required>
 
-        <label for="sex">性別（選填）</label>
-        <select id="sex" name="sex">
-            <option value="">不填寫</option>
+        <label for="sex">性別</label>
+        <select id="sex" name="sex" required>
+            <option value="" disabled selected>請選擇</option>
             <option value="male">男</option>
             <option value="female">女</option>
             <option value="other">其他</option>

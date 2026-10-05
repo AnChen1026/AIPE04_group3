@@ -86,6 +86,7 @@
         <div>
             {% if user %}
                 <span>{{ user.name }}</span>
+                <a href="/profile">基本資料</a>
                 <form class="inline-form" method="post" action="/logout">
                     <button class="secondary" type="submit">登出</button>
                 </form>

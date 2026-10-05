@@ -5,10 +5,12 @@ from backend.services.user import (
     EmailAlreadyRegisteredError,
     authenticate_user,
     register_user,
+    update_user_profile,
 )
 
 __all__ = [
     "EmailAlreadyRegisteredError",
     "authenticate_user",
     "register_user",
+    "update_user_profile",
 ]

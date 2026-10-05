@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}基本資料{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>基本資料</h1>
+    <p>Email 與角色註冊後不能在這裡修改。</p>
+
+    {% if updated %}
+        <p class="success">基本資料已更新。</p>
+    {% endif %}
+
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+
+    <p>Email：{{ user.email }}</p>
+    <p>角色：{{ user.role }}</p>
+
+    <form method="post" action="/profile">
+        <label for="name">姓名</label>
+        <input id="name" name="name" type="text" maxlength="100" value="{{ user.name }}" required>
+
+        <label for="phone_number">電話（選填）</label>
+        <input id="phone_number" name="phone_number" type="tel"
+               inputmode="numeric" maxlength="10"
+               placeholder="0912345678"
+               pattern="09[0-9]{8}"
+               title="請輸入台灣手機號碼，例如 0912345678"
+               value="{{ user.phone_number or '' }}">
+
+        <label for="birthdate">生日（選填）</label>
+        <input id="birthdate" name="birthdate" type="date" value="{{ user.birthdate.isoformat() if user.birthdate else '' }}">
+
+        <label for="sex">性別（選填）</label>
+        <select id="sex" name="sex">
+            <option value="" {% if not user.sex %}selected{% endif %}>不填寫</option>
+            <option value="male" {% if user.sex == "male" %}selected{% endif %}>男</option>
+            <option value="female" {% if user.sex == "female" %}selected{% endif %}>女</option>
+            <option value="other" {% if user.sex == "other" %}selected{% endif %}>其他</option>
+        </select>
+
+        <div class="actions">
+            <button type="submit">儲存</button>
+            <a class="button secondary" href="/">返回首頁</a>
+        </div>
+    </form>
+</section>
+{% endblock %}
