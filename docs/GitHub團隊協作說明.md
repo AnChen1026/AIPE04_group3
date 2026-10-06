@@ -16,17 +16,19 @@
 
 ## 2. 分支
 
-| 負責人 | 分支 | 範圍 |
-| --- | --- | --- |
-| 永富 | `feature/login` | 登入／註冊 |
-| 姿彣 | `feature/course-management` | 課程管理 |
-| Ken | `feature/student-management` | 學生管理 |
-| Ollie | `feature/messaging` | 站內訊息 |
-| 宇鈞 | `feature/admin` | 平台管理 |
-| 禹銨、雄哥 | `feature/database` | Database／Migration |
-| 禹銨 | `feature/backend` | 後端骨架與整合 |
+以 2026-10-05 分工為準。
 
-V1.2 新增 AI 客服、AI 測驗與 AI 鋼琴回饋，分支及負責人待組長確認。未確認前不要自行建立重複模組。
+| 負責人 | 負責範圍 | 建議分支 |
+| --- | --- | --- |
+| 禹銨 | 進度、登入、AI 音訊辨識、後端串接 | `feature/login`、`feature/backend`、`feature/ai-practice` |
+| Ken | 資料庫與建表複核 | `feature/database` |
+| 雄哥 | Docker、部署、學生端頁面 | 依該次頁面工作指定 |
+| 姿彣 | 老師端頁面 | `feature/course-management` |
+| 宇鈞 | 資安監控、三項 AI 監管顧問 | 依該次檢查指定 |
+| Ollie | 首頁 AI 推薦、首頁客服 | `feature/ai-support` |
+| 永富 | AI 生成測驗題目 | `feature/ai-quiz` |
+
+站內聊天、課前摘要與正式前端主責尚未指定。不要把 `feature/messaging` 當成站內聊天的負責人分支。
 
 ## 3. 第一次加入
 
