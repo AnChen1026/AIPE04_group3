@@ -106,7 +106,7 @@ Service 建立提交／任務並 Commit
 ## 6. Auth 與授權
 
 - 註冊時角色為 teacher 或 student；MVP 不可自行變更。
-- 建議 Web App 優先使用 HttpOnly Cookie Session；若已採 JWT，須補短效與撤銷。
+- 第一版使用 HttpOnly Cookie Session，只保存使用者編號。不使用 JWT。
 - 老師端工作室操作須驗證有效 `studio_members`。
 - 學生個人資源查詢固定加上目前 `user_id`。
 - 洽詢權限與正式師生權限分開：洽詢中不能讀教材、錄音、聊天與課前摘要。
@@ -244,11 +244,13 @@ flowchart TD
 
 ## 16. 架構待決策
 
-1. Cookie Session 或 JWT。
-2. 是否提供 Google 登入。
-3. Object Storage 供應商與上傳流程。
-4. Background Job／Queue 技術。
-5. WebSocket 多 Instance 的廣播方式。
-6. 錄音長度上限、評分容許誤差與回饋延遲目標。
+已決定：網站使用 Next.js；登入使用 HttpOnly Cookie Session；第一版提供 Google 登入。
+
+仍待決定：
+
+1. Object Storage 供應商與上傳流程。
+2. Background Job／Queue 技術。
+3. WebSocket 多 Instance 的廣播方式。
+4. 錄音長度上限、評分容許誤差與回饋延遲目標。
 
 以上不改變已定方向：僅鋼琴、網站雙端、MIDI 參考、錄完後快速回饋、課前摘要與站內洽詢。
