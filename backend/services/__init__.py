@@ -4,11 +4,31 @@
 from backend.services.user import (
     EmailAlreadyRegisteredError,
     authenticate_user,
+    build_user_response,
     register_user,
+    update_user_profile,
+)
+from backend.services.teacher import (
+    InvalidProofFileError,
+    TeacherApplicationExistsError,
+    approve_teacher_application,
+    build_application_response,
+    register_teacher,
+    reject_teacher_application,
+    submit_teacher_application,
 )
 
 __all__ = [
     "EmailAlreadyRegisteredError",
     "authenticate_user",
+    "build_user_response",
     "register_user",
+    "update_user_profile",
+    "InvalidProofFileError",
+    "TeacherApplicationExistsError",
+    "approve_teacher_application",
+    "build_application_response",
+    "register_teacher",
+    "reject_teacher_application",
+    "submit_teacher_application",
 ]

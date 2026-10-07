@@ -33,3 +33,7 @@ score_test/processed_audio/
 
 # uv 專屬快取
 .uv/
+
+
+# 老師申請證明文件
+uploads/

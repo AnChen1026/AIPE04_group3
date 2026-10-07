@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}老師申請資料{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h1>補填老師申請資料</h1>
+    <p>{{ user.name }}，Google 帳號已確認。請填寫申請資料，送出後等待管理員審核。</p>
+
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+
+    <form method="post" action="/register/teacher/application" enctype="multipart/form-data">
+        <label for="teaching_subjects">教學項目／教授樂器</label>
+        <input id="teaching_subjects" name="teaching_subjects" type="text" maxlength="200" required>
+
+        <label for="teaching_experience">教學經歷</label>
+        <textarea id="teaching_experience" name="teaching_experience" required></textarea>
+
+        <label for="bio">個人簡介</label>
+        <textarea id="bio" name="bio" required></textarea>
+
+        <label for="proof_file">證明文件（選填，PDF、JPG 或 PNG）</label>
+        <input id="proof_file" name="proof_file" type="file" accept=".pdf,.jpg,.jpeg,.png">
+
+        <div class="actions">
+            <button type="submit">送出申請</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

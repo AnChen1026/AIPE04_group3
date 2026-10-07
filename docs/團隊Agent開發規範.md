@@ -42,25 +42,19 @@
 
 ## 4. 目前已知分工與分支
 
-| 負責人 | 分支 | 既有負責範圍 |
+以 2026-10-05 分工為準。第一版網站使用 Next.js，登入使用 HttpOnly Cookie，並提供 Google 登入。
+
+| 負責人 | 負責範圍 | 建議分支 |
 | --- | --- | --- |
-| 永富 | `feature/login` | 登入／註冊 |
-| 姿彣 | `feature/course-management` | 課程管理 |
-| Ken | `feature/student-management` | 學生管理 |
-| Ollie | `feature/messaging` | 站內訊息接收與處理 |
-| 宇鈞 | `feature/admin` | 平台管理員介面 |
-| 禹銨、雄哥 | `feature/database` | Schema、Model 與 Migration |
-| 禹銨 | `feature/backend` | 後端骨架、共用設定與整合 |
+| 禹銨 | 進度、登入、AI 音訊辨識、後端串接 | `feature/login`、`feature/backend`、`feature/ai-practice` |
+| Ken | 資料庫與建表複核 | `feature/database` |
+| 雄哥 | Docker、部署、學生端頁面 | 依該次頁面工作指定 |
+| 姿彣 | 老師端頁面 | `feature/course-management` |
+| 宇鈞 | 資安監控、三項 AI 監管顧問 | 依該次檢查指定 |
+| Ollie | 首頁 AI 推薦、首頁客服 | `feature/ai-support` |
+| 永富 | AI 生成測驗題目 | `feature/ai-quiz` |
 
-以下 V1.2 新模組尚未提供正式負責人與分支，不得由 Agent 自行分派：
-
-| 新模組 | 建議分支名稱 | 狀態 |
-| --- | --- | --- |
-| AI 課程推薦與平台 QA | `feature/ai-support` | 待組長分派 |
-| AI 測驗 | `feature/ai-quiz` | 待組長分派 |
-| AI 鋼琴回饋 | `feature/ai-practice` | 待組長分派 |
-
-若實際 GitHub 已有不同分支，以 Repository 與組長最新決議為準，並同步本文件。
+站內聊天、課前摘要與正式前端主責尚未指定。指定前不要把這三項自行派給上表以外的人。`feature/messaging` 不再代表站內聊天主責。
 
 ## 5. 開始前 Context Review
 
