@@ -54,3 +54,7 @@ class User(Base):
         nullable=False,
         server_default=func.now(),
     )
+
+
+# 補上與 StudentProfile 的一對一反向關聯關係，確保 ORM 記憶體結構完整對接
+    student_profile = relationship("StudentProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
