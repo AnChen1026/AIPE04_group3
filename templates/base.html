@@ -145,9 +145,10 @@
             {% if user %}
                 <span>{{ user.name }}</span>
                 {% if user.role == "admin" %}
-                    <a href="/admin/teacher-applications">老師審核</a>
+                    <a href="/admin">管理員頁面</a>
+                {% else %}
+                    <a href="/profile">基本資料</a>
                 {% endif %}
-                <a href="/profile">基本資料</a>
                 <form class="inline-form" method="post" action="/logout">
                     <button class="secondary" type="submit">登出</button>
                 </form>

@@ -72,7 +72,7 @@ def phone_format_is_valid(phone_number: str) -> bool:
 def redirect_user_home(user: User):
     """依角色導向對應測試頁面。"""
     if user.role == "admin":
-        return RedirectResponse("/admin/teacher-applications", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
     if user.role == "teacher":
         return RedirectResponse("/teacher", status_code=303)
     return RedirectResponse("/student", status_code=303)
@@ -470,6 +470,8 @@ def profile_page(request: Request, db: Session = Depends(get_db)):
     user = get_session_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
+    if user.role == "admin":
+        return RedirectResponse("/admin", status_code=303)
 
     return templates.TemplateResponse(
         request=request,
@@ -491,6 +493,8 @@ def submit_profile(
     user = get_session_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
+    if user.role == "admin":
+        return RedirectResponse("/admin", status_code=303)
 
     if phone_number and phone_format_is_valid(phone_number) is False:
         return templates.TemplateResponse(
@@ -637,6 +641,9 @@ def api_update_me(
     user: User = Depends(get_current_user),
 ):
     """JSON：更新基本資料。"""
+    if user.role == "admin":
+        raise HTTPException(status_code=403, detail="管理員不能修改基本資料。")
+
     try:
         update_user_profile(db, user, profile_data)
     except (ValidationError, ValueError) as error:
@@ -718,7 +725,7 @@ def teacher_page(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
     if user.role == "admin":
-        return RedirectResponse("/admin/teacher-applications", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
     if user.role != "teacher":
         return RedirectResponse("/student", status_code=303)
 
@@ -741,7 +748,7 @@ def student_page(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
     if user.role == "admin":
-        return RedirectResponse("/admin/teacher-applications", status_code=303)
+        return RedirectResponse("/admin", status_code=303)
     if user.role != "student":
         return RedirectResponse("/teacher", status_code=303)
 

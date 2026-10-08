@@ -15,6 +15,7 @@ from backend.repositories.teacher_application import (
     get_application_by_id,
     list_applications,
 )
+from backend.repositories.user import list_users_by_role
 from backend.schemas.user import TeacherApplicationResponse
 from backend.services.teacher import (
     approve_teacher_application,
@@ -39,6 +40,12 @@ def require_admin(request: Request, db: Session) -> User | RedirectResponse:
     return user
 
 
+@router.get("/admin", response_class=HTMLResponse)
+def admin_page(request: Request, db: Session = Depends(get_db)):
+    """管理員測試頁：查看並審核老師申請。"""
+    return teacher_application_list(request, db)
+
+
 @router.get("/admin/teacher-applications", response_class=HTMLResponse)
 def teacher_application_list(
     request: Request,
@@ -53,7 +60,51 @@ def teacher_application_list(
     return templates.TemplateResponse(
         request=request,
         name="admin_teacher_applications.html",
-        context={"user": admin, "applications": applications},
+        context={
+            "user": admin,
+            "applications": applications,
+            "admin_section": "applications",
+        },
+    )
+
+
+@router.get("/admin/teachers", response_class=HTMLResponse)
+def teacher_list(request: Request, db: Session = Depends(get_db)):
+    """顯示全部老師帳號。"""
+    admin = require_admin(request, db)
+    if isinstance(admin, RedirectResponse):
+        return admin
+
+    application_status = {
+        item.user_id: item.status for item in list_applications(db)
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_teachers.html",
+        context={
+            "user": admin,
+            "teachers": list_users_by_role(db, "teacher"),
+            "application_status": application_status,
+            "admin_section": "teachers",
+        },
+    )
+
+
+@router.get("/admin/students", response_class=HTMLResponse)
+def student_list(request: Request, db: Session = Depends(get_db)):
+    """顯示全部學生帳號。"""
+    admin = require_admin(request, db)
+    if isinstance(admin, RedirectResponse):
+        return admin
+
+    return templates.TemplateResponse(
+        request=request,
+        name="admin_students.html",
+        context={
+            "user": admin,
+            "students": list_users_by_role(db, "student"),
+            "admin_section": "students",
+        },
     )
 
 
