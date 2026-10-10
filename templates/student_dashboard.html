@@ -2,9 +2,6 @@
 {% block title %}學生學習工作區 | AI音樂教學平台{% endblock %}
 {% block content %}
 
-<!-- 引入現代化 Font Awesome 圖示庫，一秒解鎖統計、指派、設定等專屬精美小圖示 -->
-<link rel="stylesheet" href="https://cloudflare.com">
-
 <style>
     /* 全域側邊欄佈局外框 - 自動彈性填滿 */
     .dashboard-wrapper {
@@ -16,11 +13,10 @@
         background-color: #f8f9fa;
     }
 
-    /* 左側固定導覽列 - 完美對齊雄哥最新圖片格式，沉穩低調黑 */
+    /* 左側固定導覽列 - 100% 沿用原本高質感深藍色調 (#2c3e50) */
     .sidebar {
         width: 260px;
-        background-color: #23272a;
-        /* 稍微加深的專業後台黑 */
+        background-color: #2c3e50;
         color: #fff;
         padding: 20px 0;
         box-shadow: 3px 0 10px rgba(0, 0, 0, 0.1);
@@ -31,30 +27,42 @@
 
     .sidebar-header {
         padding: 10px 25px 20px 25px;
-        border-bottom: 1px solid #2c2f33;
+        border-bottom: 1px solid #34495e;
         margin-bottom: 15px;
     }
 
-    /* 加大頂部標題字體，大器簡練 */
+    /* 加大頂部標題字體 */
     .sidebar-header h3 {
         margin: 0;
         font-size: 18px;
         color: #fff;
-        letter-spacing: 2px;
-        font-weight: 700;
+        letter-spacing: 1px;
+        font-weight: bold;
     }
 
-    /* 大分類標題按鈕 - 點擊即可收放 */
+    /* 大分類摺疊群組與標題 - 點擊即可收放子選單 */
+    .menu-dropdown-group {
+        width: 100%;
+    }
+
+    .menu-dropdown-group summary::-webkit-details-marker {
+        display: none;
+    }
+
+    /* 隱藏原生三角形 */
+
     .menu-group-title {
         display: block;
         width: 100%;
-        padding: 15px 25px 8px 25px;
-        color: #72767d;
-        /* 舒服的莫蘭迪灰色 */
-        font-size: 12px;
+        padding: 18px 25px 8px 25px;
+        /* 加大上下留白 */
+        color: #7f8c8d;
+        /* 原本的優雅灰色 */
+        font-size: 13px;
+        /* 字體稍微加大 */
         font-weight: bold;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
         cursor: pointer;
         outline: none;
         user-select: none;
@@ -67,29 +75,19 @@
         color: #fff;
     }
 
-    /* 隱藏 HTML5 原生的三角形箭頭，讓選單跟圖片一樣乾淨俐落 */
-    .menu-dropdown-group summary::-webkit-details-marker {
-        display: none;
-    }
-
-    .menu-dropdown-group {
-        width: 100%;
-    }
-
-    /* 核心按鈕：大幅度放大字體與上下留白，完美重現對照圖格式 */
+    /* 【已修正】核心按鈕：大幅度放大字體與上下留白，保留最純粹的原生 emoji */
     .menu-item {
-        display: flex;
-        align-items: center;
+        display: block;
         width: 100%;
         padding: 16px 25px;
-        /* 加大上下間距，讓手指和滑鼠點選超舒適 */
+        /* 【已修正】上下高度大幅加寬，點選超級舒服 */
         background: none;
         border: none;
-        color: #b9bbbe;
-        /* 預設灰白字 */
+        color: #bdc3c7;
+        /* 原始灰白字 */
         text-align: left;
-        font-size: 15px;
-        /* 字體有感加大，絕不擁擠 */
+        font-size: 16px;
+        /* 【已修正】字體有感放大，清晰大器 */
         font-weight: 500;
         cursor: pointer;
         transition: all 0.2s ease;
@@ -97,36 +95,32 @@
         box-sizing: border-box;
     }
 
-    /* 滑過特效：字體變白，背景微亮 */
+    /* 滑過特效：沿用原本的微亮色 (#34495e) */
     .menu-item:hover {
-        background-color: #2c2f33;
+        background-color: #34495e;
         color: #fff;
     }
 
-    /* 完美複製雄哥截圖：當前選取功能左側會亮起綠色/藍色的高亮直條防線 */
+    /* 當前選取功能：完美對齊原本的深黑色底 (#1a252f) 與左側藍色指示條 */
     .menu-item.active {
-        background-color: #2e3136;
+        background-color: #1a252f;
         color: #fff;
-        border-left: 4px solid #2ecc71;
-        /* 完美重現圖片中的高質感綠色狀態條 */
+        border-left: 4px solid #3498db;
         font-weight: bold;
     }
 
-    /* 圖示與文字的黃金比例間距 */
-    .menu-item i {
-        margin-right: 15px;
-        /* 讓小圖示與文字之間留出完美的專業呼吸空間 */
+    /* 原生 emoji 與文字的間距拉開，視覺更舒服 */
+    .menu-item span {
+        margin-right: 12px;
+        display: inline-block;
         font-size: 16px;
-        width: 20px;
-        /* 固定圖示寬度，確保所有文字直排時絕對對齊 */
-        text-align: center;
     }
 
     .menu-sub-item {
-        padding-left: 35px;
+        padding-left: 40px;
     }
 
-    /* 縮小內部縮排，讓有圖示的功能排版更大器 */
+    /* 子功能維持原本的內縮層次 */
 
     /* 右側主內容展示區 */
     .main-content {
@@ -167,13 +161,14 @@
         margin-bottom: 25px;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
         text-align: left;
+        width: 100%;
     }
 
     .content-card h2 {
         margin-top: 0;
         color: #2d3748;
         font-size: 1.4rem;
-        border-bottom: 2px solid #2ecc71;
+        border-bottom: 2px solid #3498db;
         padding-bottom: 10px;
         margin-bottom: 25px;
         text-align: left;
@@ -228,13 +223,13 @@
     }
 
     .form-control:focus {
-        border-color: #2ecc71;
+        border-color: #3498db;
         outline: none;
-        box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.1);
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
     }
 
     .btn-submit {
-        background: #2ecc71;
+        background: #3498db;
         color: #fff;
         border: none;
         padding: 12px 20px;
@@ -247,7 +242,7 @@
     }
 
     .btn-submit:hover {
-        background: #27ae60;
+        background: #2980b9;
     }
 
     .btn-action {
@@ -284,37 +279,37 @@
     <!-- ==================== 左側固定導覽選單 (Sidebar) ==================== -->
     <div class="sidebar">
         <div class="sidebar-header">
-            <h3>S I D E B A R</h3>
+            <h3>學生功能選單</h3>
         </div>
 
-        <!-- 1. 基本資料面板 (自帶 Font Awesome 專屬齒輪圖示) -->
+        <!-- 1. 基本資料面板 (原汁原味原生 emoji 加大版) -->
         <button class="menu-item active" onclick="switchTab('tab-profile', this)">
-            <i class="fa-solid fa-sliders"></i>Dashboard Setting
+            <span>⚙️</span>基本資料 setting
         </button>
-        <!-- 2. 課程管理大類 (自帶點擊下拉收放與精美小圖示) -->
+        <!-- 2. 課程管理大類 (100% 沿用原本深藍色調與 emoji + 點擊下拉收放) -->
         <details class="menu-dropdown-group" open>
-            <summary class="menu-group-title">Management 課程管理</summary>
+            <summary class="menu-group-title">課程管理</summary>
             <button class="menu-item menu-sub-item" onclick="switchTab('tab-teacher', this)">
-                <i class="fa-solid fa-link"></i>綁定老師
+                <span>🔗</span>綁定老師
             </button>
             <button class="menu-item menu-sub-item" onclick="switchTab('tab-schedule', this)">
-                <i class="fa-solid fa-calendar-days"></i>課表主區
+                <span>📅</span>課表主區
             </button>
         </details>
 
-        <!-- 3. 作業練習大類 (自帶點擊下拉收放與精美小圖示) -->
+        <!-- 3. 作業練習大類 (100% 沿用原本深藍色調與 emoji + 點擊下拉收放) -->
         <details class="menu-dropdown-group" open>
-            <summary class="menu-group-title">Assignments 作業與練習</summary>
+            <summary class="menu-group-title">作業與練習區</summary>
             <button class="menu-item menu-sub-item" onclick="switchTab('tab-assignments', this)">
-                <i class="fa-solid fa-music"></i>練習題作業
+                <span>🎹</span>練習題作業
             </button>
         </details>
 
-        <!-- 4. 即時互動大類 (自帶點擊下拉收放與精美小圖示) -->
+        <!-- 4. 即時互動大類 (100% 沿用原本深藍色調與 emoji + 點擊下拉收放) -->
         <details class="menu-dropdown-group" open>
-            <summary class="menu-group-title">Interaction 即時互動</summary>
+            <summary class="menu-group-title">即時互動</summary>
             <button class="menu-item menu-sub-item" onclick="switchTab('tab-chat', this)">
-                <i class="fa-solid fa-comments"></i>聊天互動測試
+                <span>💬</span>聊天互動測試
             </button>
         </details>
     </div>
@@ -497,8 +492,7 @@
 
                 <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
                 <div style="background: #ebf8ff; padding: 15px; border-radius: 6px; text-align: left;">
-                    <h4 style="margin: 0 0 8px 0; color: #2b6cb0;"><i class="fa-solid fa-microphone-lines"></i>
-                        音訊辨識核心防線提示：</h4>
+                    <h4 style="margin: 0 0 8px 0; color: #2b6cb0;">🎙️ 音訊辨識核心防線提示：</h4>
                     <p style="margin: 0; font-size: 13px; color: #2b6cb0; line-height: 1.6;">當學生在 App 提交錄音檔案後，異步 worker
                         會啟動音高（Pitch）與節奏（Rhythm）演算法分析。在分析完全結束前，此處與後端 API 查出的評分主檔資料會維持 `NULL`，確保系統絕不盲目抓取預設值而給學生顯示「假 0
                         分」，死守核心資安防線！</p>
@@ -518,11 +512,6 @@
                     <div style="margin-bottom: 15px;"><strong style="color: #2b6cb0;">禹銨 老師：</strong>
                         記得下週調課要提早兩天透過左側表單發起異動申請。</div>
                 </div>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" class="form-control" placeholder="此處為手繪筆記預留：未來將對接 WebSocket 即時聊天端點...">
-                    <button class="btn-action" style="white-space: nowrap; padding: 10px 20px; background: #2ecc71;"
-                        onclick="alert('WebSocket 即時聊天通訊功能已預留通道，將於下一階段完美落地！')">傳送</button>
-                </div>
             </div>
         </div>
 
@@ -532,7 +521,7 @@
 <!-- ==================== 核心控制 JavaScript 腳本 ==================== -->
 <script>
     /**
-     * 雄哥獨家：純前端分頁切換控制腳本
+     * 純前端分頁切換控制腳本
      * 免重整、免動後端路由，一鍵流暢切換 Sidebar 各大功能區塊
      */
     function switchTab(tabId, element) {
@@ -576,20 +565,8 @@
      * 前端防連點核心防線
      */
     function validateAndLockForm(form) {
-        const submitBtn = document.getElementById('submitBtn');
-        const type = document.getElementById('request_type').value;
-
-        if (type === 'booking' || type === 'reschedule') {
-            const pDate = document.getElementById('proposed_date').value;
-            const pTime = document.getElementById('proposed_time').value;
-            if (!pDate || !pTime) {
-                alert('提示：發起約課或調課申請時，請務必完整填寫期望的新日期與時間！');
-                return false;
-            }
-        }
-
-        submitBtn.disabled = true;
-        submitBtn.innerText = '正在安全外派傳送中...';
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').innerText = '正在安全外派傳送中...';
         return true;
     }
 
