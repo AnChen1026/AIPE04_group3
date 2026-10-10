@@ -22,3 +22,9 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 def add_user(db: Session, user: User) -> None:
     """把新使用者加入目前的資料庫交易。"""
     db.add(user)
+
+
+def list_users_by_role(db: Session, role: str) -> list[User]:
+    """依角色列出使用者，新的在上面。"""
+    statement = select(User).where(User.role == role).order_by(User.created_at.desc())
+    return list(db.scalars(statement))

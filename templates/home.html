@@ -11,13 +11,15 @@
         <p>目前登入角色：{{ user.role }}</p>
         <div class="actions">
             {% if user.role == "admin" %}
-                <a class="button" href="/admin/teacher-applications">老師審核</a>
+                <a class="button" href="/admin">進入管理員頁面</a>
             {% elif user.role == "teacher" %}
                 <a class="button" href="/teacher">進入老師頁面</a>
             {% else %}
                 <a class="button" href="/student">進入學生頁面</a>
             {% endif %}
-            <a class="button secondary" href="/profile">基本資料</a>
+            {% if user.role != "admin" %}
+                <a class="button secondary" href="/profile">基本資料</a>
+            {% endif %}
         </div>
     {% else %}
         <div class="actions">
