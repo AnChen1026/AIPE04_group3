@@ -1,7 +1,18 @@
 import uuid
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-from backend.models.student import StudentProfile, CourseInquiry, Enrollment
+from backend.models.student import (
+    StudentProfile, 
+    CourseInquiry, 
+    Enrollment, 
+    LessonSession, 
+    SessionParticipant, 
+    ChangeRequest, 
+    ChangeRequestApproval,
+    PracticeAssignment,
+    PracticeSubmission,
+    PracticeEvaluation
+)
 
 class StudentRepository:
     @staticmethod
@@ -70,13 +81,11 @@ class StudentRepository:
         """查詢該名學生目前參與的所有修課紀錄"""
         return list(db.scalars(select(Enrollment).where(Enrollment.student_id == student_id)).all())
 
-
-
     # ============================================================
     # 課表與課務申請 Repository 邏輯
 
     @staticmethod
-    def get_student_schedule(db: Session, student_id: uuid.UUID) -> list[Enrollment]:
+    def get_student_schedule(db: Session, student_id: uuid.UUID) -> list[LessonSession]:
         """查詢學生的個人課表（透過參與人關聯查出單次課堂）"""
         return list(db.scalars(
             select(LessonSession)
@@ -175,14 +184,12 @@ class StudentRepository:
             .order_by(ChangeRequest.created_at.desc())
         ).all())
 
-
-
     # ================================================================
     # 指定作業、錄音提交與評分回饋 Repository 邏輯
    
     @staticmethod
     def get_student_assignments(db: Session, student_id: uuid.UUID) -> list[PracticeAssignment]:
-        """獲取該名學生可讀取的所有已發布（published）作業列表"""
+        """獲取該名 student 可讀取的所有已發布（published）作業列表"""
         return list(db.scalars(
             select(PracticeAssignment)
             .join(Enrollment, Enrollment.id == PracticeAssignment.enrollment_id)
@@ -218,7 +225,7 @@ class StudentRepository:
         if existing:
             return existing
 
-        # 2. 建立新提交紀錄（初始狀態為 pending，靜待 background worker 撈走）
+        # 2. 建立新提交紀錄
         db_submission = PracticeSubmission(
             assignment_id=assignment_id,
             student_id=student_id,
@@ -228,8 +235,9 @@ class StudentRepository:
             client_submission_id=client_submission_id
         )
         db.add(db_submission)
-        
-        # 3. 預先建立空的評分回饋主檔，讓後端能提供狀態查詢，且分數預設為 NULL（非 0 分）
+        db.flush() # 強制在 commit 前刷出真實的 db_submission.id，供下方程式安全綁定外鍵
+
+        # 3. 預先建立空的評分回饋主檔，讓分數預設為 NULL（非 0 分），完美死守防假 0 分鐵律
         db_evaluation = PracticeEvaluation(
             submission_id=db_submission.id,
             pitch_score=None,
@@ -245,7 +253,7 @@ class StudentRepository:
 
     @staticmethod
     def get_submission_history_with_evaluation(db: Session, assignment_id: uuid.UUID, student_id: uuid.UUID) -> list[PracticeSubmission]:
-        """學生查看特定作業名下，自己過去所有的錄音提交歷史與對應的 AI 規則計分和文字回饋"""
+        """學生查看特定作業名下，自己過去所有的錄音提交歷史與對應的 AI 評分和文字回饋"""
         return list(db.scalars(
             select(PracticeSubmission)
             .where(PracticeSubmission.assignment_id == assignment_id, PracticeSubmission.student_id == student_id)
