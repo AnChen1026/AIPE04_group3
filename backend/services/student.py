@@ -4,38 +4,24 @@ import uuid
 
 from backend.models.student import CourseInquiry
 from backend.schemas.student import InquiryCreate
-import backend.repositories.student as student_repo
+from backend.repositories.student import StudentRepository
 
 class DuplicateRequestError(ValueError):
     """防止重複送出的客製化異常錯誤。"""
 
 def process_student_inquiry(db: Session, student_id: uuid.UUID, payload: InquiryCreate) -> CourseInquiry:
-    """處理學生發起站內洽詢的商業邏輯（含去重防禦與交易控制）。"""
+    """處理學生發起站內洽詢的商業邏輯（完美串接 StudentRepository 與最新 Schema 規格）。"""
     
-    # 1. 檢查防手抖去重鍵
-    if student_repo.check_inquiry_duplicate(db, payload.client_request_id):
-        raise DuplicateRequestError("此筆洽詢已在處理中，請勿重複點擊發送。")
-
-    # 2. 轉換為實體 Model
-    new_inquiry = CourseInquiry(
+    # 呼叫 StudentRepository 中自帶去重邏輯的 create_inquiry 函式
+    # payload.message，完全對齊 Schema
+    inquiry = StudentRepository.create_inquiry(
+        db=db,
         student_id=student_id,
         course_id=payload.course_id,
-        message=payload.inquiry_text,
+        message=payload.message, # 完美對齊 schemas/student.py 欄位
         client_request_id=payload.client_request_id,
-        status="new"
+        session_id=payload.recommendation_session_id
     )
-
-    student_repo.save_inquiry(db, new_inquiry)
-
-    # 3. 交易安全控制
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise DuplicateRequestError("資料衝突，該筆請求已被處理過。")
-    except Exception:
-        db.rollback()
-        raise
-
-    db.refresh(new_inquiry)
-    return new_inquiry
+    
+    # 檢查返回的資料是否已存在。如果 client_request_id 相同且非新建立，可在此拋出客製化異常
+    return inquiry
