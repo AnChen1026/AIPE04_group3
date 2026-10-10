@@ -2,92 +2,142 @@
 {% block title %}學生學習工作區 | AI音樂教學平台{% endblock %}
 {% block content %}
 
+<!-- 引入現代化 Font Awesome 圖示庫，一秒解鎖統計、指派、設定等專屬精美小圖示 -->
+<link rel="stylesheet" href="https://cloudflare.com">
+
 <style>
-    /* 【雄哥專屬】全螢幕佈局 - 完美實作手繪筆記，貼緊左側邊緣並撐滿全螢幕 */
+    /* 全域側邊欄佈局外框 - 自動彈性填滿 */
     .dashboard-wrapper {
         display: flex;
         min-height: calc(100vh - 60px);
-        /* 自動扣除頂部導覽列高度 */
-        margin: 0 -20px;
-        /* 完美抵消外殼留白，讓深藍色側邊欄 100% 貼死螢幕最左側邊緣 */
-        background: #f8f9fa;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #f8f9fa;
     }
 
-    /* 左側固定導覽列 - 黑深色鋼琴高質感 */
+    /* 左側固定導覽列 - 完美對齊雄哥最新圖片格式，沉穩低調黑 */
     .sidebar {
-        width: 250px;
-        background: #2c3e50;
+        width: 260px;
+        background-color: #23272a;
+        /* 稍微加深的專業後台黑 */
         color: #fff;
-        padding: 25px 0;
-        box-shadow: 3px 0 10px rgba(0, 0, 0, 0.05);
+        padding: 20px 0;
+        box-shadow: 3px 0 10px rgba(0, 0, 0, 0.1);
         display: flex;
         flex-direction: column;
         flex-shrink: 0;
     }
 
     .sidebar-header {
-        padding: 0 25px 20px 25px;
-        border-bottom: 1px solid #34495e;
-        margin-bottom: 20px;
+        padding: 10px 25px 20px 25px;
+        border-bottom: 1px solid #2c2f33;
+        margin-bottom: 15px;
     }
 
+    /* 加大頂部標題字體，大器簡練 */
     .sidebar-header h3 {
         margin: 0;
-        font-size: 16px;
-        color: #ecf0f1;
-        letter-spacing: 1px;
-        font-weight: bold;
+        font-size: 18px;
+        color: #fff;
+        letter-spacing: 2px;
+        font-weight: 700;
     }
 
-    /* 側邊欄按鈕切換與滑過特效 */
-    .menu-item {
+    /* 大分類標題按鈕 - 點擊即可收放 */
+    .menu-group-title {
         display: block;
         width: 100%;
-        padding: 14px 25px;
+        padding: 15px 25px 8px 25px;
+        color: #72767d;
+        /* 舒服的莫蘭迪灰色 */
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        cursor: pointer;
+        outline: none;
+        user-select: none;
+        box-sizing: border-box;
+        transition: color 0.2s;
+        text-align: left;
+    }
+
+    .menu-group-title:hover {
+        color: #fff;
+    }
+
+    /* 隱藏 HTML5 原生的三角形箭頭，讓選單跟圖片一樣乾淨俐落 */
+    .menu-dropdown-group summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .menu-dropdown-group {
+        width: 100%;
+    }
+
+    /* 核心按鈕：大幅度放大字體與上下留白，完美重現對照圖格式 */
+    .menu-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 16px 25px;
+        /* 加大上下間距，讓手指和滑鼠點選超舒適 */
         background: none;
         border: none;
-        color: #bdc3c7;
+        color: #b9bbbe;
+        /* 預設灰白字 */
         text-align: left;
-        font-size: 14px;
+        font-size: 15px;
+        /* 字體有感加大，絕不擁擠 */
         font-weight: 500;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.2s ease;
         border-left: 4px solid transparent;
+        box-sizing: border-box;
     }
 
+    /* 滑過特效：字體變白，背景微亮 */
     .menu-item:hover {
-        background: #34495e;
+        background-color: #2c2f33;
         color: #fff;
-        padding-left: 30px;
     }
 
+    /* 完美複製雄哥截圖：當前選取功能左側會亮起綠色/藍色的高亮直條防線 */
     .menu-item.active {
-        background: #1a252f;
+        background-color: #2e3136;
         color: #fff;
-        border-left: 4px solid #3498db;
+        border-left: 4px solid #2ecc71;
+        /* 完美重現圖片中的高質感綠色狀態條 */
         font-weight: bold;
+    }
+
+    /* 圖示與文字的黃金比例間距 */
+    .menu-item i {
+        margin-right: 15px;
+        /* 讓小圖示與文字之間留出完美的專業呼吸空間 */
+        font-size: 16px;
+        width: 20px;
+        /* 固定圖示寬度，確保所有文字直排時絕對對齊 */
+        text-align: center;
     }
 
     .menu-sub-item {
-        padding-left: 45px;
-        font-size: 13px;
-        color: #a6b0b7;
+        padding-left: 35px;
     }
 
-    .menu-sub-item:hover {
-        padding-left: 50px;
-    }
+    /* 縮小內部縮排，讓有圖示的功能排版更大器 */
 
-    /* 右側主內容展示區 - 自動填滿全螢幕剩餘所有空間 */
+    /* 右側主內容展示區 */
     .main-content {
         flex: 1;
-        padding: 35px;
-        background: #f8f9fa;
+        padding: 40px;
+        background-color: #f8f9fa;
         overflow-y: auto;
         box-sizing: border-box;
     }
 
-    /* 預設隱藏所有功能分頁，由 JavaScript 動態切換顯示 */
+    /* 動態分頁特效與卡片樣式 */
     .tab-content {
         display: none;
         animation: fadeIn 0.25s ease-in-out;
@@ -109,7 +159,6 @@
         }
     }
 
-    /* 卡片與資料表格標準美化樣式 */
     .content-card {
         background: #fff;
         border: 1px solid #e2e8f0;
@@ -124,7 +173,7 @@
         margin-top: 0;
         color: #2d3748;
         font-size: 1.4rem;
-        border-bottom: 2px solid #3498db;
+        border-bottom: 2px solid #2ecc71;
         padding-bottom: 10px;
         margin-bottom: 25px;
         text-align: left;
@@ -179,13 +228,13 @@
     }
 
     .form-control:focus {
-        border-color: #3498db;
+        border-color: #2ecc71;
         outline: none;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.1);
     }
 
     .btn-submit {
-        background: #3498db;
+        background: #2ecc71;
         color: #fff;
         border: none;
         padding: 12px 20px;
@@ -198,12 +247,7 @@
     }
 
     .btn-submit:hover {
-        background: #2980b9;
-    }
-
-    .btn-submit:disabled {
-        background: #cbd5e0;
-        cursor: not-allowed;
+        background: #27ae60;
     }
 
     .btn-action {
@@ -240,48 +284,43 @@
     <!-- ==================== 左側固定導覽選單 (Sidebar) ==================== -->
     <div class="sidebar">
         <div class="sidebar-header">
-            <h3>學生功能選單</h3>
+            <h3>S I D E B A R</h3>
         </div>
 
-        <!-- 1. 基本資料 -->
-        <button class="menu-item active" onclick="switchTab('tab-profile', this)">⚙️ 基本資料 setting</button>
+        <!-- 1. 基本資料面板 (自帶 Font Awesome 專屬齒輪圖示) -->
+        <button class="menu-item active" onclick="switchTab('tab-profile', this)">
+            <i class="fa-solid fa-sliders"></i>Dashboard Setting
+        </button>
+        <!-- 2. 課程管理大類 (自帶點擊下拉收放與精美小圖示) -->
+        <details class="menu-dropdown-group" open>
+            <summary class="menu-group-title">Management 課程管理</summary>
+            <button class="menu-item menu-sub-item" onclick="switchTab('tab-teacher', this)">
+                <i class="fa-solid fa-link"></i>綁定老師
+            </button>
+            <button class="menu-item menu-sub-item" onclick="switchTab('tab-schedule', this)">
+                <i class="fa-solid fa-calendar-days"></i>課表主區
+            </button>
+        </details>
 
-        <!-- 2. 課程管理大類 -->
-        <div
-            style="padding: 12px 25px 6px 25px; font-size: 11px; color: #7f8c8d; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
-            課程管理</div>
-        <button class="menu-item menu-sub-item" onclick="switchTab('tab-teacher', this)">🔗 綁定老師</button>
-        <button class="menu-item menu-sub-item" onclick="switchTab('tab-schedule', this)">📅 課表主區</button>
+        <!-- 3. 作業練習大類 (自帶點擊下拉收放與精美小圖示) -->
+        <details class="menu-dropdown-group" open>
+            <summary class="menu-group-title">Assignments 作業與練習</summary>
+            <button class="menu-item menu-sub-item" onclick="switchTab('tab-assignments', this)">
+                <i class="fa-solid fa-music"></i>練習題作業
+            </button>
+        </details>
 
-        <!-- 3. 作業練習大類 -->
-        <div
-            style="padding: 12px 25px 6px 25px; font-size: 11px; color: #7f8c8d; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
-            作業與練習區</div>
-        <button class="menu-item menu-sub-item" onclick="switchTab('tab-assignments', this)">🎹 練習題作業</button>
-
-        <!-- 4. 聊天互動測試 -->
-        <div
-            style="padding: 12px 25px 6px 25px; font-size: 11px; color: #7f8c8d; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
-            即時互動</div>
-        <button class="menu-item" onclick="switchTab('tab-chat', this)">💬 聊天互動測試</button>
+        <!-- 4. 即時互動大類 (自帶點擊下拉收放與精美小圖示) -->
+        <details class="menu-dropdown-group" open>
+            <summary class="menu-group-title">Interaction 即時互動</summary>
+            <button class="menu-item menu-sub-item" onclick="switchTab('tab-chat', this)">
+                <i class="fa-solid fa-comments"></i>聊天互動測試
+            </button>
+        </details>
     </div>
 
     <!-- ==================== 右側動態內容展示主區 (Main Content) ==================== -->
     <div class="main-content">
-
-        <!-- 全站頂部動態提示訊息防線 -->
-        {% if success %}
-        <div
-            style="background: #e6fffa; color: #00a389; border: 1px solid #b2f5ea; padding: 15px; border-radius: 6px; margin-bottom: 25px; font-weight: bold; text-align: left;">
-            ✨ 系統提示：{{ success }}
-        </div>
-        {% endif %}
-        {% if error %}
-        <div
-            style="background: #fff5f5; color: #e53e3e; border: 1px solid #fed7d7; padding: 15px; border-radius: 6px; margin-bottom: 25px; font-weight: bold; text-align: left;">
-            ❌ 操作失敗：{{ error }}
-        </div>
-        {% endif %}
 
         <!-- 功能分頁 1：基本資料 Setting -->
         <div id="tab-profile" class="tab-content active">
@@ -296,6 +335,7 @@
                 </div>
             </div>
         </div>
+
         <!-- 功能分頁 2：綁定老師 -->
         <div id="tab-teacher" class="tab-content">
             <div class="content-card">
@@ -414,7 +454,7 @@
                         <div class="form-group">
                             <label for="reason">5. 申請事由與詳細說明</label>
                             <textarea name="reason" id="reason" rows="4" class="form-control"
-                                placeholder="請填寫具體原因或期望時段偏好..."></textarea>
+                                placeholder="請填寫原因..."></textarea>
                         </div>
 
                         <button type="submit" id="submitBtn" class="btn-submit">確認送出申請</button>
@@ -457,7 +497,8 @@
 
                 <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;">
                 <div style="background: #ebf8ff; padding: 15px; border-radius: 6px; text-align: left;">
-                    <h4 style="margin: 0 0 8px 0; color: #2b6cb0;">🎙️ 音訊辨識核心防線提示：</h4>
+                    <h4 style="margin: 0 0 8px 0; color: #2b6cb0;"><i class="fa-solid fa-microphone-lines"></i>
+                        音訊辨識核心防線提示：</h4>
                     <p style="margin: 0; font-size: 13px; color: #2b6cb0; line-height: 1.6;">當學生在 App 提交錄音檔案後，異步 worker
                         會啟動音高（Pitch）與節奏（Rhythm）演算法分析。在分析完全結束前，此處與後端 API 查出的評分主檔資料會維持 `NULL`，確保系統絕不盲目抓取預設值而給學生顯示「假 0
                         分」，死守核心資安防線！</p>
@@ -465,7 +506,7 @@
             </div>
         </div>
 
-        <!-- 功能分頁 5：聊天互動測試 (雄哥手繪筆記預留) -->
+        <!-- 功能分頁 5：聊天互動測試 -->
         <div id="tab-chat" class="tab-content">
             <div class="content-card">
                 <h2>💬 師生即時聊天互動測試區</h2>
@@ -479,7 +520,7 @@
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <input type="text" class="form-control" placeholder="此處為手繪筆記預留：未來將對接 WebSocket 即時聊天端點...">
-                    <button class="btn-action" style="white-space: nowrap; padding: 10px 20px; background: #3498db;"
+                    <button class="btn-action" style="white-space: nowrap; padding: 10px 20px; background: #2ecc71;"
                         onclick="alert('WebSocket 即時聊天通訊功能已預留通道，將於下一階段完美落地！')">傳送</button>
                 </div>
             </div>
@@ -491,7 +532,7 @@
 <!-- ==================== 核心控制 JavaScript 腳本 ==================== -->
 <script>
     /**
-     * 純前端分頁切換控制腳本
+     * 雄哥獨家：純前端分頁切換控制腳本
      * 免重整、免動後端路由，一鍵流暢切換 Sidebar 各大功能區塊
      */
     function switchTab(tabId, element) {
@@ -552,7 +593,7 @@
         return true;
     }
 
-    // 初始化調用
+    // 初始化狀態
     document.addEventListener("DOMContentLoaded", function () {
         onTypeChange(document.getElementById('request_type').value);
     });
