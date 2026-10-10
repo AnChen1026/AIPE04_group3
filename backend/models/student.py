@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, ForeignKey, DateTime, func, CheckConstraint, Boolean, Integer, Text, UniqueConstraint
+from sqlalchemy import String, ForeignKey, DateTime, func, CheckConstraint, Boolean, Integer, Text, UniqueConstraint, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.models.base import Base
@@ -131,13 +131,13 @@ class ChangeRequest(Base):
     request_type: Mapped[str] = mapped_column(String(32), nullable=False) # booking, leave, reschedule
     
     # 存放變更前後的快照與希望變更的內容
-    before_payload: Mapped[dict | None] = mapped_column(func.jsonb(), nullable=True)
-    proposed_payload: Mapped[dict | None] = mapped_column(func.jsonb(), nullable=True) # 存放欲調整的時間、地點等
+    before_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    proposed_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True) # 存放欲調整的時間、地點等
     
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     
-    expected_session_version: Mapped[integer | None] = mapped_column(Integer, nullable=True) # 樂觀鎖版本防衝突
+    expected_session_version: Mapped[Integer | None] = mapped_column(Integer, nullable=True) # 樂觀鎖版本防衝突
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     
@@ -181,7 +181,7 @@ class PracticeAssignment(Base):
     
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
-    reference_metadata: Mapped[dict | None] = mapped_column(func.jsonb(), nullable=True) # 存放拍號、速度、小節起算位置等 JSON 快照
+    reference_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True) # 存放拍號、速度、小節起算位置等 JSON 快照
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft") # draft, published, archived
 
@@ -225,9 +225,9 @@ class PracticeEvaluation(Base):
     rhythm_score: Mapped[float | None] = mapped_column(nullable=True) # 節奏分
     total_score: Mapped[float | None] = mapped_column(nullable=True) # 綜合總分
     
-    extracted_events: Mapped[dict | None] = mapped_column(func.jsonb(), nullable=True) # 辨識出的音高、onset、duration JSON
-    comparison_result: Mapped[dict | None] = mapped_column(func.jsonb(), nullable=True) # 小節拍位置、漏音多彈等判定 JSON
-    scoring_config: Mapped[dict | None] = mapped_column(func.jsonb(), nullable=True) # 本次評分容許誤差與權重快照
+    extracted_events: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    comparison_result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scoring_config: Mapped[dict | None] = mapped_column(JSON, nullable=True) # 本次評分容許誤差與權重快照
     analysis_version: Mapped[str | None] = mapped_column(String(64), nullable=True) # 分析模組版本
     
     feedback_text: Mapped[str | None] = mapped_column(Text, nullable=True) # LLM 文字回饋
