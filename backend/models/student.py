@@ -91,7 +91,7 @@ class LessonSession(Base):
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled") # scheduled, completed, cancelled
-    version: Mapped[integer] = mapped_column(Integer, default=1, server_default="1") # 樂觀鎖版本檢查
+    version: Mapped[Integer] = mapped_column(Integer, default=1, server_default="1") # 樂觀鎖版本檢查
 
     participants = relationship("SessionParticipant", back_populates="session")
 

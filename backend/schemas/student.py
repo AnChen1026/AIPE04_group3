@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 import uuid
-from typing import Optional, List
+from typing import List, Optional, Literal
 from datetime import datetime, date
 
 # --- 學生個人資料 ---
