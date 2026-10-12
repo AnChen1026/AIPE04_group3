@@ -16,19 +16,19 @@
 
 ## 2. 分支
 
-以 2026-10-05 分工為準。
+以 2026-10-12 分工為準。
 
 | 負責人 | 負責範圍 | 建議分支 |
 | --- | --- | --- |
-| 禹銨 | 進度、登入、AI 音訊辨識、後端串接 | `feature/login`、`feature/backend`、`feature/ai-practice` |
-| Ken | 資料庫與建表複核 | `feature/database` |
-| 雄哥 | Docker、部署、學生端頁面 | 依該次頁面工作指定 |
-| 姿彣 | 老師端頁面 | `feature/course-management` |
-| 宇鈞 | 資安監控、三項 AI 監管顧問 | 依該次檢查指定 |
-| Ollie | 首頁 AI 推薦、首頁客服 | `feature/ai-support` |
-| 永富 | AI 生成測驗題目 | `feature/ai-quiz` |
+| 姿彣 | UI/UX | 依該次介面工作指定 |
+| Ken | 前端 | 依該次前端工作指定 |
+| 禹銨 | 後端與語音 | `feature/login`、`feature/backend`、`feature/ai-practice` |
+| 宇鈞 | Review | 依該次審查指定 |
+| 雄 | DevOps | 依該次部署工作指定 |
+| Ollie | 資料庫與 AI | `feature/database`、`feature/ai-support` |
+| 永富 | AI 測驗題目生成 | `feature/ai-quiz` |
 
-站內聊天、課前摘要與正式前端主責尚未指定。不要把 `feature/messaging` 當成站內聊天的負責人分支。
+接洽對話的畫面由姿彣與 Ken 負責，API 由禹銨負責。不要把 `feature/messaging` 當成已指定的負責人分支。永富本輪沒有實作工單。
 
 ## 3. 第一次加入
 
