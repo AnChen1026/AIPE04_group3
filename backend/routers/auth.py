@@ -739,21 +739,3 @@ def teacher_page(request: Request, db: Session = Depends(get_db)):
         name=destination,
         context={"user": user, "application": application},
     )
-
-
-@router.get("/student", response_class=HTMLResponse)
-def student_page(request: Request, db: Session = Depends(get_db)):
-    """學生測試頁。"""
-    user = get_session_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if user.role == "admin":
-        return RedirectResponse("/admin", status_code=303)
-    if user.role != "student":
-        return RedirectResponse("/teacher", status_code=303)
-
-    return templates.TemplateResponse(
-        request=request,
-        name="student_dashboard.html",
-        context={"user": user},
-    )

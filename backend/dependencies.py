@@ -58,3 +58,13 @@ def get_current_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin" or user.is_active is False:
         raise HTTPException(status_code=403, detail="沒有使用權限。")
     return user
+
+# 學生端 Dependency 檢查
+def get_current_student(
+    user: User = Depends(require_roles("student"))
+) -> User:
+    """
+    要求當前使用者必須登入，且角色必須是學生。
+    通過後會直接回傳該位學生的 User 物件，方便在 API 中拿到 user.id。
+    """
+    return user

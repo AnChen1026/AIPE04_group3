@@ -7,6 +7,9 @@ from backend.core.config import get_session_secret_key
 from backend.core.database import SessionLocal
 from backend.routers.admin import router as admin_router
 from backend.routers.auth import router as auth_router
+from backend.routers.student import router as student_router
+from backend.routers.student_views import router as student_views_router
+from backend.routers.teacher_learning import router as teacher_learning_router
 from backend.services.admin import seed_admin_if_needed
 
 app = FastAPI()
@@ -20,6 +23,9 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(student_router)
+app.include_router(student_views_router)
+app.include_router(teacher_learning_router)
 
 app.add_middleware(
     CORSMiddleware,

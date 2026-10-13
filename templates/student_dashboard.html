@@ -1,11 +1,42 @@
 {% extends "base.html" %}
-
 {% block title %}學生頁面{% endblock %}
-
 {% block content %}
 <section class="card">
     <h1>學生頁面</h1>
-    <p>{{ user.name }}，登入成功。</p>
-    <p>學生課程、洽詢與練習功能尚未完成，之後會逐步補上。</p>
+    <p>{{ user.name }}，先從已發布課程按洽詢。綁定前只能使用接洽對話。</p>
+    {% if error %}<p>{{ error }}</p>{% endif %}
+</section>
+
+<section class="card">
+    <h2>已發布課程</h2>
+    {% if courses %}
+    {% for course in courses %}
+    <form method="post" action="/student/courses/{{ course.id }}/inquire">
+        <p><strong>{{ course.title }}</strong></p>
+        <p>程度 {{ course.level or "未填" }}　風格 {{ course.style or "未填" }}　{{ course.delivery_mode or "未填" }}　{{ course.region or "未填地區" }}</p>
+        <p>單堂價格 {{ course.price_per_lesson if course.price_per_lesson is not none else "未填" }}　時段 {{ course.time_slots or "未填" }}</p>
+        <button type="submit">洽詢</button>
+    </form>
+    {% endfor %}
+    {% else %}
+    <p>目前沒有已發布課程。</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>我的接洽對話</h2>
+    {% if conversations %}
+    <ul>
+        {% for item in conversations %}
+        <li>
+            <a href="/student/conversations/{{ item.conversation.id }}">{{ item.course.title }}</a>
+            {% if item.unread %}　未讀 {{ item.unread }}{% endif %}
+            {% if item.bound %}　已綁定{% else %}　尚未綁定{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>還沒有接洽對話。</p>
+    {% endif %}
 </section>
 {% endblock %}
