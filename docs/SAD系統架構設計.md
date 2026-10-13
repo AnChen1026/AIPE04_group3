@@ -7,13 +7,15 @@
 | 最後更新 | 2026-09-30 |
 | 對應文件 | PRD、SRS、User Flow、資料表設計、功能製作與分工說明 |
 
-> 本文件說明系統怎麼切層與呼叫。不代表現有 Repository 已全部實作。若與程式碼不同，先列差異，不直接大搬家。
+> 2026-10-12：產品規則改以 PRD／SRS／User Flow V1.3 為準。正式畫面是 Vue。資料隔離單位是老師與課程。綁定使用綁定碼。本輪不做教材與 AI 測驗。下文若仍寫 Next.js、工作室或雙向加入，以 V1.3 為準。
+>
+> 本文件說明系統怎麼切層與呼叫。不代表現有 Repository 已全部實作。
 
 ## 1. 架構目標
 
 - 公開找課、老師工作區與學生工作區共用同一套 API 與權限模型。
-- 以工作室作為老師端資料隔離單位。
-- 僅鋼琴；訪客找課後須註冊，站內洽詢，雙向同意才成為正式師生。
+- 以老師與課程作為資料隔離單位。
+- 僅鋼琴；訪客找課後須註冊。按洽詢建立接洽對話，輸入綁定碼後才使用該課教學功能。
 - 即時聊天可斷線重連，且不遺失已寫入訊息。
 - AI 只產生草稿或文字回饋，不決定權限、不改課表、不定分數。
 - 教材、參考 MIDI 與學生錄音放私有檔案儲存，資料庫只存 metadata。
@@ -23,7 +25,7 @@
 
 ```mermaid
 flowchart TD
-    V[訪客] --> WEB[Next.js Web]
+    V[訪客] --> WEB[Vue Web]
     S[學生] --> WEB
     T[老師] --> WEB
     WEB --> API[FastAPI API]
@@ -43,7 +45,7 @@ flowchart TD
 
 | 元件 | 主要責任 |
 | --- | --- |
-| Next.js | 公開課程／推薦、老師／學生頁面、錄音 UI、聊天 UI |
+| Vue | 公開課程／推薦、老師／學生頁面、錄音 UI、接洽對話 |
 | FastAPI | 登入、REST API、權限、狀態機、WebSocket 驗證、建立背景任務 |
 | PostgreSQL | 帳號、課務、洽詢、訊息、練習結果、課前摘要、測驗與稽核 |
 | Object Storage | 教材、參考 MIDI、學生錄音 |
@@ -107,9 +109,8 @@ Service 建立提交／任務並 Commit
 
 - 註冊時角色為 teacher 或 student；MVP 不可自行變更。
 - 第一版使用 HttpOnly Cookie Session，只保存使用者編號。不使用 JWT。
-- 老師端工作室操作須驗證有效 `studio_members`。
-- 學生個人資源查詢固定加上目前 `user_id`。
-- 洽詢權限與正式師生權限分開：洽詢中不能讀教材、錄音、聊天與課前摘要。
+- 老師只能操作自己的課程。學生個人資源查詢固定加上目前使用者。
+- 未綁定時只能使用接洽對話，不能讀課表、錄音、練習回饋與課前摘要。
 - Chat 同時驗證 conversation member 與有效師生關係。
 - 公開課程 API 只回公開欄位，不帶學生練習或成績。
 
@@ -119,11 +120,11 @@ Service 建立提交／任務並 Commit
 訪客描述需求
   → LLM 抽取條件與程度證據（未知不臆造，最多追問兩題）
   → 後端驗證並寫入 recommendation_sessions／preferences
-  → DB 只篩有效工作室、已發布、可洽詢的鋼琴課
-  → 規則排序後產生 recommendation_results
+  → DB 只篩已發布的鋼琴課
+  → 產生推薦結果
   → 訪客查看詳情；洽詢前先註冊／登入
-  → course_inquiries 由學生送出、老師回覆
-  → 雙向同意後才建立 studio_student_bindings 與 enrollments
+  → 學生按洽詢建立接洽對話
+  → 老師貼綁定碼，學生輸入後進入該課
 ```
 
 LLM 不編造不存在的課程，也不把一次練習分數當成正式鋼琴程度。
@@ -221,7 +222,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Browser --> V[Vercel / Next.js]
+    Browser --> V[Vue]
     V --> C[Cloud Run / FastAPI]
     Browser <--> C
     C --> P[(Managed PostgreSQL)]
@@ -244,7 +245,7 @@ flowchart TD
 
 ## 16. 架構待決策
 
-已決定：網站使用 Next.js；登入使用 HttpOnly Cookie Session；第一版提供 Google 登入。
+已決定：正式畫面使用 Vue；後端使用 FastAPI；登入使用 Session Cookie。Google 登入程式已在，金鑰本輪不要求。
 
 仍待決定：
 
