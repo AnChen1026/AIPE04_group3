@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}接洽對話{% endblock %}
+{% block content %}
+<section class="card">
+    <p><a href="/student">回學生頁面</a></p>
+    <h1>{{ course.title }}</h1>
+    <p>{% if bound %}已綁定，可以使用這門課的課表和練習。{% else %}尚未綁定。現在只能使用這段對話。{% endif %}</p>
+    {% if error %}<p>{{ error }}</p>{% endif %}
+    {% if success %}<p>{{ success }}</p>{% endif %}
+</section>
+
+<section class="card">
+    <h2>接洽對話</h2>
+    <div id="messages">
+        {% for message in messages %}
+        <p><strong>{% if message.sender_id == user.id %}我{% else %}老師{% endif %}：</strong>{{ message.body }}</p>
+        {% endfor %}
+    </div>
+    <form method="post" action="/student/conversations/{{ conversation.id }}/messages">
+        <input name="body" required placeholder="輸入訊息">
+        <button type="submit">送出</button>
+    </form>
+    {% if not bound %}
+    <form method="post" action="/student/conversations/{{ conversation.id }}/bind">
+        <input name="code" required placeholder="輸入綁定碼">
+        <button type="submit">進入這門課</button>
+    </form>
+    {% endif %}
+</section>
+
+{% if bound %}
+<section class="card">
+    <h2>課表</h2>
+    {% if schedule %}
+    <ul>
+        {% for lesson in schedule %}
+        <li>{{ lesson.starts_at }} 到 {{ lesson.ends_at }}</li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>正式課表目前沒有課堂。</p>
+    {% endif %}
+    <h3>約課、請假或調課</h3>
+    <p>送出後要等老師同意。時段被占用時，正式課表不會改變。</p>
+    <form method="post" action="/student/courses/{{ course.id }}/change-requests">
+        <select name="request_type">
+            <option value="booking">約課</option>
+            <option value="leave">請假</option>
+            <option value="reschedule">調課</option>
+        </select>
+        <label>原本的課堂
+            <select name="session_id">
+                <option value="">約新課不用選</option>
+                {% for lesson in schedule %}
+                <option value="{{ lesson.id }}">{{ lesson.starts_at }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>希望開始 <input type="datetime-local" name="proposed_start"></label>
+        <label>希望結束 <input type="datetime-local" name="proposed_end"></label>
+        <input name="reason" placeholder="原因">
+        <button type="submit">送出申請</button>
+    </form>
+    {% if requests %}
+    <ul>
+        {% for item in requests %}
+        <li>{{ item.request_type }}：{{ item.status }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2>練習錄音</h2>
+    <p>這門課的參考 MIDI 只給已綁定學生使用。請先錄音並回聽，再送出。沒有麥克風時改選音檔。</p>
+    <audio id="preview" controls></audio>
+    <form id="recording-form" method="post" action="/student/courses/{{ course.id }}/recordings" enctype="multipart/form-data">
+        <input id="audio-file" type="file" name="audio" accept="audio/*">
+        <button type="button" id="record-button">開始錄音</button>
+        <button type="submit">確認送出</button>
+    </form>
+    {% if recordings %}
+    <ul>
+        {% for item in recordings %}
+        <li>
+            <a href="/student/recordings/{{ item.recording.id }}/audio">回聽這次錄音</a>
+            {% if item.feedback and item.feedback.status == "completed" %}
+            音高 {{ item.feedback.pitch_score }}　節奏 {{ item.feedback.rhythm_score }}　{{ item.feedback.feedback_text }}
+            {% elif item.feedback and item.feedback.status == "failed" %}
+            分析失敗，這不是 0 分。
+            {% else %}
+            練習回饋處理中。
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>還沒有送出練習。</p>
+    {% endif %}
+</section>
+{% else %}
+<section class="card">
+    <p>綁定前不能使用課表、錄音、練習回饋或課程管理。</p>
+</section>
+{% endif %}
+
+<script>
+const conversationId = "{{ conversation.id }}";
+const messageBox = document.getElementById("messages");
+async function refreshMessages() {
+    const response = await fetch("/api/student/conversations/" + conversationId + "/messages", { credentials: "include" });
+    if (!response.ok) return;
+    const messages = await response.json();
+    messageBox.textContent = "";
+    messages.forEach(function (message) {
+        const line = document.createElement("p");
+        const who = message.sender_id === "{{ user.id }}" ? "我" : "老師";
+        line.textContent = who + "：" + message.body;
+        messageBox.appendChild(line);
+    });
+}
+setInterval(refreshMessages, 5000);
+
+const recordButton = document.getElementById("record-button");
+const audioInput = document.getElementById("audio-file");
+const preview = document.getElementById("preview");
+let recorder = null;
+let chunks = [];
+if (recordButton) {
+    recordButton.addEventListener("click", async function () {
+        if (!recorder) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = function (event) { chunks.push(event.data); };
+            recorder.onstop = function () {
+                const blob = new Blob(chunks, { type: "audio/webm" });
+                preview.src = URL.createObjectURL(blob);
+                const file = new File([blob], "recording.webm", { type: "audio/webm" });
+                const transfer = new DataTransfer();
+                transfer.items.add(file);
+                audioInput.files = transfer.files;
+                chunks = [];
+                recordButton.textContent = "開始錄音";
+                recorder = null;
+            };
+            chunks = [];
+            recorder.start();
+            recordButton.textContent = "停止並回聽";
+        } else {
+            recorder.stop();
+        }
+    });
+}
+</script>
+{% endblock %}
