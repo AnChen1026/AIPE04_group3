@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from email_validator import EmailNotValidError, validate_email
 
 from backend.core.database import get_db
-from backend.dependencies import get_current_user, get_session_user
+from backend.dependencies.common import get_current_user, get_session_user
 from backend.models.user import User
 from backend.repositories.teacher_application import get_application_by_user_id
 from backend.schemas.user import (
@@ -84,10 +84,10 @@ def teacher_status_template(user: User, db: Session) -> str | RedirectResponse:
     if application is None:
         return RedirectResponse("/register/teacher/application", status_code=303)
     if application.status == "rejected":
-        return "teacher_rejected.html"
+        return "teacher/rejected.html"
     if application.status != "approved" or user.is_active is False:
-        return "teacher_pending.html"
-    return "teacher_dashboard.html"
+        return "teacher/pending.html"
+    return RedirectResponse("/test", status_code=303)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -106,7 +106,7 @@ def register_role_page(request: Request):
     """選擇要註冊老師或學生。"""
     return templates.TemplateResponse(
         request=request,
-        name="register_role.html",
+        name="auth/register_role.html",
         context={"google_ready": get_google_settings() is not None},
     )
 
@@ -117,9 +117,9 @@ def register_page(request: Request, role: str):
     if role not in ("teacher", "student"):
         return RedirectResponse("/register", status_code=303)
 
-    template_name = "register_form.html"
+    template_name = "auth/register_form.html"
     if role == "teacher":
-        template_name = "register_teacher.html"
+        template_name = "auth/register_teacher.html"
 
     return templates.TemplateResponse(
         request=request,
@@ -144,7 +144,7 @@ def submit_student_register(
     if email_format_is_valid(email) is False:
         return templates.TemplateResponse(
             request=request,
-            name="register_form.html",
+            name="auth/register_form.html",
             context={"role": "student", "error": "請輸入正確的 Email 格式。"},
             status_code=400,
         )
@@ -152,7 +152,7 @@ def submit_student_register(
     if phone_format_is_valid(phone_number) is False:
         return templates.TemplateResponse(
             request=request,
-            name="register_form.html",
+            name="auth/register_form.html",
             context={"role": "student", "error": "請輸入正確的電話格式，例如 0912345678。"},
             status_code=400,
         )
@@ -160,7 +160,7 @@ def submit_student_register(
     if password != password_confirm:
         return templates.TemplateResponse(
             request=request,
-            name="register_form.html",
+            name="auth/register_form.html",
             context={"role": "student", "error": "兩次輸入的密碼不一致。"},
             status_code=400,
         )
@@ -184,7 +184,7 @@ def submit_student_register(
 
     return templates.TemplateResponse(
         request=request,
-        name="register_form.html",
+        name="auth/register_form.html",
         context={"role": "student", "error": error_message},
         status_code=400,
     )
@@ -212,7 +212,7 @@ def submit_teacher_register(
     if email_format_is_valid(email) is False:
         return templates.TemplateResponse(
             request=request,
-            name="register_teacher.html",
+            name="auth/register_teacher.html",
             context={**form_context, "error": "請輸入正確的 Email 格式。"},
             status_code=400,
         )
@@ -220,7 +220,7 @@ def submit_teacher_register(
     if phone_format_is_valid(phone_number) is False:
         return templates.TemplateResponse(
             request=request,
-            name="register_teacher.html",
+            name="auth/register_teacher.html",
             context={**form_context, "error": "請輸入正確的電話格式，例如 0912345678。"},
             status_code=400,
         )
@@ -228,7 +228,7 @@ def submit_teacher_register(
     if password != password_confirm:
         return templates.TemplateResponse(
             request=request,
-            name="register_teacher.html",
+            name="auth/register_teacher.html",
             context={**form_context, "error": "兩次輸入的密碼不一致。"},
             status_code=400,
         )
@@ -257,7 +257,7 @@ def submit_teacher_register(
 
     return templates.TemplateResponse(
         request=request,
-        name="register_teacher.html",
+        name="auth/register_teacher.html",
         context={**form_context, "error": error_message},
         status_code=400,
     )
@@ -278,7 +278,7 @@ def teacher_application_page(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         request=request,
-        name="register_teacher_application.html",
+        name="auth/register_teacher_application.html",
         context={"user": user, "error": None},
     )
 
@@ -317,7 +317,7 @@ def submit_teacher_application_page(
 
     return templates.TemplateResponse(
         request=request,
-        name="register_teacher_application.html",
+        name="auth/register_teacher_application.html",
         context={"user": user, "error": error_message},
         status_code=400,
     )
@@ -338,7 +338,7 @@ def start_google_register(
     if get_google_settings() is None:
         return templates.TemplateResponse(
             request=request,
-            name="google_not_configured.html",
+            name="auth/google_not_configured.html",
             context={"role": role if role in ("student", "teacher") else "student"},
         )
 
@@ -351,7 +351,7 @@ def start_google_register(
     except GoogleAuthNotConfiguredError:
         return templates.TemplateResponse(
             request=request,
-            name="google_not_configured.html",
+            name="auth/google_not_configured.html",
             context={"role": role if role in ("student", "teacher") else "student"},
         )
 
@@ -374,7 +374,7 @@ def google_callback(
     if not code or not state or state != saved_state:
         return templates.TemplateResponse(
             request=request,
-            name="login.html",
+            name="auth/login.html",
             context={"error": "Google 驗證失敗，請再試一次。", "registered": None},
             status_code=400,
         )
@@ -392,14 +392,14 @@ def google_callback(
     except EmailAlreadyRegisteredError as error:
         return templates.TemplateResponse(
             request=request,
-            name="login.html",
+            name="auth/login.html",
             context={"error": str(error), "registered": None},
             status_code=409,
         )
     except (GoogleAuthError, GoogleAuthNotConfiguredError) as error:
         return templates.TemplateResponse(
             request=request,
-            name="login.html",
+            name="auth/login.html",
             context={"error": str(error), "registered": None},
             status_code=400,
         )
@@ -420,7 +420,7 @@ def login_page(request: Request):
     registered = request.query_params.get("registered")
     return templates.TemplateResponse(
         request=request,
-        name="login.html",
+        name="auth/login.html",
         context={"error": None, "registered": registered},
     )
 
@@ -436,7 +436,7 @@ def submit_login(
     if email_format_is_valid(email) is False:
         return templates.TemplateResponse(
             request=request,
-            name="login.html",
+            name="auth/login.html",
             context={"error": "請輸入正確的 Email 格式。", "registered": None},
             status_code=400,
         )
@@ -446,7 +446,7 @@ def submit_login(
     if user is None:
         return templates.TemplateResponse(
             request=request,
-            name="login.html",
+            name="auth/login.html",
             context={"error": "Email 或密碼錯誤。", "registered": None},
             status_code=401,
         )
@@ -454,7 +454,7 @@ def submit_login(
     if user.is_active is False and user.role != "teacher":
         return templates.TemplateResponse(
             request=request,
-            name="login.html",
+            name="auth/login.html",
             context={"error": "此帳號目前無法登入。", "registered": None},
             status_code=403,
         )
@@ -475,7 +475,7 @@ def profile_page(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         request=request,
-        name="profile.html",
+        name="auth/profile.html",
         context={"user": user, "error": None, "updated": False},
     )
 
@@ -499,7 +499,7 @@ def submit_profile(
     if phone_number and phone_format_is_valid(phone_number) is False:
         return templates.TemplateResponse(
             request=request,
-            name="profile.html",
+            name="auth/profile.html",
             context={
                 "user": user,
                 "error": "請輸入正確的電話格式，例如 0912345678。",
@@ -522,13 +522,13 @@ def submit_profile(
     else:
         return templates.TemplateResponse(
             request=request,
-            name="profile.html",
+            name="auth/profile.html",
             context={"user": user, "error": None, "updated": True},
         )
 
     return templates.TemplateResponse(
         request=request,
-        name="profile.html",
+        name="auth/profile.html",
         context={"user": user, "error": error_message, "updated": False},
         status_code=400,
     )

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.dependencies import get_current_user, require_roles
+from backend.dependencies.common import get_current_user, require_roles
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
 from backend.schemas.student import (

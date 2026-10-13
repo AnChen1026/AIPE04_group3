@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.dependencies import get_current_admin, get_session_user
+from backend.dependencies.common import get_current_admin, get_session_user
 from backend.models.user import User
 from backend.repositories.teacher_application import (
     get_application_by_id,
@@ -59,7 +59,7 @@ def teacher_application_list(
     applications = list_applications(db)
     return templates.TemplateResponse(
         request=request,
-        name="admin_teacher_applications.html",
+        name="admin/teacher_applications.html",
         context={
             "user": admin,
             "applications": applications,
@@ -80,7 +80,7 @@ def teacher_list(request: Request, db: Session = Depends(get_db)):
     }
     return templates.TemplateResponse(
         request=request,
-        name="admin_teachers.html",
+        name="admin/teachers.html",
         context={
             "user": admin,
             "teachers": list_users_by_role(db, "teacher"),
@@ -99,7 +99,7 @@ def student_list(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         request=request,
-        name="admin_students.html",
+        name="admin/students.html",
         context={
             "user": admin,
             "students": list_users_by_role(db, "student"),
