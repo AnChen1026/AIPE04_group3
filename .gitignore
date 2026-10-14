@@ -16,6 +16,7 @@ venv/
 # 編輯器私人設定 (針對 VS Code 與 Cursor)
 .vscode/
 .idea/
+.scratch/
 *.swp
 
 # 科學計算與測試快取 (針對 Pandas, Numpy, Scipy)

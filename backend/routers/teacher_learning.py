@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.dependencies import get_session_user
+from backend.dependencies.common import get_session_user
 from backend.repositories.student import StudentRepository
 from backend.repositories.teacher_application import get_application_by_user_id
 from backend.services.student import (
@@ -56,7 +56,7 @@ def teacher_learning_page(request: Request, db: Session = Depends(get_db)):
         )
     return templates.TemplateResponse(
         request=request,
-        name="teacher_learning.html",
+        name="teacher/learning.html",
         context={
             "user": user,
             "courses": StudentRepository.list_teacher_courses(db, user.id),

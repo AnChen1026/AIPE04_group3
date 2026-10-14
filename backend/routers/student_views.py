@@ -11,7 +11,8 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.dependencies import get_session_user
+from backend.dependencies.common import get_session_user
+from backend.models.user import User
 from backend.repositories.student import StudentRepository
 from backend.services.student import (
     StudentBusinessError,
@@ -46,22 +47,43 @@ def student_dashboard(request: Request, db: Session = Depends(get_db)):
     cards = []
     for conversation in conversations:
         course = StudentRepository.get_course(db, conversation.course_id)
-        cards.append(
-            {
-                "conversation": conversation,
-                "course": course,
-                "unread": StudentRepository.unread_count(db, conversation.id, user.id),
-                "bound": StudentRepository.is_bound(db, user.id, conversation.course_id),
-            }
-        )
+        bound = StudentRepository.is_bound(db, user.id, conversation.course_id)
+        mark_conversation_read(db, conversation.id, user.id)
+        card = {
+            "conversation": conversation,
+            "course": course,
+            "bound": bound,
+            "messages": StudentRepository.list_messages(db, conversation.id),
+            "schedule": [],
+            "requests": [],
+            "recordings": [],
+            "teacher_name": None,
+        }
+        if bound:
+            teacher = db.get(User, course.teacher_id)
+            card["teacher_name"] = teacher.name if teacher is not None else None
+            card["schedule"] = StudentRepository.list_schedule(db, user.id, course.id)
+            card["requests"] = StudentRepository.list_change_requests_for_student(db, user.id, course.id)
+            for recording in StudentRepository.list_recordings(db, user.id, course.id):
+                card["recordings"].append(
+                    {
+                        "recording": recording,
+                        "feedback": StudentRepository.get_feedback(db, recording.id),
+                    }
+                )
+        cards.append(card)
+    notice = request.query_params.get("error") or request.query_params.get("success")
     return templates.TemplateResponse(
         request=request,
-        name="student_dashboard.html",
+        name="student/dashboard.html",
         context={
             "user": user,
             "courses": list_published_courses(db),
             "conversations": cards,
+            "has_binding": any(item["bound"] for item in cards),
             "error": request.query_params.get("error"),
+            "success": request.query_params.get("success"),
+            "open_chat": notice is not None,
         },
     )
 
@@ -75,7 +97,7 @@ def inquire_course(course_id: uuid.UUID, request: Request, db: Session = Depends
         conversation = start_conversation(db, user, course_id)
     except StudentBusinessError as error:
         return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
-    return RedirectResponse(f"/student/conversations/{conversation.id}", status_code=303)
+    return RedirectResponse("/student", status_code=303)
 
 
 @router.get("/student/conversations/{conversation_id}", response_class=HTMLResponse)
@@ -86,33 +108,7 @@ def conversation_page(conversation_id: uuid.UUID, request: Request, db: Session 
     conversation = StudentRepository.get_conversation(db, conversation_id)
     if conversation is None or conversation.student_id != user.id:
         return RedirectResponse("/student?error=" + quote("找不到這段對話。"), status_code=303)
-    mark_conversation_read(db, conversation.id, user.id)
-    course = StudentRepository.get_course(db, conversation.course_id)
-    bound = StudentRepository.is_bound(db, user.id, conversation.course_id)
-    schedule = StudentRepository.list_schedule(db, user.id, course.id) if bound else []
-    requests = StudentRepository.list_change_requests_for_student(db, user.id, course.id) if bound else []
-    recordings = []
-    if bound:
-        for recording in StudentRepository.list_recordings(db, user.id, course.id):
-            recordings.append(
-                {"recording": recording, "feedback": StudentRepository.get_feedback(db, recording.id)}
-            )
-    return templates.TemplateResponse(
-        request=request,
-        name="student_conversation.html",
-        context={
-            "user": user,
-            "conversation": conversation,
-            "course": course,
-            "messages": StudentRepository.list_messages(db, conversation.id),
-            "bound": bound,
-            "schedule": schedule,
-            "requests": requests,
-            "recordings": recordings,
-            "error": request.query_params.get("error"),
-            "success": request.query_params.get("success"),
-        },
-    )
+    return RedirectResponse("/student", status_code=303)
 
 
 @router.post("/student/conversations/{conversation_id}/messages")
@@ -131,11 +127,8 @@ def post_message(
     try:
         add_message(db, conversation, user, body)
     except StudentBusinessError as error:
-        return RedirectResponse(
-            f"/student/conversations/{conversation_id}?error={quote(error.detail)}",
-            status_code=303,
-        )
-    return RedirectResponse(f"/student/conversations/{conversation_id}", status_code=303)
+        return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
+    return RedirectResponse("/student", status_code=303)
 
 
 @router.post("/student/conversations/{conversation_id}/bind")
@@ -154,14 +147,8 @@ def post_bind(
     try:
         redeem_binding_code(db, user, conversation, code)
     except StudentBusinessError as error:
-        return RedirectResponse(
-            f"/student/conversations/{conversation_id}?error={quote(error.detail)}",
-            status_code=303,
-        )
-    return RedirectResponse(
-        f"/student/conversations/{conversation_id}?success=" + quote("已進入這門課。"),
-        status_code=303,
-    )
+        return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
+    return RedirectResponse("/student?success=" + quote("已進入這門課。"), status_code=303)
 
 
 @router.post("/student/courses/{course_id}/change-requests")
@@ -178,8 +165,6 @@ def post_change_request(
     user = _student_or_redirect(request, db)
     if isinstance(user, RedirectResponse):
         return user
-    conversation = StudentRepository.get_conversation_for_student_course(db, user.id, course_id)
-    target = f"/student/conversations/{conversation.id}" if conversation else "/student"
     try:
         parsed_session = uuid.UUID(session_id) if session_id else None
         starts = datetime.fromisoformat(proposed_start).astimezone() if proposed_start else None
@@ -187,8 +172,8 @@ def post_change_request(
         create_change_request(db, user, course_id, request_type, parsed_session, starts, ends, reason or None)
     except (StudentBusinessError, ValueError) as error:
         detail = error.detail if isinstance(error, StudentBusinessError) else "時間格式不正確。"
-        return RedirectResponse(f"{target}?error={quote(detail)}", status_code=303)
-    return RedirectResponse(f"{target}?success=" + quote("申請已送出，正式課表還沒有改變。"), status_code=303)
+        return RedirectResponse(f"/student?error={quote(detail)}", status_code=303)
+    return RedirectResponse("/student?success=" + quote("申請已送出，正式課表還沒有改變。"), status_code=303)
 
 
 @router.post("/student/courses/{course_id}/recordings")
@@ -201,13 +186,11 @@ def post_recording(
     user = _student_or_redirect(request, db)
     if isinstance(user, RedirectResponse):
         return user
-    conversation = StudentRepository.get_conversation_for_student_course(db, user.id, course_id)
-    target = f"/student/conversations/{conversation.id}" if conversation else "/student"
     try:
         save_recording(db, user, course_id, audio.filename or "audio.webm", audio.file.read())
     except StudentBusinessError as error:
-        return RedirectResponse(f"{target}?error={quote(error.detail)}", status_code=303)
-    return RedirectResponse(f"{target}?success=" + quote("錄音已送出，練習回饋處理中。"), status_code=303)
+        return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
+    return RedirectResponse("/student?success=" + quote("錄音已送出，練習回饋處理中。"), status_code=303)
 
 
 @router.get("/student/recordings/{recording_id}/audio")

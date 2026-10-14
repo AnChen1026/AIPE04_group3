@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}學生管理{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+    {% include "admin/_menu.html" %}
+    <section class="card admin-content">
+        <h1>學生管理</h1>
+        <p>這裡列出所有學生帳號。</p>
+
+        {% if students %}
+        <table>
+            <thead>
+                <tr>
+                    <th>姓名</th>
+                    <th>Email</th>
+                    <th>電話</th>
+                    <th>生日</th>
+                    <th>性別</th>
+                    <th>帳號</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for student in students %}
+                <tr>
+                    <td>{{ student.name }}</td>
+                    <td>{{ student.email }}</td>
+                    <td>{{ student.phone_number or "未填" }}</td>
+                    <td>{{ student.birthdate.isoformat() if student.birthdate else "未填" }}</td>
+                    <td>
+                        {% if student.sex == "male" %}男
+                        {% elif student.sex == "female" %}女
+                        {% else %}未填
+                        {% endif %}
+                    </td>
+                    <td>{% if student.is_active %}已啟用{% else %}未啟用{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p>目前沒有學生。</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
