@@ -8,10 +8,12 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -47,6 +49,51 @@ class Course(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class ReferenceMidi(Base):
+    """課程的參考 MIDI metadata；檔案內容目前仍存放在檔案系統。"""
+
+    __tablename__ = "reference_midis"
+    __table_args__ = (
+        UniqueConstraint("course_id", name="uq_reference_midis_course_id"),
+        CheckConstraint(
+            "file_size_bytes >= 0",
+            name="ck_reference_midis_file_size_nonnegative",
+        ),
+        Index("ix_reference_midis_teacher_course", "teacher_id", "course_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "courses.id",
+            name="fk_reference_midis_course_id_courses",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_reference_midis_teacher_id_users"),
+        nullable=False,
+    )
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
 
 class InquiryConversation(Base):
@@ -138,6 +185,102 @@ class LessonSession(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
+
+
+class LessonSummary(Base):
+    """即將上課的一堂正式課堂所使用的課前摘要。"""
+
+    __tablename__ = "lesson_summaries"
+    __table_args__ = (
+        UniqueConstraint(
+            "lesson_session_id",
+            name="uq_lesson_summaries_lesson_session_id",
+        ),
+        CheckConstraint(
+            "source_recording_count >= 0",
+            name="ck_lesson_summaries_source_count_nonnegative",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'completed', 'failed')",
+            name="ck_lesson_summaries_status",
+        ),
+        CheckConstraint(
+            "window_started_at IS NULL OR window_ended_at > window_started_at",
+            name="ck_lesson_summaries_window_order",
+        ),
+        Index(
+            "ix_lesson_summaries_teacher_course_student",
+            "teacher_id",
+            "course_id",
+            "student_id",
+        ),
+        Index(
+            "ix_lesson_summaries_course_student_window_end",
+            "course_id",
+            "student_id",
+            "window_ended_at",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lesson_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "lesson_sessions.id",
+            name="fk_lesson_summaries_lesson_session_id_lesson_sessions",
+        ),
+        nullable=False,
+    )
+    previous_lesson_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "lesson_sessions.id",
+            name="fk_lesson_summaries_previous_session_id_lesson_sessions",
+        ),
+        nullable=True,
+    )
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("courses.id", name="fk_lesson_summaries_course_id_courses"),
+        nullable=False,
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_lesson_summaries_teacher_id_users"),
+        nullable=False,
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_lesson_summaries_student_id_users"),
+        nullable=False,
+    )
+    window_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    window_ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_recording_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
 
 class ChangeRequest(Base):
