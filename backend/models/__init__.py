@@ -9,23 +9,47 @@ from backend.models.material import MaterialDB
 from backend.models.practice import AssignmentDB, EvaluationDB, SubmissionDB
 from backend.models.quiz import QuizDB
 from backend.models.studio import BindingDB, StudioDB
-from backend.models.teacher_application import TeacherApplication
+from backend.models.student import (
+    BindingCode,
+    ChangeRequest,
+    ConversationMessage,
+    Course,
+    CourseBinding,
+    InquiryConversation,
+    LessonSession,
+    LessonSummary,
+    PracticeFeedback,
+    PracticeRecording,
+    ReferenceMidi,
+)
 from backend.models.teacher import TeacherDB
+from backend.models.teacher_application import TeacherApplication
 from backend.models.user import User
 
 __all__ = [
     "AssignmentDB",
     "AuthIdentity",
     "Base",
+    "BindingCode",
     "BindingDB",
+    "ChangeRequest",
     "ChangeRequestDB",
     "ConversationDB",
+    "ConversationMessage",
+    "Course",
+    "CourseBinding",
     "EvaluationDB",
+    "InquiryConversation",
     "InquiryDB",
     "LessonDB",
+    "LessonSession",
+    "LessonSummary",
     "MaterialDB",
     "MessageDB",
+    "PracticeFeedback",
+    "PracticeRecording",
     "QuizDB",
+    "ReferenceMidi",
     "StudioDB",
     "SubmissionDB",
     "TeacherApplication",
