@@ -2,9 +2,9 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 版本 | V1.2 |
+| 版本 | V1.4 |
 | 適用專案 | AIPE04_group3 |
-| 最後更新 | 2026-09-24 |
+| 最後更新 | 2026-10-15 |
 
 ## 1. 核心規則
 
@@ -16,19 +16,19 @@
 
 ## 2. 分支
 
-以 2026-10-12 分工為準。
+以 2026-10-15 分工、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 為準。
 
 | 負責人 | 負責範圍 | 建議分支 |
 | --- | --- | --- |
 | 姿彣 | UI/UX | 依該次介面工作指定 |
 | Ken | 前端 | 依該次前端工作指定 |
 | 禹銨 | 後端與語音 | `feature/login`、`feature/backend`、`feature/ai-practice` |
-| 宇鈞 | Review | 依該次審查指定 |
+| 宇鈞 | AI 測驗協作與 Review | 依該次工作指定 |
 | 雄 | DevOps | 依該次部署工作指定 |
 | Ollie | 資料庫與 AI | `feature/database`、`feature/ai-support` |
-| 永富 | AI 測驗題目生成 | `feature/ai-quiz` |
+| 永富 | AI 測驗流程 | `feature/ai-quiz` |
 
-接洽對話的畫面由姿彣與 Ken 負責，API 由禹銨負責。不要把 `feature/messaging` 當成已指定的負責人分支。永富本輪沒有實作工單。
+接洽對話的畫面由姿彣與 Ken 負責，API 由禹銨負責。不要把 `feature/messaging` 當成已指定的負責人分支。AI 測驗由永富依 [Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 實作，宇鈞依 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 協助並 Review。
 
 ## 3. 第一次加入
 

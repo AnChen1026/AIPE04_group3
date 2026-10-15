@@ -2,31 +2,43 @@
 
 AIPE04 Group 3 的專題。老師和學生在同一個網站完成找課、上課與練習；第一版只做鋼琴。
 
-目前 `feature/login` 已可在本機註冊、登入、登出，並分開學生與老師。老師註冊後要等管理員審核。課程、課表、聊天與 AI 功能仍在文件與分工中，還沒全部接上這個網站。
+## 目前進度
+
+- 已完成學生／老師註冊、登入、登出、基本資料、角色分流與老師審核。
+- 已有學生接洽、綁定碼、課表、課務申請及練習錄音的後端流程與 Jinja 測試介面。
+- 已有老師課程、學生、課表、教材、作業、聊天與測驗等 API 原型及 Jinja 測試介面。
+- `score_test` 可離線分析音高與節奏，但尚未完整接進學生送出錄音的流程。
+- 首頁推薦、Vue 正式前端、課前摘要及 AI 測驗完整流程仍在開發。
+
+正式使用者介面規劃使用 Vue；目前 Repository 內的 Jinja 頁面是後端流程測試介面。後端使用 FastAPI、SQLAlchemy、Alembic 與 PostgreSQL，登入沿用 Session Cookie，不使用 JWT。
 
 ## 分工
 
-
-以下是 2026-10-05 組長更新的版本。第一版網站使用 Next.js，登入使用 HttpOnly Cookie，並提供 Google 登入。
-
-
 | 成員 | 負責 |
 | --- | --- |
-| 禹銨（組長） | 進度、登入系統、AI 音訊辨識、所有後端串接 |
-| Ken | 資料庫、確認大家建的表有沒有異常 |
-| 雄哥 | Docker、部署、學生端頁面 |
-| 姿彣 | 老師端頁面 |
-| 宇鈞 | 資安監控、三項 AI 功能的監管顧問 |
-| Ollie | 首頁 AI 推薦、首頁客服 |
-| 永富 | AI 生成測驗題目 |
-
-正式前端負責人還沒有指定。後端串接先由禹銨負責。站內聊天、課前摘要的主責也還沒有指定。
+| 禹銨（組長） | 後端 API、登入、音訊評分串接與整合 |
+| 姿彣 | UI/UX 與畫面流程 |
+| Ken | Vue 正式前端 |
+| 雄 | Docker 與部署 |
+| Ollie | 資料表、Migration 與首頁推薦 AI |
+| 永富 | AI 測驗出題與批改流程 |
+| 宇鈞 | 協助 AI 測驗並 Review 各功能進度 |
 
 ## 第一次啟動
 
 需要 Python 3.12 和 Docker。在專案根目錄操作。
 
 ### 1. 安裝 Python 套件
+
+Windows PowerShell：
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+macOS／Linux：
 
 ```bash
 python3 -m venv .venv
@@ -55,9 +67,9 @@ SESSION_SECRET_KEY=請換成一串自己產生的隨機文字
 
 ### 4. 建立資料表並啟動網站
 
-```bash
+```powershell
 alembic upgrade head
-python3 app.py
+python app.py
 ```
 
 瀏覽器打開 [http://127.0.0.1:8000](http://127.0.0.1:8000)。
@@ -78,3 +90,5 @@ python3 app.py
 | 功能規格 | `docs/SRS功能文件.md` |
 | 使用者怎麼操作 | `docs/User_Flow.md` |
 | 分支與 Pull Request | `docs/GitHub團隊協作說明.md` |
+| 專案用語 | `GLOSSARY.md` |
+| 老師端後端檔案位置 | `docs/教師端後端模組說明.md` |
