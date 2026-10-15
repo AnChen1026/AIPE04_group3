@@ -1,31 +1,178 @@
 {% extends "base.html" %}
 
-{% block title %}首頁｜音樂教學平台測試{% endblock %}
+{% block title %}課程｜音樂教學平台測試{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        background: #141414;
+        color: #f5f5f5;
+    }
+
+    nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(20, 20, 20, 0.92);
+    }
+
+    .course-home {
+        padding: 28px 0 64px;
+    }
+
+    .course-row {
+        margin-bottom: 28px;
+    }
+
+    .course-row h2 {
+        margin: 0 48px 14px;
+        font-size: 22px;
+    }
+
+    .course-scroller {
+        display: flex;
+        gap: 16px;
+        overflow-x: auto;
+        padding: 8px 48px 22px;
+        scroll-snap-type: x mandatory;
+    }
+
+    .course-card {
+        flex: 0 0 280px;
+        min-height: 168px;
+        padding: 22px;
+        border: 0;
+        border-radius: 8px;
+        background: linear-gradient(160deg, #2b2b2b, #1b1b1b);
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        scroll-snap-align: start;
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .course-card:hover {
+        transform: translateY(-8px) scale(1.03);
+        box-shadow: 0 18px 36px rgba(0, 0, 0, 0.5);
+    }
+
+    .course-card h3 {
+        margin: 0 0 18px;
+        font-size: 22px;
+        line-height: 1.35;
+    }
+
+    .course-card p {
+        margin: 8px 0 0;
+        color: #d0d0d0;
+    }
+
+    .course-empty {
+        margin: 80px 48px;
+        color: #d0d0d0;
+    }
+
+    .course-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.72);
+    }
+
+    .course-modal[hidden] {
+        display: none;
+    }
+
+    .course-modal-card {
+        width: min(560px, 100%);
+        min-height: 280px;
+        padding: 36px;
+        border-radius: 12px;
+        background: linear-gradient(160deg, #3a3a3a, #1b1b1b);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+
+    .course-modal-card h3 {
+        margin: 0 0 18px;
+        font-size: 32px;
+    }
+
+    .course-modal-card p {
+        margin: 8px 0 0;
+        color: #d0d0d0;
+        font-size: 18px;
+    }
+
+    .course-modal-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 28px;
+    }
+
+    .course-modal-actions a,
+    .course-modal-actions button {
+        color: white;
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<section class="card">
-    <h1>音樂教學平台測試首頁</h1>
-    <p>目前可測試老師／學生註冊、登入與角色分流。</p>
-
-    {% if user %}
-        <p>目前登入角色：{{ user.role }}</p>
-        <div class="actions">
-            {% if user.role == "admin" %}
-                <a class="button" href="/admin">進入管理員頁面</a>
-            {% elif user.role == "teacher" %}
-                <a class="button" href="/teacher">進入老師頁面</a>
-            {% else %}
-                <a class="button" href="/student">進入學生頁面</a>
-            {% endif %}
-            {% if user.role != "admin" %}
-                <a class="button secondary" href="/profile">基本資料</a>
-            {% endif %}
-        </div>
+<div class="course-home">
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    {% if course_rows %}
+        {% for row in course_rows %}
+        <section class="course-row">
+            <h2>{{ row.style }}</h2>
+            <div class="course-scroller">
+                {% for course in row.courses %}
+                <button type="button" class="course-card" data-course-id="{{ course.id }}" data-title="{{ course.title }}" data-region="{{ course.region }}" data-teacher="{{ course.teacher_name }}" onclick="openCourse(this)">
+                    <h3>{{ course.title }}</h3>
+                    <p>{{ course.region }}</p>
+                    <p>{{ course.teacher_name }}</p>
+                </button>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
     {% else %}
-        <div class="actions">
-            <a class="button" href="/login">登入</a>
-            <a class="button secondary" href="/register">註冊</a>
-        </div>
+        <p class="course-empty">目前沒有已發布的課程。</p>
     {% endif %}
-</section>
+</div>
+<div id="course-modal" class="course-modal" hidden>
+    <div class="course-modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h3 id="modal-title"></h3>
+        <p id="modal-region"></p>
+        <p id="modal-teacher"></p>
+        <div class="course-modal-actions">
+            <a id="modal-contact" href="#">與老師聯繫</a>
+            <button type="button" class="secondary" onclick="closeCourse()">關閉</button>
+        </div>
+    </div>
+</div>
+<script>
+    function openCourse(card) {
+        document.getElementById("modal-title").textContent = card.dataset.title;
+        document.getElementById("modal-region").textContent = card.dataset.region;
+        document.getElementById("modal-teacher").textContent = card.dataset.teacher;
+        document.getElementById("modal-contact").href = "/courses/" + card.dataset.courseId + "/contact";
+        document.getElementById("course-modal").hidden = false;
+    }
+
+    function closeCourse() {
+        document.getElementById("course-modal").hidden = true;
+    }
+
+    document.getElementById("course-modal").addEventListener("click", function (event) {
+        if (event.target.id === "course-modal") {
+            closeCourse();
+        }
+    });
+</script>
 {% endblock %}

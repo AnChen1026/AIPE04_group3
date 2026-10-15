@@ -9,6 +9,7 @@ from backend.core.database import get_db
 from backend.models.user import User
 from backend.dependencies.common import get_current_user
 from backend.models import *
+from backend.models.student import LessonSession
 from backend.schemas import *
 from backend.dependencies.teacher import get_current_teacher
 from backend.services.teacher_sync import _ensure_teacher_profile
@@ -23,10 +24,8 @@ def get_my_lessons(
 ):
 
     return (
-        db.query(LessonDB)
-        .filter(
-            LessonDB.teacher_id == teacher.id
-        )
+        db.query(LessonSession)
+        .filter(LessonSession.teacher_id == teacher.user_id)
         .all()
     )
 
@@ -44,10 +43,8 @@ def get_teacher_lessons(
         )
 
     return (
-        db.query(LessonDB)
-        .filter(
-            LessonDB.teacher_id == teacher.id
-        )
+        db.query(LessonSession)
+        .filter(LessonSession.teacher_id == teacher.user_id)
         .all()
     )
 

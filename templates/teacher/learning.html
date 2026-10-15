@@ -59,6 +59,18 @@
         </form>
         {% endif %}
     </p>
+    <div class="chat-box" data-conversation-id="{{ item.conversation.id }}" data-user-id="{{ user.id }}" data-peer-label="{{ item.student.name }}">
+            <div class="chat-log">
+                {% for message in item.messages %}
+                <p data-message-id="{{ message.id }}"><strong>{% if message.sender_id == user.id %}我{% else %}{{ item.student.name }}{% endif %}：</strong>{{ message.body }}</p>
+                {% endfor %}
+            </div>
+            <form class="chat-send">
+                <input name="body" required placeholder="輸入訊息">
+                <button type="submit">送出</button>
+            </form>
+            <p class="chat-status"></p>
+        </div>
     {% endfor %}
     {% else %}
     <p>還沒有學生洽詢。</p>
@@ -81,4 +93,5 @@
     <p>沒有待處理的申請。</p>
     {% endif %}
 </section>
+{% include "partials/chat_socket.html" %}
 {% endblock %}

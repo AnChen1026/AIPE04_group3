@@ -1,90 +1,8 @@
 from datetime import datetime
 import uuid
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, Date, UniqueConstraint
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from backend.models.base import Base
-
-class CourseDB(Base):
-    # 學生端已經用 courses 這張表，老師端改用自己的表名，兩邊才能同時掛在 app.py。
-    __tablename__ = "teacher_module_courses"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4,
-    )
-
-    studio_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("studios.id"),
-    )
-
-    teacher_profile_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("teacher_profiles.id"),
-        nullable=False,
-    )
-
-    course_name = Column(
-        String(200),
-        nullable=False,
-    )
-
-    course_intros = Column(
-        String(200),
-        nullable=False,
-    )
-
-    course_price = Column(
-        Integer,
-        nullable=False,
-        default=0,
-    )
-
-    class_date = Column(
-        Date,
-        nullable=True,
-    )
-
-    price_per_lesson = Column(
-        Integer,
-    )
-
-    start_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-
-    end_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-
-    duration_minutes = Column(
-        Integer,
-    )
-
-    status = Column(
-        String(20),
-        default="draft",
-        nullable=False,
-    )
-
-    student_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id"),
-    )
-
-    created_at = Column(
-        DateTime,
-        default=datetime.now,
-    )
-
-    updated_at = Column(
-        DateTime,
-        default=datetime.now,
-        onupdate=datetime.now,
-    )
 
 class InquiryDB(Base):
     __tablename__ = "course_inquiries"
@@ -97,7 +15,7 @@ class InquiryDB(Base):
 
     course_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("teacher_module_courses.id"),
+        ForeignKey("courses.id"),
         nullable=False,
     )
 
@@ -136,7 +54,7 @@ class LessonDB(Base):
 
     course_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("teacher_module_courses.id"),
+        ForeignKey("courses.id"),
         nullable=False,
     )
 

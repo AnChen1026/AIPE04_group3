@@ -141,6 +141,177 @@
         display: block;
     }
 
+    #tab-chat.line-page.active {
+        display: flex;
+        height: calc(100vh - 68px);
+        margin: -40px;
+    }
+
+    .line-chat {
+        display: flex;
+        width: 100%;
+        min-height: 100%;
+        background: #fff;
+    }
+
+    .line-friends {
+        width: 300px;
+        flex-shrink: 0;
+        border-right: 1px solid #e6e6e6;
+        background: #fff;
+        overflow-y: auto;
+    }
+
+    .line-friends-title {
+        padding: 18px 16px 10px;
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    .line-friend {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        padding: 12px 16px;
+        border: 0;
+        border-radius: 0;
+        border-bottom: 1px solid #f2f2f2;
+        background: #fff;
+        color: #222;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .line-friend.active,
+    .line-friend:hover {
+        background: #f3f4f6;
+    }
+
+    .line-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: #06c755;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+
+    .line-friend-text {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .line-friend-text strong,
+    .line-friend-text small,
+    .line-friend-text em {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .line-friend-text strong {
+        color: #222;
+        font-size: 16px;
+    }
+
+    .line-friend-text small,
+    .line-friend-text em {
+        color: #8a8a8a;
+        font-style: normal;
+        font-size: 13px;
+    }
+
+    .line-threads {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+    }
+
+    .line-thread {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        background: #8cabd9;
+    }
+
+    .line-thread[hidden] {
+        display: none;
+    }
+
+    .line-thread-head {
+        display: flex;
+        flex-direction: column;
+        padding: 14px 18px;
+        background: #fff;
+        border-bottom: 1px solid #e6e6e6;
+    }
+
+    .line-thread-head span {
+        color: #8a8a8a;
+        font-size: 13px;
+    }
+
+    .line-thread .chat-box {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .line-thread .chat-log {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 18px;
+    }
+
+    .bubble {
+        max-width: 68%;
+        margin: 0;
+        padding: 10px 14px;
+        border-radius: 18px;
+        line-height: 1.45;
+        word-break: break-word;
+    }
+
+    .bubble.mine {
+        align-self: flex-end;
+        background: #85e249;
+    }
+
+    .bubble.peer {
+        align-self: flex-start;
+        background: #fff;
+    }
+
+    .line-thread .chat-send {
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .line-thread .chat-send input {
+        flex: 1;
+        margin: 0;
+    }
+
+    .line-thread .chat-status {
+        margin: 0;
+        padding: 0 12px 8px;
+        background: #fff;
+        color: #8a8a8a;
+        font-size: 12px;
+    }
+
     @keyframes fadeIn {
         from {
             opacity: 0;
@@ -283,15 +454,12 @@
         </div>
 
         <!-- 1. 基本資料面板 (原汁原味原生 emoji 加大版) -->
-        <button class="menu-item active" onclick="switchTab('tab-profile', this)">
+        <button class="menu-item{% if not open_chat %} active{% endif %}" onclick="switchTab('tab-profile', this)">
             <span>⚙️</span>基本資料 setting
         </button>
         <!-- 2. 課程管理大類 (100% 沿用原本深藍色調與 emoji + 點擊下拉收放) -->
         <details class="menu-dropdown-group" open>
             <summary class="menu-group-title">課程管理</summary>
-            <button class="menu-item menu-sub-item" onclick="switchTab('tab-find', this)">
-                <span>🔎</span>找課與接洽
-            </button>
             <button class="menu-item menu-sub-item" onclick="switchTab('tab-teacher', this)">
                 <span>🔗</span>綁定老師
             </button>
@@ -311,8 +479,8 @@
         <!-- 4. 即時互動大類 (100% 沿用原本深藍色調與 emoji + 點擊下拉收放) -->
         <details class="menu-dropdown-group" open>
             <summary class="menu-group-title">即時互動</summary>
-            <button class="menu-item menu-sub-item" onclick="switchTab('tab-find', this)">
-                <span>💬</span>接洽對話
+            <button class="menu-item menu-sub-item{% if open_chat %} active{% endif %}" onclick="switchTab('tab-chat', this)">
+                <span>💬</span>聊天
             </button>
         </details>
     </div>
@@ -346,8 +514,22 @@
                     <li>{{ item.teacher_name }}　{{ item.course.title }}</li>
                     {% endfor %}
                 </ul>
-                {% else %}
-                <p>尚未綁定課程，不能查看老師。</p>
+                {% endif %}
+                {% set pending = conversations | rejectattr("bound") | list %}
+                {% if pending %}
+                <p>把老師貼在對話裡的綁定碼輸入下面，就會加入這位老師。</p>
+                {% for item in pending %}
+                <h3>{{ item.course.title }}</h3>
+                <p>{{ item.teacher_name or "老師" }}</p>
+                <form method="post" action="/student/conversations/{{ item.conversation.id }}/bind">
+                    <label>綁定碼
+                        <input name="code" required placeholder="輸入綁定碼">
+                    </label>
+                    <button type="submit">加入這位老師</button>
+                </form>
+                {% endfor %}
+                {% elif not has_binding %}
+                <p>還沒有可以輸入的接洽。請先到首頁點課程卡，按「與老師聯繫」，等老師產生綁定碼。</p>
                 {% endif %}
             </div>
         </div>
@@ -406,47 +588,53 @@
             {% endfor %}
             {% endif %}
         </div>
-        <div id="tab-find" class="tab-content{% if open_chat %} active{% endif %}">
-            <div class="content-card">
-                <h2>已發布課程</h2>
-                <p>這裡只顯示課程名稱。還沒綁定前，不會顯示老師和課表。</p>
-                {% if courses %}
-                {% for course in courses %}
-                <form method="post" action="/student/courses/{{ course.id }}/inquire">
-                    <p><strong>{{ course.title }}</strong></p>
-                    <p>程度 {{ course.level or "未填" }}　風格 {{ course.style or "未填" }}</p>
-                    <button type="submit">洽詢</button>
-                </form>
-                {% endfor %}
-                {% else %}
-                <p>目前沒有已發布課程。</p>
-                {% endif %}
-            </div>
-            <div class="content-card">
-                <h2>接洽對話</h2>
-                {% if conversations %}
-                {% for item in conversations %}
-                <h3>{{ item.course.title }}{% if item.bound %}　已綁定{% else %}　尚未綁定{% endif %}</h3>
-                <div>
-                    {% for message in item.messages %}
-                    <p><strong>{% if message.sender_id == user.id %}我{% elif item.bound %}{{ item.teacher_name }}{% else %}對方{% endif %}：</strong>{{ message.body }}</p>
+        <div id="tab-chat" class="tab-content line-page{% if open_chat %} active{% endif %}">
+            {% if conversations %}
+            <div class="line-chat">
+                <aside class="line-friends">
+                    <div class="line-friends-title">聊天</div>
+                    {% for item in conversations %}
+                    {% set is_open = (open_conversation_id and item.conversation.id|string == open_conversation_id) or (not open_conversation_id and loop.first) %}
+                    <button type="button" class="line-friend{% if is_open %} active{% endif %}" data-conversation-id="{{ item.conversation.id }}" onclick="selectFriend('{{ item.conversation.id }}')">
+                        <span class="line-avatar">{{ item.teacher_name[:1] if item.teacher_name else "師" }}</span>
+                        <span class="line-friend-text">
+                            <strong>{{ item.teacher_name or "老師" }}</strong>
+                            <small>{{ item.course.title }}</small>
+                            {% if item.messages %}<em>{{ item.messages[-1].body }}</em>{% endif %}
+                        </span>
+                    </button>
+                    {% endfor %}
+                </aside>
+                <div class="line-threads">
+                    {% for item in conversations %}
+                    {% set is_open = (open_conversation_id and item.conversation.id|string == open_conversation_id) or (not open_conversation_id and loop.first) %}
+                    <section class="line-thread" data-conversation-id="{{ item.conversation.id }}" {% if not is_open %}hidden{% endif %}>
+                        <header class="line-thread-head">
+                            <strong>{{ item.teacher_name or "老師" }}</strong>
+                            <span>{{ item.course.title }}</span>
+                        </header>
+                        <div class="chat-box" data-bubble="line" data-conversation-id="{{ item.conversation.id }}" data-user-id="{{ user.id }}" data-peer-label="{{ item.teacher_name or '老師' }}">
+                            <div class="chat-log">
+                                {% for message in item.messages %}
+                                <p class="bubble {% if message.sender_id == user.id %}mine{% else %}peer{% endif %}" data-message-id="{{ message.id }}">{{ message.body }}</p>
+                                {% endfor %}
+                            </div>
+                            <form class="chat-send" method="post" action="/student/conversations/{{ item.conversation.id }}/messages">
+                                <input name="body" required placeholder="輸入訊息">
+                                <button type="submit">送出</button>
+                            </form>
+                            <p class="chat-status"></p>
+                        </div>
+                    </section>
                     {% endfor %}
                 </div>
-                <form method="post" action="/student/conversations/{{ item.conversation.id }}/messages">
-                    <input name="body" required placeholder="輸入訊息">
-                    <button type="submit">送出</button>
-                </form>
-                {% if not item.bound %}
-                <form method="post" action="/student/conversations/{{ item.conversation.id }}/bind">
-                    <input name="code" required placeholder="輸入綁定碼">
-                    <button type="submit">進入這門課</button>
-                </form>
-                {% endif %}
-                {% endfor %}
-                {% else %}
-                <p>還沒有接洽對話。先從上面的課程按洽詢。</p>
-                {% endif %}
             </div>
+            {% else %}
+            <div class="content-card">
+                <h2>聊天</h2>
+                <p>到首頁點課程卡，按「與老師聯繫」，這位老師的聊天室就會出現在這裡。</p>
+            </div>
+            {% endif %}
         </div>
         <div id="tab-assignments" class="tab-content">
             <div class="content-card">
@@ -505,6 +693,16 @@
         document.getElementById(tabId).classList.add('active');
         element.classList.add('active');
     }
+
+    function selectFriend(conversationId) {
+        document.querySelectorAll(".line-friend").forEach(function (button) {
+            button.classList.toggle("active", button.dataset.conversationId === conversationId);
+        });
+        document.querySelectorAll(".line-thread").forEach(function (thread) {
+            thread.hidden = thread.dataset.conversationId !== conversationId;
+        });
+    }
 </script>
+{% include "partials/chat_socket.html" %}
 
 {% endblock %}

@@ -10,6 +10,7 @@ from backend.routers.admin import router as admin_router
 from backend.routers.auth import router as auth_router
 from backend.routers.student import router as student_router
 from backend.routers.student_views import router as student_views_router
+from backend.routers.chat_ws import router as chat_ws_router
 from backend.routers.teacher_bindings import router as teacher_bindings_router
 from backend.routers.teacher_chat import router as teacher_chat_router
 from backend.routers.teacher_courses import router as teacher_courses_router
@@ -38,6 +39,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(student_router)
 app.include_router(student_views_router)
+app.include_router(chat_ws_router)
 app.include_router(teacher_learning_router)
 # 老師端左側選單在 /test。先掛 auth 的首頁，老師端的 GET / 不會蓋掉現有首頁。
 for teacher_module in (

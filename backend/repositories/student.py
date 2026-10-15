@@ -77,6 +77,19 @@ class StudentRepository:
         )
 
     @staticmethod
+    def get_message_by_client_id(
+        db: Session,
+        conversation_id: uuid.UUID,
+        client_message_id: str,
+    ) -> ConversationMessage | None:
+        return db.scalar(
+            select(ConversationMessage).where(
+                ConversationMessage.conversation_id == conversation_id,
+                ConversationMessage.client_message_id == client_message_id,
+            )
+        )
+
+    @staticmethod
     def list_messages(db: Session, conversation_id: uuid.UUID) -> list[ConversationMessage]:
         return list(
             db.scalars(

@@ -48,6 +48,7 @@ from backend.services.user import (
     register_user,
     update_user_profile,
 )
+from backend.services.student import list_home_course_rows
 
 router = APIRouter()
 
@@ -78,6 +79,16 @@ def redirect_user_home(user: User):
     return RedirectResponse("/student", status_code=303)
 
 
+def safe_next_path(value: str | None) -> str | None:
+    """只允許站內路徑，避免登入後被帶到別的網站。"""
+    if value is None:
+        return None
+    path = value.strip()
+    if path.startswith("/") is False or path.startswith("//") or "\\" in path:
+        return None
+    return path
+
+
 def teacher_status_template(user: User, db: Session) -> str | RedirectResponse:
     """老師頁要顯示儀表板、等待審核、已駁回，或去補申請資料。"""
     application = get_application_by_user_id(db, user.id)
@@ -92,12 +103,16 @@ def teacher_status_template(user: User, db: Session) -> str | RedirectResponse:
 
 @router.get("/", response_class=HTMLResponse)
 def home(request: Request, db: Session = Depends(get_db)):
-    """測試首頁。"""
+    """測試首頁。主畫面顯示已發布課程。"""
     user = get_session_user(request, db)
     return templates.TemplateResponse(
         request=request,
         name="home.html",
-        context={"user": user},
+        context={
+            "user": user,
+            "course_rows": list_home_course_rows(db),
+            "error": request.query_params.get("error"),
+        },
     )
 
 
@@ -421,7 +436,11 @@ def login_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="auth/login.html",
-        context={"error": None, "registered": registered},
+        context={
+            "error": request.query_params.get("error"),
+            "registered": registered,
+            "next": safe_next_path(request.query_params.get("next")),
+        },
     )
 
 
@@ -430,6 +449,7 @@ def submit_login(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """檢查帳號密碼並建立登入 Session。"""
@@ -437,7 +457,7 @@ def submit_login(
         return templates.TemplateResponse(
             request=request,
             name="auth/login.html",
-            context={"error": "請輸入正確的 Email 格式。", "registered": None},
+            context={"error": "請輸入正確的 Email 格式。", "registered": None, "next": safe_next_path(next)},
             status_code=400,
         )
 
@@ -447,7 +467,7 @@ def submit_login(
         return templates.TemplateResponse(
             request=request,
             name="auth/login.html",
-            context={"error": "Email 或密碼錯誤。", "registered": None},
+            context={"error": "Email 或密碼錯誤。", "registered": None, "next": safe_next_path(next)},
             status_code=401,
         )
 
@@ -455,12 +475,15 @@ def submit_login(
         return templates.TemplateResponse(
             request=request,
             name="auth/login.html",
-            context={"error": "此帳號目前無法登入。", "registered": None},
+            context={"error": "此帳號目前無法登入。", "registered": None, "next": safe_next_path(next)},
             status_code=403,
         )
 
     request.session.clear()
     request.session["user_id"] = str(user.id)
+    next_path = safe_next_path(next)
+    if next_path is not None:
+        return RedirectResponse(next_path, status_code=303)
     return redirect_user_home(user)
 
 

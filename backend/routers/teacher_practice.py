@@ -9,6 +9,7 @@ from backend.core.database import get_db
 from backend.models.user import User
 from backend.dependencies.common import get_current_user
 from backend.models import *
+from backend.models.student import Course
 from backend.schemas import *
 from backend.dependencies.teacher import get_current_teacher
 from backend.services.teacher_sync import _ensure_teacher_profile
@@ -28,9 +29,9 @@ def create_assignment(
     # -----------------------------------------------------
 
     course = (
-        db.query(CourseDB)
+        db.query(Course)
         .filter(
-            CourseDB.id == data.course_id
+            Course.id == data.course_id
         )
         .first()
     )
@@ -41,7 +42,7 @@ def create_assignment(
             detail="找不到課程",
         )
 
-    if course.teacher_profile_id != teacher.id:
+    if course.teacher_id != teacher.user_id:
         raise HTTPException(
             status_code=403,
             detail="不能在其他教師的課程建立作業",

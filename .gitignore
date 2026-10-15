@@ -36,5 +36,6 @@ score_test/processed_audio/
 .uv/
 
 
-# 老師申請證明文件
-uploads/
+# 本機課程展示用的假資料產生器，不送上遠端
+scripts/seed_local_demo.py
+

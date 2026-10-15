@@ -9,6 +9,7 @@ from backend.core.database import get_db
 from backend.models.user import User
 from backend.dependencies.common import get_current_user
 from backend.models import *
+from backend.models.student import InquiryConversation
 from backend.schemas import *
 from backend.dependencies.teacher import get_current_teacher
 from backend.services.teacher_sync import _ensure_teacher_profile
@@ -22,27 +23,9 @@ def get_my_inquiries(
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
 
-    courses = (
-        db.query(CourseDB)
-        .filter(
-            CourseDB.teacher_profile_id == teacher.id
-        )
-        .all()
-    )
-
-    course_ids = [
-        course.id
-        for course in courses
-    ]
-
-    if not course_ids:
-        return []
-
     return (
-        db.query(InquiryDB)
-        .filter(
-            InquiryDB.course_id.in_(course_ids)
-        )
+        db.query(InquiryConversation)
+        .filter(InquiryConversation.teacher_id == teacher.user_id)
         .all()
     )
 
@@ -59,27 +42,9 @@ def get_teacher_inquiries(
             detail="不能查看其他教師的詢問",
         )
 
-    courses = (
-        db.query(CourseDB)
-        .filter(
-            CourseDB.teacher_profile_id == teacher.id
-        )
-        .all()
-    )
-
-    course_ids = [
-        course.id
-        for course in courses
-    ]
-
-    if not course_ids:
-        return []
-
     return (
-        db.query(InquiryDB)
-        .filter(
-            InquiryDB.course_id.in_(course_ids)
-        )
+        db.query(InquiryConversation)
+        .filter(InquiryConversation.teacher_id == teacher.user_id)
         .all()
     )
 

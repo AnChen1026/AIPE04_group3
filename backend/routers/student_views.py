@@ -18,7 +18,6 @@ from backend.services.student import (
     StudentBusinessError,
     add_message,
     create_change_request,
-    list_published_courses,
     mark_conversation_read,
     redeem_binding_code,
     save_recording,
@@ -59,9 +58,9 @@ def student_dashboard(request: Request, db: Session = Depends(get_db)):
             "recordings": [],
             "teacher_name": None,
         }
+        teacher = db.get(User, course.teacher_id) if course is not None else None
+        card["teacher_name"] = teacher.name if teacher is not None else None
         if bound:
-            teacher = db.get(User, course.teacher_id)
-            card["teacher_name"] = teacher.name if teacher is not None else None
             card["schedule"] = StudentRepository.list_schedule(db, user.id, course.id)
             card["requests"] = StudentRepository.list_change_requests_for_student(db, user.id, course.id)
             for recording in StudentRepository.list_recordings(db, user.id, course.id):
@@ -73,17 +72,24 @@ def student_dashboard(request: Request, db: Session = Depends(get_db)):
                 )
         cards.append(card)
     notice = request.query_params.get("error") or request.query_params.get("success")
+    requested_chat = request.query_params.get("chat")
+    open_conversation_id = None
+    if requested_chat is not None:
+        for item in cards:
+            if str(item["conversation"].id) == requested_chat:
+                open_conversation_id = requested_chat
+                break
     return templates.TemplateResponse(
         request=request,
         name="student/dashboard.html",
         context={
             "user": user,
-            "courses": list_published_courses(db),
             "conversations": cards,
             "has_binding": any(item["bound"] for item in cards),
             "error": request.query_params.get("error"),
             "success": request.query_params.get("success"),
-            "open_chat": notice is not None,
+            "open_chat": open_conversation_id is not None or notice is not None,
+            "open_conversation_id": open_conversation_id,
         },
     )
 
@@ -97,7 +103,22 @@ def inquire_course(course_id: uuid.UUID, request: Request, db: Session = Depends
         conversation = start_conversation(db, user, course_id)
     except StudentBusinessError as error:
         return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
-    return RedirectResponse("/student", status_code=303)
+    return RedirectResponse(f"/student?chat={conversation.id}", status_code=303)
+
+
+@router.get("/courses/{course_id}/contact")
+def contact_course_teacher(course_id: uuid.UUID, request: Request, db: Session = Depends(get_db)):
+    """首頁「與老師聯繫」。未登入先去登入，學生登入後直接打開這門課的聊天室。"""
+    user = get_session_user(request, db)
+    if user is None:
+        return RedirectResponse(f"/login?next=/courses/{course_id}/contact", status_code=303)
+    if user.role != "student":
+        return RedirectResponse("/?error=" + quote("請用學生帳號與老師聯繫。"), status_code=303)
+    try:
+        conversation = start_conversation(db, user, course_id)
+    except StudentBusinessError as error:
+        return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
+    return RedirectResponse(f"/student?chat={conversation.id}", status_code=303)
 
 
 @router.get("/student/conversations/{conversation_id}", response_class=HTMLResponse)

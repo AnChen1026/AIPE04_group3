@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.models.student import (
@@ -21,6 +23,7 @@ from backend.models.student import (
 )
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
+from backend.services.chat_hub import chat_hub, message_event
 
 UPLOAD_DIR = Path("uploads")
 
@@ -38,6 +41,34 @@ def _commit(db: Session) -> None:
     except Exception:
         db.rollback()
         raise
+
+
+def list_home_course_rows(db: Session) -> list[dict]:
+    """首頁依課程類型分成橫向列，只顯示已發布課程。"""
+    rows = db.execute(
+        select(Course, User.name)
+        .join(User, User.id == Course.teacher_id)
+        .where(Course.status == "published")
+        .order_by(Course.title)
+    ).all()
+    grouped: dict[str, list[dict]] = {}
+    style_order: list[str] = []
+    for course, teacher_name in rows:
+        style = course.style or "其他鋼琴"
+        if style not in grouped:
+            grouped[style] = []
+            style_order.append(style)
+        grouped[style].append(
+            {
+                "id": course.id,
+                "title": course.title,
+                "region": course.region or "地區未填",
+                "teacher_name": teacher_name,
+            }
+        )
+    preferred = ["古典鋼琴", "流行鋼琴", "爵士鋼琴"]
+    style_order.sort(key=lambda name: preferred.index(name) if name in preferred else len(preferred))
+    return [{"style": style, "courses": grouped[style]} for style in style_order]
 
 
 def list_published_courses(db: Session) -> list[Course]:
@@ -71,21 +102,48 @@ def student_can_read_conversation(conversation: InquiryConversation, student: Us
     return conversation.student_id == student.id
 
 
-def add_message(db: Session, conversation: InquiryConversation, sender: User, body: str) -> ConversationMessage:
+def add_message(
+    db: Session,
+    conversation: InquiryConversation,
+    sender: User,
+    body: str,
+    client_message_id: str | None = None,
+) -> ConversationMessage:
     text = body.strip()
     if text == "":
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "訊息不能是空白。")
     if sender.id not in (conversation.student_id, conversation.teacher_id):
         raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "不能在這段對話發言。")
 
+    client_id = (client_message_id or "").strip() or None
+    if client_id is not None and len(client_id) > 64:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "訊息編號太長。")
+    if client_id is not None:
+        existing = StudentRepository.get_message_by_client_id(db, conversation.id, client_id)
+        if existing is not None:
+            chat_hub.publish(conversation.id, message_event(existing))
+            return existing
+
     message = ConversationMessage(
         conversation_id=conversation.id,
         sender_id=sender.id,
+        client_message_id=client_id,
         body=text,
     )
     db.add(message)
-    _commit(db)
+    try:
+        _commit(db)
+    except IntegrityError:
+        db.rollback()
+        if client_id is None:
+            raise
+        existing = StudentRepository.get_message_by_client_id(db, conversation.id, client_id)
+        if existing is None:
+            raise
+        chat_hub.publish(conversation.id, message_event(existing))
+        return existing
     db.refresh(message)
+    chat_hub.publish(conversation.id, message_event(message))
     return message
 
 
@@ -281,15 +339,16 @@ def issue_binding_code(db: Session, teacher: User, conversation_id: uuid.UUID) -
         conversation_id=conversation.id,
     )
     db.add(binding_code)
-    db.add(
-        ConversationMessage(
-            conversation_id=conversation.id,
-            sender_id=teacher.id,
-            body=f"綁定碼：{code}",
-        )
+    message = ConversationMessage(
+        conversation_id=conversation.id,
+        sender_id=teacher.id,
+        body=f"綁定碼：{code}",
     )
+    db.add(message)
     _commit(db)
     db.refresh(binding_code)
+    db.refresh(message)
+    chat_hub.publish(conversation.id, message_event(message))
     return binding_code
 
 

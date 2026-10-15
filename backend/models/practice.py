@@ -15,7 +15,7 @@ class AssignmentDB(Base):
 
     course_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("teacher_module_courses.id"),
+        ForeignKey("courses.id"),
         nullable=False,
     )
 

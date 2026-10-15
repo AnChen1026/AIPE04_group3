@@ -4,7 +4,7 @@
 from backend.models.auth_identity import AuthIdentity
 from backend.models.base import Base
 from backend.models.chat import ConversationDB, MessageDB
-from backend.models.course import ChangeRequestDB, CourseDB, InquiryDB, LessonDB
+from backend.models.course import ChangeRequestDB, InquiryDB, LessonDB
 from backend.models.material import MaterialDB
 from backend.models.practice import AssignmentDB, EvaluationDB, SubmissionDB
 from backend.models.quiz import QuizDB
@@ -20,7 +20,6 @@ __all__ = [
     "BindingDB",
     "ChangeRequestDB",
     "ConversationDB",
-    "CourseDB",
     "EvaluationDB",
     "InquiryDB",
     "LessonDB",

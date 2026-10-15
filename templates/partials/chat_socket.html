@@ -1,0 +1,89 @@
+<script>
+    if (!window.chatSocketStarted) {
+        window.chatSocketStarted = true;
+        document.querySelectorAll(".chat-box").forEach(function (box) {
+            const status = box.querySelector(".chat-status");
+            const log = box.querySelector(".chat-log");
+            const form = box.querySelector(".chat-send");
+            const input = form.querySelector("input[name='body']");
+            let socket = null;
+
+            function lastId() {
+                const items = log.querySelectorAll("[data-message-id]");
+                if (!items.length) {
+                    return null;
+                }
+                return items[items.length - 1].getAttribute("data-message-id");
+            }
+
+            function appendMessage(payload) {
+                if (log.querySelector('[data-message-id="' + payload.id + '"]')) {
+                    return;
+                }
+                const line = document.createElement("p");
+                line.setAttribute("data-message-id", payload.id);
+                if (box.dataset.bubble === "line") {
+                    const mine = payload.sender_id === box.dataset.userId;
+                    line.className = mine ? "bubble mine" : "bubble peer";
+                    line.textContent = payload.body;
+                } else {
+                    const who = payload.sender_id === box.dataset.userId ? "我" : box.dataset.peerLabel;
+                    const strong = document.createElement("strong");
+                    strong.textContent = who + "：";
+                    line.appendChild(strong);
+                    line.appendChild(document.createTextNode(payload.body));
+                }
+                log.appendChild(line);
+                log.scrollTop = log.scrollHeight;
+                const preview = document.querySelector('.line-friend[data-conversation-id="' + box.dataset.conversationId + '"] em');
+                if (preview) {
+                    preview.textContent = payload.body;
+                }
+            }
+
+            function connect() {
+                const scheme = location.protocol === "https:" ? "wss" : "ws";
+                socket = new WebSocket(scheme + "://" + location.host + "/ws/conversations/" + box.dataset.conversationId);
+                socket.onopen = function () {
+                    status.textContent = "已連線";
+                    socket.send(JSON.stringify({
+                        type: "sync",
+                        after_message_id: lastId()
+                    }));
+                };
+                socket.onmessage = function (event) {
+                    const payload = JSON.parse(event.data);
+                    if (payload.type === "message") {
+                        appendMessage(payload);
+                    }
+                    if (payload.type === "error") {
+                        status.textContent = payload.detail;
+                    }
+                };
+                socket.onclose = function () {
+                    status.textContent = "連線中斷，正在重新連接";
+                    setTimeout(connect, 2000);
+                };
+            }
+
+            form.addEventListener("submit", function (event) {
+                if (!socket || socket.readyState !== WebSocket.OPEN) {
+                    if (!form.getAttribute("action")) {
+                        event.preventDefault();
+                        status.textContent = "尚未連線，請稍後再送。";
+                    }
+                    return;
+                }
+                event.preventDefault();
+                socket.send(JSON.stringify({
+                    type: "message",
+                    body: input.value,
+                    client_message_id: crypto.randomUUID()
+                }));
+                input.value = "";
+            });
+
+            connect();
+        });
+    }
+</script>
