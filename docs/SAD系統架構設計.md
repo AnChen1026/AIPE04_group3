@@ -2,14 +2,12 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 版本 | V1.2 |
+| 版本 | V1.4 |
 | 文件類型 | Software Architecture Document |
-| 最後更新 | 2026-09-30 |
+| 最後更新 | 2026-10-15 |
 | 對應文件 | PRD、SRS、User Flow、資料表設計、功能製作與分工說明 |
 
-> 2026-10-12：產品規則改以 PRD／SRS／User Flow V1.3 為準。正式畫面是 Vue。資料隔離單位是老師與課程。綁定使用綁定碼。本輪不做教材與 AI 測驗。下文若仍寫 Next.js、工作室或雙向加入，以 V1.3 為準。
->
-> 本文件說明系統怎麼切層與呼叫。不代表現有 Repository 已全部實作。
+本文件以 PRD／SRS／User Flow V1.4 為準，說明系統分層與呼叫方式。正式目標畫面是 Vue；目前 Repository 內的 Jinja 頁面是後端流程測試介面。本文中的 Worker 與 Object Storage 是目標架構，不代表已完整實作。
 
 ## 1. 架構目標
 
@@ -17,7 +15,7 @@
 - 以老師與課程作為資料隔離單位。
 - 僅鋼琴；訪客找課後須註冊。按洽詢建立接洽對話，輸入綁定碼後才使用該課教學功能。
 - 即時聊天可斷線重連，且不遺失已寫入訊息。
-- AI 只產生草稿或文字回饋，不決定權限、不改課表、不定分數。
+- AI 只產生測驗草稿或文字回饋，不決定權限、不改課表、不定分數，也不自行發布測驗。
 - 教材、參考 MIDI 與學生錄音放私有檔案儲存，資料庫只存 metadata。
 - 高成本音訊分析／LLM 與一般 HTTP Request 分開，並保存處理狀態。
 
@@ -41,7 +39,9 @@ flowchart TD
 
 平台維運管理員第一版只做必要帳號／異常與稽核，完整管理員介面延後。
 
-## 3. 容器與責任
+目前可執行版本由根目錄 `app.py` 啟動 FastAPI，使用 Jinja 測試頁與本機 `uploads/`。Vue、Background Worker 與 Object Storage 完整部署仍是目標狀態。
+
+## 3. 目標容器與責任
 
 | 元件 | 主要責任 |
 | --- | --- |
@@ -57,31 +57,29 @@ MVP 可先同一個 FastAPI 服務，但程式仍維持模組邊界；音訊處�
 
 ## 4. 後端模組
 
-實際 Repository 使用 `backend/routers/`，不是 `backend/api/`。目標結構：
+實際 Repository 使用下列共用分層；根目錄 `app.py` 是唯一正式啟動入口：
 
 ```text
 backend/
-├── routers/          ← API 入口
+├── routers/
 │   ├── auth.py
-│   ├── courses.py
-│   ├── inquiries.py
-│   ├── relationships.py
-│   ├── lessons.py
-│   ├── chats.py
-│   ├── quizzes.py
-│   ├── practice.py
-│   ├── summaries.py
-│   └── recommendations.py
+│   ├── admin.py
+│   ├── student.py
+│   ├── student_views.py
+│   └── teacher_*.py
 ├── services/
+│   └── teacher_sync.py
 ├── repositories/
 ├── models/
 ├── schemas/
-├── core/
-├── workers/
-└── tests/
+├── dependencies/
+│   ├── common.py
+│   └── teacher.py
+└── core/
+    └── uploads.py
 ```
 
-`app.py` 仍是啟動入口。現況若只有空資料夾，先依功能補檔，不一次搬動全部程式。
+新功能應延續 Router → Service → Repository → Model 的分層。背景工作可在需要時新增 `workers/`，不把規劃中的資料夾誤寫成已完成。
 
 ## 5. 呼叫關係
 
@@ -89,7 +87,7 @@ backend/
 REST / WebSocket Endpoint
   → Authentication / Authorization
   → Service：商業規則與狀態轉換
-  → Repository：受工作室／使用者／修課範圍限制的查詢
+  → Repository：受老師／課程／目前使用者範圍限制的查詢
   → SQLAlchemy / PostgreSQL
 ```
 
@@ -108,7 +106,7 @@ Service 建立提交／任務並 Commit
 ## 6. Auth 與授權
 
 - 註冊時角色為 teacher 或 student；MVP 不可自行變更。
-- 第一版使用 HttpOnly Cookie Session，只保存使用者編號。不使用 JWT。
+- 第一版使用簽章 Session Cookie，只保存使用者編號。不使用 JWT。
 - 老師只能操作自己的課程。學生個人資源查詢固定加上目前使用者。
 - 未綁定時只能使用接洽對話，不能讀課表、錄音、練習回饋與課前摘要。
 - Chat 同時驗證 conversation member 與有效師生關係。
@@ -254,4 +252,4 @@ flowchart TD
 3. WebSocket 多 Instance 的廣播方式。
 4. 錄音長度上限、評分容許誤差與回饋延遲目標。
 
-以上不改變已定方向：僅鋼琴、網站雙端、MIDI 參考、錄完後快速回饋、課前摘要與站內洽詢。
+以上不改變已定方向：僅鋼琴、網站雙端、MIDI 參考、錄完後快速回饋、課前摘要、站內洽詢與老師審核後發布的 AI 測驗。
