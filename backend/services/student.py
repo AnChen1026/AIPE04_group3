@@ -1,5 +1,6 @@
 """學生接洽、綁定、課表與練習的規則。"""
 
+import hashlib
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ from backend.models.student import (
     LessonSession,
     PracticeFeedback,
     PracticeRecording,
+    ReferenceMidi,
 )
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
@@ -297,17 +299,32 @@ def create_course(
 ) -> Course:
     if title.strip() == "":
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "課程名稱不能是空白。")
-    midi_path = None
-    if midi_content:
+
+    midi_file_path: Path | None = None
+    midi_storage_key: str | None = None
+    midi_original_name: str | None = None
+    midi_sha256: str | None = None
+    midi_size: int | None = None
+    if midi_name is not None:
+        suffix = Path(midi_name).suffix.lower()
+        if suffix not in (".mid", ".midi"):
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考檔必須是 MIDI（.mid 或 .midi）。")
+        if not midi_content:
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考 MIDI 檔是空的。")
+
+        midi_original_name = midi_name.replace("\\", "/").rsplit("/", 1)[-1][-255:]
+        midi_sha256 = hashlib.sha256(midi_content).hexdigest()
+        midi_size = len(midi_content)
         folder = UPLOAD_DIR / "midi" / str(teacher.id)
         folder.mkdir(parents=True, exist_ok=True)
-        midi_path = folder / f"{uuid.uuid4()}.mid"
-        midi_path.write_bytes(midi_content)
-        midi_path = str(midi_path)
-    elif midi_name:
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考 MIDI 檔是空的。")
+        midi_file_path = folder / f"{uuid.uuid4()}{suffix}"
+        midi_file_path.write_bytes(midi_content)
+        midi_storage_key = str(midi_file_path)
+    elif midi_content:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考 MIDI 缺少檔名。")
 
     course = Course(
+        id=uuid.uuid4(),
         teacher_id=teacher.id,
         title=title.strip(),
         level=level or None,
@@ -317,10 +334,26 @@ def create_course(
         price_per_lesson=price_per_lesson,
         time_slots=time_slots or None,
         status="published" if publish else "draft",
-        reference_midi_path=midi_path,
+        reference_midi_path=midi_storage_key,
     )
     db.add(course)
-    _commit(db)
+    if midi_storage_key is not None:
+        db.add(
+            ReferenceMidi(
+                course_id=course.id,
+                teacher_id=teacher.id,
+                storage_key=midi_storage_key,
+                original_filename=midi_original_name,
+                content_sha256=midi_sha256,
+                file_size_bytes=midi_size,
+            )
+        )
+    try:
+        _commit(db)
+    except Exception:
+        if midi_file_path is not None:
+            midi_file_path.unlink(missing_ok=True)
+        raise
     db.refresh(course)
     return course
 
