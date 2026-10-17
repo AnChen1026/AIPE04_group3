@@ -1,0 +1,74 @@
+/* 設計稿（Figma Page 2／首頁）的顏色與尺寸，設計稿寬 1847，網頁版約縮放 0.65 */
+:root {
+  --color-text: #000000;
+  --color-text-muted: #555555;
+  --color-border: #d9d9d9;
+  --color-surface: #ffffff;
+  --color-search-bg: #d9d9d9;
+  --color-ai-button: #c5d4f3;
+  --color-price: #000000;
+  --color-placeholder-from: #eef2fb;
+  --color-placeholder-to: #c5d4f3;
+
+  --font-family: Calibri, 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+
+  --header-height: 72px;
+  --content-max-width: 1200px;
+  --page-gutter: 16px;
+
+  --radius-popular: 24px;
+  --radius-recommend: 36px;
+  --radius-pill: 999px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: #fbf6ef;
+  color: var(--color-text);
+  font-family: var(--font-family);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.container {
+  width: 100%;
+  max-width: calc(var(--content-max-width) + var(--page-gutter) * 2);
+  margin: 0 auto;
+  padding: 0 var(--page-gutter);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
