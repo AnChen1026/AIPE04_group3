@@ -13,29 +13,36 @@ venv/
 # 環境變數
 .env
 
-# 編輯器私人設定 (針對 VS Code 與 Cursor)
+# 編輯器私人設定（VS Code、Cursor）
 .vscode/
 .idea/
 .scratch/
 *.swp
 
-# 科學計算與測試快取 (針對 Pandas, Numpy, Scipy)
+# 科學計算與測試快取（Pandas、NumPy、SciPy）
 .pytest_cache/
 .coverage
 .ipynb_checkpoints/
 
-# Windows 系統隱形垃圾
+# Windows 系統檔案
 Thumbs.db
 
-# 評分測試執行後產生的中間檔，不需要上傳
+# 評分測試執行後產生的中間檔
 score_test/converted_midi/
 score_test/processed_audio/
 
-
-# uv 專屬快取
+# uv 快取
 .uv/
 
+# Next.js 套件、建置與測試產物
+frontend/node_modules/
+frontend/.next/
+frontend/test-results/
+frontend/playwright-report/
+frontend/*.tsbuildinfo
 
-# 本機課程展示用的假資料產生器，不送上遠端
+# 本機介面設計工具資料
+.impeccable/
+
+# 本機課程展示用的假資料產生器
 scripts/seed_local_demo.py
-
