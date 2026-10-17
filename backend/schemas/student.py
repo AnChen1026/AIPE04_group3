@@ -22,6 +22,12 @@ class CourseResponse(BaseModel):
         from_attributes = True
 
 
+class PublishedCourseResponse(CourseResponse):
+    """訪客看得到的已發布課程。不含 MIDI 路徑。"""
+
+    teacher_name: str
+
+
 class ConversationResponse(BaseModel):
     id: uuid.UUID
     course_id: uuid.UUID

@@ -75,6 +75,34 @@ def list_published_courses(db: Session) -> list[Course]:
     return StudentRepository.list_published_courses(db)
 
 
+def list_public_published_courses(db: Session) -> list[dict]:
+    """訪客用。只回已發布課程和老師姓名，不回草稿、封存或 MIDI 路徑。"""
+    rows = db.execute(
+        select(Course, User.name)
+        .join(User, User.id == Course.teacher_id)
+        .where(Course.status == "published")
+        .order_by(Course.created_at.desc())
+    ).all()
+    courses = []
+    for course, teacher_name in rows:
+        courses.append(
+            {
+                "id": course.id,
+                "teacher_id": course.teacher_id,
+                "teacher_name": teacher_name,
+                "title": course.title,
+                "level": course.level,
+                "style": course.style,
+                "delivery_mode": course.delivery_mode,
+                "region": course.region,
+                "price_per_lesson": course.price_per_lesson,
+                "time_slots": course.time_slots,
+                "status": course.status,
+            }
+        )
+    return courses
+
+
 def start_conversation(db: Session, student: User, course_id: uuid.UUID) -> InquiryConversation:
     """學生對已發布課程按洽詢，建立或打開同一段對話。"""
     course = StudentRepository.get_course(db, course_id)
