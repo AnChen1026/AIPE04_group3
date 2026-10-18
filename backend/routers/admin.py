@@ -16,12 +16,13 @@ from backend.repositories.teacher_application import (
     list_applications,
 )
 from backend.repositories.user import list_users_by_role
-from backend.schemas.user import TeacherApplicationResponse
+from backend.schemas.user import TeacherApplicationResponse, UserResponse
 from backend.services.teacher import (
     approve_teacher_application,
     build_application_response,
     reject_teacher_application,
 )
+from backend.services.user import build_user_response
 
 router = APIRouter()
 
@@ -234,3 +235,21 @@ def api_download_proof(
         path=file_path,
         filename=application.proof_file_name or "proof",
     )
+
+
+@router.get("/api/admin/teachers", response_model=list[UserResponse])
+def api_teacher_list(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """JSON：全部老師帳號，含審核狀態。"""
+    return [build_user_response(db, user) for user in list_users_by_role(db, "teacher")]
+
+
+@router.get("/api/admin/students", response_model=list[UserResponse])
+def api_student_list(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """JSON：全部學生帳號。"""
+    return [build_user_response(db, user) for user in list_users_by_role(db, "student")]

@@ -23,6 +23,7 @@ function nextPath(userRole: string) {
   if (redirect.startsWith('/') && !redirect.startsWith('//')) {
     if (redirect.startsWith('/teacher') && userRole !== 'teacher') return auth.homePath
     if (redirect.startsWith('/student') && userRole !== 'student') return auth.homePath
+    if (redirect.startsWith('/admin') && userRole !== 'admin') return auth.homePath
     return redirect
   }
   return auth.homePath

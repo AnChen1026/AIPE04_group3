@@ -10,8 +10,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => user.value !== null)
 
-  // 登入後該去的地方：老師到後台、學生到學生專區
+  // 登入後該去的地方：管理員、老師、學生各自進自己的後台
   const homePath = computed(() => {
+    if (user.value?.role === 'admin') return '/admin'
     if (user.value?.role === 'teacher') return '/teacher'
     if (user.value?.role === 'student') return '/student'
     return '/'

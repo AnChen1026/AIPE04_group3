@@ -67,6 +67,19 @@ const router = createRouter({
       ],
     },
 
+    // ---------- 管理員後台
+    {
+      path: '/admin',
+      component: () => import('@/layouts/AdminLayout.vue'),
+      meta: { layout: 'console', role: 'admin' },
+      children: [
+        { path: '', name: 'admin-home', component: () => import('@/views/admin/AdminDashboardView.vue'), meta: { title: '資訊總覽' } },
+        { path: 'applications', name: 'admin-applications', component: () => import('@/views/admin/AdminApplicationsView.vue'), meta: { title: '老師申請' } },
+        { path: 'teachers', name: 'admin-teachers', component: () => import('@/views/admin/AdminPeopleView.vue'), meta: { title: '老師' } },
+        { path: 'students', name: 'admin-students', component: () => import('@/views/admin/AdminPeopleView.vue'), meta: { title: '學生' } },
+      ],
+    },
+
     // ---------- 學生專區
     {
       path: '/student',
