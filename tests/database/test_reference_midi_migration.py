@@ -110,4 +110,3 @@ def test_downgrade_to_009_preserves_legacy_course_path(
             {"course_id": legacy["course_id"]},
         ).scalar_one()
     assert midi_path == legacy["legacy_path"]
-

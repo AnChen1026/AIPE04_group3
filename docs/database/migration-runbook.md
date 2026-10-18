@@ -113,4 +113,3 @@ alembic downgrade 009_images_profile
 ## 事故處理
 
 Migration 失敗時停止繼續部署與寫入，保存 FastAPI、Alembic 與 PostgreSQL log，記錄應用程式 commit、`alembic current`、失敗 SQL 和發生時間。依交易是否 rollback、資料是否已寫入及備份能否還原，決定向前修正或還原。
-

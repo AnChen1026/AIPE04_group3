@@ -107,4 +107,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_reference_midis_teacher_course", table_name="reference_midis")
     op.drop_table("reference_midis")
-

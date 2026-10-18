@@ -50,4 +50,3 @@ Migration 先建立 metadata 表並回填舊路徑。應用程式上傳新 MIDI 
 4. API 上傳 MIDI 後，舊欄位與 metadata 指向同一路徑。
 5. 更換 MIDI 只更新同一門課的 metadata，不新增第二筆。
 6. 非 MIDI、空檔與超過大小限制的檔案不建立 metadata。
-

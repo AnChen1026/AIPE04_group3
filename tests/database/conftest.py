@@ -45,4 +45,3 @@ def migration_database(
         yield config, engine
     finally:
         engine.dispose()
-

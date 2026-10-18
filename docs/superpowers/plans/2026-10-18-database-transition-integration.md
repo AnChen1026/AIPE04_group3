@@ -78,4 +78,3 @@
 - [x] Document safe migration, backup, restore, verification, and rollback commands.
 - [x] Ignore generated frontend and local design-tool artifacts.
 - [x] Run all tests, inspect the final diff, and commit the documentation slice.
-
