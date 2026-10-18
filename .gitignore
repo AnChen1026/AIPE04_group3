@@ -38,4 +38,12 @@ backend/audio_scoring/processed_audio/
 
 # 本機課程展示用的假資料產生器，不送上遠端
 scripts/seed_local_demo.py
+# Frontend generated artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/test-results/
+frontend/playwright-report/
+frontend/*.tsbuildinfo
 
+# Local interface design tool artifacts
+.impeccable/
