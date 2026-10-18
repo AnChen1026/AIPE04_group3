@@ -1,6 +1,6 @@
 # Database Transition Integration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add reference MIDI metadata after backend Migration 009 without creating a second lesson-summary schema or breaking existing readers.
 
@@ -39,11 +39,11 @@
 - Consumes: Alembic revision `009_images_profile` and legacy `courses.reference_midi_path`.
 - Produces: revision `010_reference_midis` and the `reference_midis` table.
 
-- [ ] Write a migration test that upgrades to 009, inserts a legacy course, upgrades to head, and verifies the backfilled metadata and constraints.
-- [ ] Run the test and verify it fails because revision 010 does not exist.
-- [ ] Implement `010_reference_midis` with table, index, backfill, and downgrade.
-- [ ] Verify upgrade, backfill, downgrade, and single-head checks pass.
-- [ ] Commit the migration slice.
+- [x] Write a migration test that upgrades to 009, inserts a legacy course, upgrades to head, and verifies the backfilled metadata and constraints.
+- [x] Run the test and verify it fails because revision 010 does not exist.
+- [x] Implement `010_reference_midis` with table, index, backfill, and downgrade.
+- [x] Verify upgrade, backfill, downgrade, and single-head checks pass.
+- [x] Commit the migration slice.
 
 ### Task 2: Course upload dual write
 
@@ -57,11 +57,11 @@
 - Consumes: `save_reference_midi(db, teacher_user_id, course_id, filename, content)`.
 - Produces: `ReferenceMidi` metadata synchronized with `Course.reference_midi_path`.
 
-- [ ] Extend the public API test to assert path, filename, SHA-256, size, and one-row replacement behavior.
-- [ ] Run the test and verify it fails because `ReferenceMidi` is absent.
-- [ ] Add the SQLAlchemy model and dual-write logic with failed-commit cleanup.
-- [ ] Run the course tests and the complete backend suite.
-- [ ] Commit the service slice.
+- [x] Extend the public API test to assert path, filename, SHA-256, size, and one-row replacement behavior.
+- [x] Run the test and verify it fails because `ReferenceMidi` is absent.
+- [x] Add the SQLAlchemy model and dual-write logic with failed-commit cleanup.
+- [x] Run the course tests and the complete backend suite.
+- [x] Commit the service slice.
 
 ### Task 3: Operations documentation and repository hygiene
 
@@ -74,8 +74,8 @@
 - Consumes: the tested 010 schema and dual-write behavior.
 - Produces: maintainer guidance for schema ownership, deployment, backup, rollback, and the later contract step.
 
-- [ ] Document the current 001→010 chain and the reference MIDI transition.
-- [ ] Document safe migration, backup, restore, verification, and rollback commands.
-- [ ] Ignore generated frontend and local design-tool artifacts.
-- [ ] Run all tests, inspect the final diff, and commit the documentation slice.
+- [x] Document the current 001→010 chain and the reference MIDI transition.
+- [x] Document safe migration, backup, restore, verification, and rollback commands.
+- [x] Ignore generated frontend and local design-tool artifacts.
+- [x] Run all tests, inspect the final diff, and commit the documentation slice.
 
