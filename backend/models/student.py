@@ -8,10 +8,12 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -58,6 +60,39 @@ class Course(Base):
     @property
     def image_url(self) -> str | None:
         return f"/api/images/courses/{self.id}" if self.image_path else None
+
+
+class ReferenceMidi(Base):
+    """一門課目前使用的參考 MIDI metadata；檔案內容放在檔案儲存。"""
+
+    __tablename__ = "reference_midis"
+    __table_args__ = (
+        UniqueConstraint("course_id", name="uq_reference_midis_course_id"),
+        CheckConstraint(
+            "file_size_bytes >= 0",
+            name="ck_reference_midis_file_size_nonnegative",
+        ),
+        Index("ix_reference_midis_teacher_course", "teacher_id", "course_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("courses.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
 
 class InquiryConversation(Base):

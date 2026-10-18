@@ -1,12 +1,14 @@
 """老師管理自己的課程：欄位檢查、修改與參考 MIDI。"""
 
+import hashlib
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import status
 from sqlalchemy.orm import Session
 
 from backend.core.uploads import MIDI_UPLOAD_DIR, stored_path
-from backend.models.student import Course
+from backend.models.student import Course, ReferenceMidi
 from backend.services.student import StudentBusinessError
 
 COURSE_LEVELS = ("入門", "初階", "中階", "進階", "不確定")
@@ -96,8 +98,26 @@ def save_reference_midi(
     path = folder / f"{uuid.uuid4()}.mid"
     path.write_bytes(content)
 
-    course.reference_midi_path = stored_path(path)
-    db.commit()
+    storage_key = stored_path(path)
+    original_filename = filename.replace("\\", "/").rsplit("/", 1)[-1][-255:] or "reference.mid"
+    course.reference_midi_path = storage_key
+    reference = db.query(ReferenceMidi).filter(ReferenceMidi.course_id == course.id).one_or_none()
+    if reference is None:
+        reference = ReferenceMidi(course_id=course.id, teacher_id=teacher_user_id)
+        db.add(reference)
+    reference.teacher_id = teacher_user_id
+    reference.storage_key = storage_key
+    reference.original_filename = original_filename
+    reference.content_sha256 = hashlib.sha256(content).hexdigest()
+    reference.file_size_bytes = len(content)
+    reference.updated_at = datetime.now(timezone.utc)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        path.unlink(missing_ok=True)
+        raise
     db.refresh(course)
     return course
 
