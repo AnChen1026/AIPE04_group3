@@ -1,6 +1,5 @@
 from datetime import datetime
-import uuid
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, Date, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from backend.models.base import Base
 
@@ -15,7 +14,7 @@ class QuizDB(Base):
 
     teacher_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("teacher_profiles.id"),
+        ForeignKey("users.id"),
         nullable=False,
     )
 
