@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import TeacherCard from './TeacherCard.vue'
+import SectionHeading from './SectionHeading.vue'
 import type { TeacherCardData } from '@/mocks/home'
 
 defineProps<{
@@ -13,16 +14,23 @@ const emit = defineEmits<{
 
 <template>
   <section id="teachers" class="teachers" aria-labelledby="teachers-title">
-    <div class="teachers__heading">
-      <p>Featured Teachers</p>
-      <h2 id="teachers-title">認識老師</h2>
-    </div>
+    <SectionHeading
+      v-reveal
+      label="認識老師"
+      title="由每天都在彈琴的人，"
+      accent="陪你練下去"
+      heading-id="teachers-title"
+      align="center"
+    >
+      每位老師都經過平台審核。先看看誰的風格適合你，再從課程洽詢。
+    </SectionHeading>
 
     <p v-if="teachers.length === 0" class="teachers__empty">找不到符合的老師。</p>
     <div v-else class="teachers__grid">
       <TeacherCard
-        v-for="teacher in teachers"
+        v-for="(teacher, index) in teachers"
         :key="teacher.id"
+        v-reveal="index * 90"
         :teacher="teacher"
         @view-courses="emit('viewCourses', $event)"
       />
@@ -32,36 +40,25 @@ const emit = defineEmits<{
 
 <style scoped>
 .teachers {
-  width: min(1120px, calc(100% - 48px));
-  margin: var(--section-space) auto 0;
+  padding: var(--section-space) 0;
+  background: var(--home-cream);
 }
 
-.teachers__heading p {
-  margin: 0;
-  color: var(--home-accent);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.teachers__heading h2 {
-  margin: 6px 0 0;
-  color: var(--home-ink);
-  font-family: var(--font-serif);
-  font-size: 36px;
-  font-weight: 600;
+.teachers > * {
+  width: min(1160px, calc(100% - 48px));
 }
 
 .teachers__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 22px;
-  margin-top: 28px;
+  margin: 48px auto 0;
 }
 
 .teachers__empty {
-  margin-top: 24px;
+  margin: 32px auto 0;
   color: var(--home-muted);
+  text-align: center;
 }
 
 @media (max-width: 980px) {
@@ -71,16 +68,12 @@ const emit = defineEmits<{
 }
 
 @media (max-width: 640px) {
-  .teachers {
+  .teachers > * {
     width: calc(100% - 32px);
   }
 
   .teachers__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .teachers__heading h2 {
-    font-size: 30px;
+    gap: 14px;
   }
 }
 </style>

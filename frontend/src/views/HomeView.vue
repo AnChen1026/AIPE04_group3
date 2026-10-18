@@ -3,8 +3,20 @@ import { computed, ref } from 'vue'
 import HeroSection from '@/components/home/HeroSection.vue'
 import FeaturedTeachers from '@/components/home/FeaturedTeachers.vue'
 import PopularCourses from '@/components/home/PopularCourses.vue'
+import AboutSection from '@/components/home/AboutSection.vue'
+import LearningFlow from '@/components/home/LearningFlow.vue'
+import FaqSection from '@/components/home/FaqSection.vue'
+import JoinCta from '@/components/home/JoinCta.vue'
 import Footer from '@/components/home/Footer.vue'
-import { courses, teachers } from '@/mocks/home'
+import {
+  aboutPhotos,
+  courses,
+  faqs,
+  highlights,
+  studentSteps,
+  teacherSteps,
+  teachers,
+} from '@/mocks/home'
 
 const keyword = ref('')
 const notice = ref('')
@@ -23,7 +35,7 @@ const visibleCourses = computed(() => {
   const text = query.value
   if (!text) return courses
   return courses.filter((course) =>
-    [course.title, course.category, course.teacherName].some((field) => field.toLowerCase().includes(text)),
+    [course.title, course.category, course.teacherName, course.level].some((field) => field.toLowerCase().includes(text)),
   )
 })
 
@@ -31,6 +43,11 @@ function showTeacherCourses(teacherName: string) {
   keyword.value = teacherName
   notice.value = `正在看 ${teacherName} 的課程。`
   document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+function clearSearch() {
+  keyword.value = ''
+  notice.value = ''
 }
 
 function showCourse(title: string) {
@@ -43,9 +60,16 @@ function showCourse(title: string) {
 <template>
   <div class="home">
     <HeroSection v-model="keyword" />
-    <p v-if="notice" class="home__notice">{{ notice }}</p>
-    <FeaturedTeachers :teachers="visibleTeachers" @view-courses="showTeacherCourses" />
+    <AboutSection :photos="aboutPhotos" :highlights="highlights" />
+    <p v-if="notice" class="home__notice">
+      {{ notice }}
+      <button type="button" @click="clearSearch">看全部課程</button>
+    </p>
     <PopularCourses :courses="visibleCourses" @view-course="showCourse" />
+    <LearningFlow :student-steps="studentSteps" :teacher-steps="teacherSteps" />
+    <FeaturedTeachers :teachers="visibleTeachers" @view-courses="showTeacherCourses" />
+    <FaqSection :faqs="faqs" />
+    <JoinCta />
     <Footer />
   </div>
 </template>
@@ -57,9 +81,25 @@ function showCourse(title: string) {
 }
 
 .home__notice {
-  width: min(1120px, calc(100% - 48px));
-  margin: 28px auto 0;
-  color: var(--home-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: min(1160px, calc(100% - 48px));
+  margin: 64px auto -48px;
+  padding: 14px 20px;
+  border-radius: var(--radius-pill);
+  background: var(--home-cream);
+  color: var(--home-ink);
+  font-size: 15px;
+}
+
+.home__notice button {
+  border: 0;
+  border-bottom: 1px solid var(--home-accent);
+  background: transparent;
+  color: var(--home-accent);
+  cursor: pointer;
 }
 
 @media (max-width: 640px) {

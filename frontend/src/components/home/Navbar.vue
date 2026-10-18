@@ -39,6 +39,14 @@ onUnmounted(() => {
     <div class="navbar__inner">
       <RouterLink to="/" class="navbar__brand">琴室</RouterLink>
 
+      <nav class="navbar__links" aria-label="首頁區塊">
+        <a href="#about">關於</a>
+        <a href="#courses">課程</a>
+        <a href="#flow">上課流程</a>
+        <a href="#teachers">老師</a>
+        <a href="#faq">常見問題</a>
+      </nav>
+
       <nav class="navbar__actions" aria-label="帳號">
         <template v-if="authStore.isLoggedIn">
           <span class="navbar__name">{{ authStore.user?.name }}</span>
@@ -61,13 +69,39 @@ onUnmounted(() => {
   left: 0;
   z-index: 20;
   background: transparent;
-  transition: background 0.25s ease, border-color 0.25s ease;
+  border-bottom: 1px solid transparent;
+  transition: background 0.35s ease, border-color 0.35s ease;
 }
 
 .navbar--solid {
   background: rgba(251, 246, 239, 0.94);
   border-bottom: 1px solid var(--home-line);
   backdrop-filter: blur(10px);
+}
+
+/* 還在大圖上時，文字用米白色，和大圖上的標題一致 */
+.navbar:not(.navbar--solid) .navbar__brand,
+.navbar:not(.navbar--solid) .navbar__links,
+.navbar:not(.navbar--solid) .navbar__name,
+.navbar:not(.navbar--solid) .navbar__text {
+  color: var(--home-paper);
+  text-shadow: 0 1px 12px rgba(52, 42, 34, 0.25);
+}
+
+.navbar__links {
+  display: flex;
+  gap: 28px;
+  color: var(--home-ink);
+  font-size: 15px;
+}
+
+.navbar__links a {
+  opacity: 0.86;
+  transition: opacity 0.2s ease;
+}
+
+.navbar__links a:hover {
+  opacity: 1;
 }
 
 .navbar__inner {
@@ -82,8 +116,9 @@ onUnmounted(() => {
 .navbar__brand {
   color: var(--home-ink);
   font-family: var(--font-serif);
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 600;
+  transition: color 0.35s ease;
   letter-spacing: 0.04em;
 }
 
@@ -117,6 +152,12 @@ onUnmounted(() => {
 .navbar__text:hover,
 .navbar__signup:hover {
   opacity: 0.82;
+}
+
+@media (max-width: 900px) {
+  .navbar__links {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {

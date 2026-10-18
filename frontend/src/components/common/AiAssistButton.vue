@@ -12,7 +12,7 @@ const open = ref(false)
       <p>描述你想學的鋼琴內容，系統會從已發布課程中推薦。此功能開發中。</p>
     </div>
     <button type="button" class="ai-assist__button" :aria-expanded="open" @click="open = !open">
-      AI協助
+      <span aria-hidden="true">✦</span> AI 找課
     </button>
   </div>
 </template>
@@ -30,28 +30,38 @@ const open = ref(false)
 }
 
 .ai-assist__button {
-  width: 76px;
-  height: 76px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--color-ai-button);
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: 1px solid var(--home-line);
+  border-radius: var(--radius-pill);
+  background: var(--home-paper);
+  color: var(--home-ink);
+  font-size: 15px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+  box-shadow: 0 10px 28px rgba(80, 58, 40, 0.16);
+  transition: background 0.2s ease;
+}
+
+.ai-assist__button span {
+  color: var(--home-accent);
 }
 
 .ai-assist__button:hover {
-  filter: brightness(0.96);
+  background: var(--home-cream);
 }
 
 .ai-assist__panel {
   width: min(300px, calc(100vw - 48px));
   padding: 16px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
-  font-size: 15px;
+  background: var(--home-paper);
+  border: 1px solid var(--home-line);
+  border-radius: 20px;
+  box-shadow: var(--shadow-soft);
+  color: var(--home-muted);
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .ai-assist__panel p {
@@ -60,7 +70,8 @@ const open = ref(false)
 
 .ai-assist__title {
   margin-bottom: 8px !important;
-  font-weight: 700;
+  color: var(--home-ink);
+  font-weight: 500;
 }
 
 @media (max-width: 760px) {
@@ -70,9 +81,8 @@ const open = ref(false)
   }
 
   .ai-assist__button {
-    width: 60px;
-    height: 60px;
-    font-size: 15px;
+    padding: 10px 16px;
+    font-size: 14px;
   }
 }
 </style>

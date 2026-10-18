@@ -1,28 +1,57 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import CourseCard from './CourseCard.vue'
-import type { CourseCardData } from '@/mocks/home'
+import SectionHeading from './SectionHeading.vue'
+import { courseLevels, type CourseCardData, type CourseLevel } from '@/mocks/home'
 
-defineProps<{
+const props = defineProps<{
   courses: CourseCardData[]
 }>()
 
 const emit = defineEmits<{
   viewCourse: [title: string]
 }>()
+
+const level = ref<CourseLevel | null>(null)
+
+const shownCourses = computed(() =>
+  level.value ? props.courses.filter((course) => course.level === level.value) : props.courses,
+)
 </script>
 
 <template>
   <section id="courses" class="courses" aria-labelledby="courses-title">
-    <div class="courses__heading">
-      <p>Popular Courses</p>
-      <h2 id="courses-title">熱門課程</h2>
+    <div class="courses__top">
+      <SectionHeading
+        v-reveal
+        label="熱門課程"
+        title="找一門"
+        accent="剛好適合你的課"
+        heading-id="courses-title"
+      >
+        依自己的程度挑選。不確定程度也沒關係，先和老師聊聊。
+      </SectionHeading>
+
+      <div v-reveal="120" class="courses__levels" role="group" aria-label="依程度篩選">
+        <button type="button" :aria-pressed="level === null" @click="level = null">全部</button>
+        <button
+          v-for="item in courseLevels"
+          :key="item"
+          type="button"
+          :aria-pressed="level === item"
+          @click="level = item"
+        >
+          {{ item }}
+        </button>
+      </div>
     </div>
 
-    <p v-if="courses.length === 0" class="courses__empty">找不到符合的課程。</p>
+    <p v-if="shownCourses.length === 0" class="courses__empty">目前沒有符合的課程，換個條件看看。</p>
     <div v-else class="courses__grid">
       <CourseCard
-        v-for="course in courses"
+        v-for="(course, index) in shownCourses"
         :key="course.id"
+        v-reveal="index * 90"
         :course="course"
         @view-course="emit('viewCourse', $event)"
       />
@@ -32,35 +61,55 @@ const emit = defineEmits<{
 
 <style scoped>
 .courses {
-  width: min(1120px, calc(100% - 48px));
-  margin: var(--section-space) auto 0;
+  width: min(1160px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: var(--section-space) 0;
 }
 
-.courses__heading p {
-  margin: 0;
-  color: var(--home-accent);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.courses__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
 }
 
-.courses__heading h2 {
-  margin: 6px 0 0;
+.courses__levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.courses__levels button {
+  padding: 8px 18px;
+  border: 1px solid var(--home-wood);
+  border-radius: var(--radius-pill);
+  background: transparent;
   color: var(--home-ink);
-  font-family: var(--font-serif);
-  font-size: 36px;
-  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.courses__levels button:hover {
+  border-color: var(--home-accent);
+}
+
+.courses__levels button[aria-pressed='true'] {
+  border-color: var(--home-accent);
+  background: var(--home-accent);
+  color: var(--home-paper);
 }
 
 .courses__grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-  margin-top: 28px;
+  gap: 32px 28px;
+  margin-top: 48px;
 }
 
 .courses__empty {
-  margin-top: 24px;
+  margin-top: 40px;
   color: var(--home-muted);
 }
 
@@ -77,10 +126,6 @@ const emit = defineEmits<{
 
   .courses__grid {
     grid-template-columns: 1fr;
-  }
-
-  .courses__heading h2 {
-    font-size: 30px;
   }
 }
 </style>

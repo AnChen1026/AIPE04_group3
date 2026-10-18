@@ -29,10 +29,14 @@
   --home-wood: #e4d2bf;
   --home-accent: #8f6b49;
   --home-accent-dark: #6f5238;
-  --radius-card: 20px;
   --shadow-soft: 0 12px 32px rgba(80, 58, 40, 0.08);
-  --section-space: 96px;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", "PMingLiU", "Songti TC", serif;
+  --section-space: clamp(88px, 11vw, 140px);
+  --home-cream: #f3e9dc;
+  --home-deep: #4a3b30;
+  --radius-card: 24px;
+  --radius-arch: 999px 999px 28px 28px;
+  --font-sans: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+  --font-serif: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
 }
 
 *,
@@ -49,9 +53,9 @@ body {
 body {
   min-height: 100vh;
   background: #fbf6ef;
-  color: var(--color-text);
-  font-family: var(--font-family);
-  line-height: 1.4;
+  color: var(--home-ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -64,6 +68,11 @@ button,
 input {
   font: inherit;
   color: inherit;
+}
+
+/* 用導覽列跳到區塊時，標題不要被固定的導覽列擋住 */
+section[id] {
+  scroll-margin-top: calc(var(--header-height) + 16px);
 }
 
 img {
@@ -85,4 +94,18 @@ img {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* v-reveal：捲進畫面時往上浮現 */
+.reveal {
+  opacity: 0;
+  translate: 0 28px;
+  transition:
+    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    translate 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal--in {
+  opacity: 1;
+  translate: 0 0;
 }
