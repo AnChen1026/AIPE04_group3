@@ -3,6 +3,8 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+defineOptions({ name: 'HomeNavbar' })
+
 const router = useRouter()
 const authStore = useAuthStore()
 const solid = ref(false)

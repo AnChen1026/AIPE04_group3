@@ -52,7 +52,8 @@ def test_009_to_head_backfills_reference_midi_metadata(
     command.upgrade(config, UPSTREAM_REVISION)
     legacy = _insert_legacy_course(engine)
 
-    command.upgrade(config, "head")
+    # 這個測試只驗證 010 自己；後續 migration 不應改變它的預期版本。
+    command.upgrade(config, REFERENCE_MIDI_REVISION)
 
     inspector = inspect(engine)
     assert "reference_midis" in inspector.get_table_names()

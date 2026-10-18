@@ -9,8 +9,8 @@ AIPE04 Group 3 的專題。老師和學生在同一個網站完成找課、上�
 - 已有老師課程、學生、課表、教材、作業、聊天與測驗等 API 原型及 Jinja 測試介面。
 - 學生送出練習錄音後，後端會在背景用 `backend/audio_scoring` 和該課的參考 MIDI 比對，產生音高、節奏與文字回饋；老師可以在自己的課程看到錄音與回饋。
 - 老師可以在每堂課前看課前摘要：整理這位學生從上一堂結束到這一堂開始前，在平台上的練習次數與分數變化。
-- 首頁推薦的 API 端口已保留在 `/api/recommendations`（格式見 `backend/routers/recommendations.py`），目前回 501，實作由負責首頁推薦的組員完成。
-- Vue 正式前端與 AI 測驗完整流程仍在開發。
+- 首頁右下角已有可操作的找課助理：最多追問兩題，只從資料庫的已發布鋼琴課程推薦，並可前往既有洽詢流程。
+- Vue 正式前端已接上主要找課、登入與課程管理流程；AI 測驗完整流程仍在開發。
 
 正式使用者介面規劃使用 Vue；目前 Repository 內的 Jinja 頁面是後端流程測試介面。後端使用 FastAPI、SQLAlchemy、Alembic 與 PostgreSQL，登入沿用 Session Cookie，不使用 JWT。
 
@@ -67,6 +67,8 @@ SESSION_SECRET_KEY=請換成一串自己產生的隨機文字
 
 本機要測管理員時，可再加 `ADMIN_EMAIL`、`ADMIN_PASSWORD`。要測 Google 登入時，再加 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`。沒有 Google 金鑰時，網站仍可用 Email 登入。
 
+首頁找課使用可重現的資料庫比對規則，不需要 Gemini 金鑰也能完整運作；老師必須先建立並發布課程，推薦結果才會出現。
+
 ### 4. 建立資料表並啟動網站
 
 ```powershell
@@ -84,7 +86,7 @@ PostgreSQL 要先啟動，`.env` 要有 `DATABASE_URL`。在專案根目錄執�
 pytest
 ```
 
-測試會連到 `.env` 的資料庫，但每個測試結束後整個回滾，不會留下資料。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、課程編輯與參考 MIDI、練習錄音的評分狀態，以及課前摘要。測試會把評分換成假的，所以跑得很快；真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
+測試會連到 `.env` 的資料庫，但每個測試結束後整個回滾，不會留下資料。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、首頁推薦、課程編輯與參考 MIDI、練習錄音的評分狀態，以及課前摘要。測試會把評分換成假的，所以跑得很快；真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
 
 ## 協作
 

@@ -1,3 +1,7 @@
+<script setup lang="ts">
+defineOptions({ name: 'HomeFooter' })
+</script>
+
 <template>
   <footer class="footer">
     <div class="footer__inner">
