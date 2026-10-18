@@ -100,3 +100,15 @@ def test_教材與測驗只看得到自己的(make_user, login):
     assert [row["filename"] for row in owner.get("/teacher/materials").json()] == ["scale.pdf"]
     assert stranger.get("/teacher/materials").json() == []
     assert stranger.get("/teacher/quizzes").json() == []
+
+
+def test_首頁推薦端口已保留_尚未實作():
+    from fastapi.testclient import TestClient
+
+    from app import app
+
+    client = TestClient(app)
+    assert client.post("/api/recommendations", json={"message": "想學鋼琴"}).status_code == 501
+    session_id = "00000000-0000-0000-0000-000000000000"
+    assert client.post(f"/api/recommendations/{session_id}/answer", json={"message": "沒學過"}).status_code == 501
+    assert client.get(f"/api/recommendations/{session_id}").status_code == 501

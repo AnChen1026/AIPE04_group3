@@ -9,7 +9,8 @@ AIPE04 Group 3 的專題。老師和學生在同一個網站完成找課、上�
 - 已有老師課程、學生、課表、教材、作業、聊天與測驗等 API 原型及 Jinja 測試介面。
 - 學生送出練習錄音後，後端會在背景用 `backend/audio_scoring` 和該課的參考 MIDI 比對，產生音高、節奏與文字回饋；老師可以在自己的課程看到錄音與回饋。
 - 老師可以在每堂課前看課前摘要：整理這位學生從上一堂結束到這一堂開始前，在平台上的練習次數與分數變化。
-- 首頁推薦、Vue 正式前端及 AI 測驗完整流程仍在開發。
+- 首頁推薦的 API 端口已保留在 `/api/recommendations`（格式見 `backend/routers/recommendations.py`），目前回 501，實作由負責首頁推薦的組員完成。
+- Vue 正式前端與 AI 測驗完整流程仍在開發。
 
 正式使用者介面規劃使用 Vue；目前 Repository 內的 Jinja 頁面是後端流程測試介面。後端使用 FastAPI、SQLAlchemy、Alembic 與 PostgreSQL，登入沿用 Session Cookie，不使用 JWT。
 
