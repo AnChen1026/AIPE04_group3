@@ -12,7 +12,10 @@ from backend.core.uploads import resolve_stored_path
 from backend.dependencies.common import get_current_user, require_roles
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
+from backend.services.conversation import conversation_rows
 from backend.schemas.student import (
+    BindIn,
+    MessageIn,
     ChangeRequestResponse,
     ConversationResponse,
     CourseResponse,
@@ -69,7 +72,20 @@ def api_my_conversations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return StudentRepository.list_student_conversations(db, current_user.id)
+    """我的接洽對話：課程、老師、是否已綁定、未讀數與最後一則訊息。"""
+    return conversation_rows(db, StudentRepository.list_student_conversations(db, current_user.id), current_user.id)
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+def api_my_conversation(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conversation = StudentRepository.get_conversation(db, conversation_id)
+    if conversation is None or not student_can_read_conversation(conversation, current_user):
+        raise HTTPException(status_code=404, detail="找不到這段對話。")
+    return conversation_rows(db, [conversation], current_user.id)[0]
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageResponse])
@@ -88,7 +104,7 @@ def api_messages(
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageResponse)
 def api_send_message(
     conversation_id: uuid.UUID,
-    body: str,
+    data: MessageIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -96,7 +112,7 @@ def api_send_message(
     if conversation is None or not student_can_read_conversation(conversation, current_user):
         raise HTTPException(status_code=404, detail="找不到這段對話。")
     try:
-        return add_message(db, conversation, current_user, body)
+        return add_message(db, conversation, current_user, data.body, data.client_message_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
 
@@ -104,7 +120,7 @@ def api_send_message(
 @router.post("/conversations/{conversation_id}/bind")
 def api_bind(
     conversation_id: uuid.UUID,
-    code: str,
+    data: BindIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -112,7 +128,7 @@ def api_bind(
     if conversation is None or not student_can_read_conversation(conversation, current_user):
         raise HTTPException(status_code=404, detail="找不到這段對話。")
     try:
-        redeem_binding_code(db, current_user, conversation, code)
+        redeem_binding_code(db, current_user, conversation, data.code)
     except StudentBusinessError as error:
         _raise_business_error(error)
     return {"bound": True, "course_id": str(conversation.course_id)}
@@ -129,6 +145,20 @@ def api_schedule(
     except StudentBusinessError as error:
         _raise_business_error(error)
     return StudentRepository.list_schedule(db, current_user.id, course_id)
+
+
+@router.get("/courses/{course_id}/change-requests", response_model=list[ChangeRequestResponse])
+def api_my_change_requests(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """我在這門課送出的約課、請假、調課，以及老師處理的結果。"""
+    try:
+        require_bound(db, current_user.id, course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    return StudentRepository.list_change_requests_for_student(db, current_user.id, course_id)
 
 
 @router.post("/courses/{course_id}/change-requests", response_model=ChangeRequestResponse)

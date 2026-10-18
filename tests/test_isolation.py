@@ -52,7 +52,7 @@ def test_學生看不到別人的對話(make_user, make_course, login):
 
     conversation_id = start_conversation(owner_client, course)
     assert other_client.get(f"/api/student/conversations/{conversation_id}/messages").status_code == 404
-    send = other_client.post(f"/api/student/conversations/{conversation_id}/messages", params={"body": "hi"})
+    send = other_client.post(f"/api/student/conversations/{conversation_id}/messages", json={"body": "hi"})
     assert send.status_code == 404
     assert other_client.get("/api/student/conversations").json() == []
 

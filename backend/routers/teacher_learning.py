@@ -3,15 +3,14 @@
 import uuid
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.dependencies.common import get_current_user, get_session_user
-from backend.models.user import User
+from backend.dependencies.common import get_session_user
 from backend.repositories.student import StudentRepository
 from backend.repositories.teacher_application import get_application_by_user_id
 from backend.services.course import MAX_MIDI_BYTES, create_course, save_reference_midi
@@ -126,50 +125,6 @@ def teacher_issue_code(conversation_id: uuid.UUID, request: Request, db: Session
         "/teacher/learning?success=" + quote(f"已把綁定碼 {binding_code.code} 貼進對話。"),
         status_code=303,
     )
-
-
-def _require_teacher(user: User) -> None:
-    if user.role != "teacher" or user.is_active is not True:
-        raise HTTPException(status_code=403, detail="沒有使用權限。")
-
-
-@router.get("/teacher/conversations")
-def list_teacher_conversations_api(
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """老師後台聊天頁：列出學生洽詢，用來產生綁定碼。"""
-    _require_teacher(user)
-    rows = []
-    for conversation in StudentRepository.list_teacher_conversations(db, user.id):
-        course = StudentRepository.get_course(db, conversation.course_id)
-        student = StudentRepository.get_user(db, conversation.student_id)
-        rows.append(
-            {
-                "id": conversation.id,
-                "student_name": student.name if student is not None else "學生",
-                "course_title": course.title if course is not None else "課程",
-                "bound": StudentRepository.is_bound(
-                    db, conversation.student_id, conversation.course_id
-                ),
-            }
-        )
-    return rows
-
-
-@router.post("/teacher/conversations/{conversation_id}/binding-code")
-def issue_binding_code_api(
-    conversation_id: uuid.UUID,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """產生綁定碼，並當成一則訊息貼進這段接洽對話。"""
-    _require_teacher(user)
-    try:
-        binding_code = issue_binding_code(db, user, conversation_id)
-    except StudentBusinessError as error:
-        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
-    return {"code": binding_code.code, "conversation_id": conversation_id}
 
 
 @router.post("/teacher/learning/change-requests/{request_id}")

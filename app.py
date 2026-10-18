@@ -12,6 +12,7 @@ from backend.routers.auth import router as auth_router
 from backend.routers.student import router as student_router
 from backend.routers.student_views import router as student_views_router
 from backend.routers.chat_ws import router as chat_ws_router
+from backend.routers.teacher_chat import router as teacher_chat_router
 from backend.routers.teacher_courses import router as teacher_courses_router
 from backend.routers.teacher_dashboard import router as teacher_dashboard_router
 from backend.routers.teacher_inquiries import router as teacher_inquiries_router
@@ -47,6 +48,7 @@ for teacher_module in (
     teacher_dashboard_router,
     teacher_profile_router,
     teacher_students_router,
+    teacher_chat_router,
     teacher_courses_router,
     teacher_inquiries_router,
     teacher_lessons_router,

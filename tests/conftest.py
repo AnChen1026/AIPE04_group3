@@ -162,7 +162,7 @@ def issue_code(client: TestClient, conversation_id: str):
 
 
 def bind(client: TestClient, conversation_id: str, code: str):
-    return client.post(f"/api/student/conversations/{conversation_id}/bind", params={"code": code})
+    return client.post(f"/api/student/conversations/{conversation_id}/bind", json={"code": code})
 
 
 def next_week(hour: int) -> datetime:

@@ -10,7 +10,7 @@ def test_未綁定學生只能聊天_不能用課表與錄音(make_user, make_co
     student_client = login(student)
 
     conversation_id = start_conversation(student_client, course)
-    sent = student_client.post(f"/api/student/conversations/{conversation_id}/messages", params={"body": "想上課"})
+    sent = student_client.post(f"/api/student/conversations/{conversation_id}/messages", json={"body": "想上課"})
     assert sent.status_code == 200
 
     assert student_client.get(f"/api/student/courses/{course.id}/schedule").status_code == 403
