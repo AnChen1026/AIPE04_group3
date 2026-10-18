@@ -18,6 +18,7 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'home', component: HomeView },
+    { path: '/courses', name: 'courses', component: () => import('@/views/CoursesView.vue'), meta: { title: '全部課程' } },
 
     // ---------- 登入與註冊
     {
@@ -98,7 +99,12 @@ const router = createRouter({
     { path: '/courses/:id', name: 'course-detail', component: ComingSoonView, meta: { title: '課程詳情' } },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: ComingSoonView, meta: { title: '找不到頁面' } },
   ],
-  scrollBehavior: (to, from, saved) => saved ?? (to.path === from.path ? undefined : { top: 0 }),
+  scrollBehavior: (to, from, saved) => {
+    if (saved) return saved
+    // 其他頁點導覽列的「課程」「老師」等，回首頁後捲到該區塊
+    if (to.hash) return { el: to.hash, behavior: 'smooth' }
+    return to.path === from.path ? undefined : { top: 0 }
+  },
 })
 
 // 需要登入的頁面：沒登入先去登入頁，身分不對就回自己的首頁

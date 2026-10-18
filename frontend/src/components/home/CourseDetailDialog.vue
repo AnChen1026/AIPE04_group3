@@ -58,9 +58,6 @@ function contact() {
           </div>
         </dl>
         <p v-if="course.description" class="detail__description">{{ course.description }}</p>
-        <p class="detail__hint">
-          按下「與老師接洽」會開啟和老師的對話。確定上課後，老師會給你一組綁定碼，輸入後就能開始上課。
-        </p>
       </div>
     </template>
     <template #footer>
@@ -131,16 +128,6 @@ function contact() {
   margin: 16px 0 0;
   line-height: 1.8;
   white-space: pre-wrap;
-}
-
-.detail__hint {
-  margin: 16px 0 0;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--home-cream);
-  color: var(--home-accent-dark);
-  font-size: 13px;
-  line-height: 1.7;
 }
 
 .detail__teacher-note {

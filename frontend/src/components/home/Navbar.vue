@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const solid = ref(false)
 
 function updateBar() {
   const hero = document.querySelector('.hero')
+  // 沒有大圖的頁面（例如全部課程）一律用米色底，否則白字會看不到
   if (!hero) {
-    solid.value = window.scrollY > 12
+    solid.value = true
     return
   }
   // 大圖還鋪滿畫面時，導覽列維持透明；大圖離開後才補上米色底
@@ -28,6 +30,15 @@ onMounted(() => {
   window.addEventListener('resize', updateBar)
 })
 
+// 導覽列只掛一次，換頁後重新判斷有沒有大圖
+watch(
+  () => route.path,
+  async () => {
+    await nextTick()
+    updateBar()
+  },
+)
+
 onUnmounted(() => {
   window.removeEventListener('scroll', updateBar)
   window.removeEventListener('resize', updateBar)
@@ -40,11 +51,11 @@ onUnmounted(() => {
       <RouterLink to="/" class="navbar__brand">琴室</RouterLink>
 
       <nav class="navbar__links" aria-label="首頁區塊">
-        <a href="#about">關於</a>
-        <a href="#courses">課程</a>
-        <a href="#flow">上課流程</a>
-        <a href="#teachers">老師</a>
-        <a href="#faq">常見問題</a>
+        <RouterLink :to="{ path: '/', hash: '#about' }">關於</RouterLink>
+        <RouterLink :to="{ path: '/', hash: '#courses' }">課程</RouterLink>
+        <RouterLink :to="{ path: '/', hash: '#flow' }">上課流程</RouterLink>
+        <RouterLink :to="{ path: '/', hash: '#teachers' }">老師</RouterLink>
+        <RouterLink :to="{ path: '/', hash: '#faq' }">常見問題</RouterLink>
       </nav>
 
       <nav class="navbar__actions" aria-label="帳號">
