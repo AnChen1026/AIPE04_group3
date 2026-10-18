@@ -66,23 +66,6 @@ def get_my_courses(
     return courses
 
 
-@router.get("/teachers/{teacher_id}/courses", response_model=list[CourseResponse])
-def get_teacher_courses(
-    teacher_id: UUIDType,
-    db: Session = Depends(get_db),
-    teacher: TeacherDB = Depends(get_current_teacher),
-):
-    if teacher.id != teacher_id:
-        raise HTTPException(status_code=403, detail="不能查看其他教師的課程")
-
-    courses = (
-        db.query(Course)
-        .filter(Course.teacher_id == teacher.user_id)
-        .all()
-    )
-    return courses
-
-
 @router.get("/courses/{course_id}", response_model=CourseResponse)
 def get_course(
     course_id: UUIDType,

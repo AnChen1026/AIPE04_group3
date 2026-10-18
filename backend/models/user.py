@@ -10,11 +10,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.models.base import Base
 
-# 一般註冊只能用 teacher / student；admin 只給測試 seed 建立
-LOGIN_ROLES = ("teacher", "student", "admin")
-REGISTER_ROLES = ("teacher", "student")
-
-
 class User(Base):
     """對應 PostgreSQL 的 users 資料表。"""
 

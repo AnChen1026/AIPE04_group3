@@ -12,15 +12,12 @@ from backend.routers.auth import router as auth_router
 from backend.routers.student import router as student_router
 from backend.routers.student_views import router as student_views_router
 from backend.routers.chat_ws import router as chat_ws_router
-from backend.routers.teacher_bindings import router as teacher_bindings_router
-from backend.routers.teacher_chat import router as teacher_chat_router
 from backend.routers.teacher_courses import router as teacher_courses_router
 from backend.routers.teacher_dashboard import router as teacher_dashboard_router
 from backend.routers.teacher_inquiries import router as teacher_inquiries_router
 from backend.routers.teacher_learning import router as teacher_learning_router
 from backend.routers.teacher_lessons import router as teacher_lessons_router
 from backend.routers.teacher_materials import router as teacher_materials_router
-from backend.routers.teacher_practice import router as teacher_practice_router
 from backend.routers.teacher_profile import router as teacher_profile_router
 from backend.routers.teacher_quizzes import router as teacher_quizzes_router
 from backend.routers.teacher_students import router as teacher_students_router
@@ -48,13 +45,10 @@ for teacher_module in (
     teacher_dashboard_router,
     teacher_profile_router,
     teacher_students_router,
-    teacher_bindings_router,
     teacher_courses_router,
     teacher_inquiries_router,
     teacher_lessons_router,
     teacher_materials_router,
-    teacher_practice_router,
-    teacher_chat_router,
     teacher_quizzes_router,
 ):
     app.include_router(teacher_module)

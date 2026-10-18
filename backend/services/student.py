@@ -196,6 +196,9 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這組綁定碼不能進入這門課。")
     if binding_code.conversation_id != conversation.id:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這組綁定碼不屬於這段對話。")
+    course = StudentRepository.get_course(db, conversation.course_id)
+    if course is None or course.status == "archived":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這門課已經停止開放，不能綁定。")
 
     binding = StudentRepository.get_binding(db, student.id, conversation.course_id)
     now = datetime.now(timezone.utc)
@@ -357,7 +360,14 @@ def issue_binding_code(db: Session, teacher: User, conversation_id: uuid.UUID) -
     conversation = StudentRepository.get_conversation(db, conversation_id)
     if conversation is None or conversation.teacher_id != teacher.id:
         raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到這段接洽對話。")
+    course = StudentRepository.get_course(db, conversation.course_id)
+    if course is None or course.status == "archived":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這門課已封存，不能再發綁定碼。")
+    if StudentRepository.is_bound(db, conversation.student_id, conversation.course_id):
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這位學生已經綁定這門課。")
 
+    # 同一位學生、同一門課只留最新的一組碼，舊碼一律作廢
+    StudentRepository.delete_unused_binding_codes(db, conversation.student_id, conversation.course_id)
     code = secrets.token_hex(4).upper()
     binding_code = BindingCode(
         code=code,
@@ -448,6 +458,8 @@ def unbind_student(db: Session, teacher: User, course_id: uuid.UUID, student_id:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這位學生目前沒有綁定這門課。")
     binding.status = "unbound"
     binding.unbound_at = datetime.now(timezone.utc)
+    # 解除後要重新綁定，必須由老師再發一組新碼
+    StudentRepository.delete_unused_binding_codes(db, student_id, course_id)
     _commit(db)
     db.refresh(binding)
     return binding

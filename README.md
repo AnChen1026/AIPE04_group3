@@ -7,7 +7,7 @@ AIPE04 Group 3 的專題。老師和學生在同一個網站完成找課、上�
 - 已完成學生／老師註冊、登入、登出、基本資料、角色分流與老師審核。
 - 已有學生接洽、綁定碼、課表、課務申請及練習錄音的後端流程與 Jinja 測試介面。
 - 已有老師課程、學生、課表、教材、作業、聊天與測驗等 API 原型及 Jinja 測試介面。
-- `score_test` 可離線分析音高與節奏，但尚未完整接進學生送出錄音的流程。
+- `backend/audio_scoring` 可離線分析音高與節奏，但尚未完整接進學生送出錄音的流程。
 - 首頁推薦、Vue 正式前端、課前摘要及 AI 測驗完整流程仍在開發。
 
 正式使用者介面規劃使用 Vue；目前 Repository 內的 Jinja 頁面是後端流程測試介面。後端使用 FastAPI、SQLAlchemy、Alembic 與 PostgreSQL，登入沿用 Session Cookie，不使用 JWT。

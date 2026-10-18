@@ -1,18 +1,15 @@
-from datetime import datetime, date
-from pathlib import Path
-from uuid import UUID as UUIDType
 import uuid
-from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile, File
-from fastapi.templating import Jinja2Templates
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from backend.core.database import get_db
-from backend.models.user import User
 from backend.dependencies.common import get_current_user
-from backend.models import *
-from backend.schemas import *
 from backend.dependencies.teacher import get_current_teacher
+from backend.models.teacher import TeacherDB
+from backend.models.user import User
+from backend.schemas.teacher import TeacherIn
 from backend.services.teacher_sync import _ensure_teacher_profile
-from backend.core.uploads import MATERIAL_UPLOAD_DIR
 
 router = APIRouter()
 
@@ -99,38 +96,6 @@ def create_teacher(
 
     return teacher
 
-@router.get("/teachers/{teacher_id}")
-def get_teacher(
-    teacher_id: UUIDType,
-    db: Session = Depends(get_db),
-    current_teacher: TeacherDB = Depends(
-        get_current_teacher
-    ),
-):
-
-    # 只能查看自己
-    if current_teacher.id != teacher_id:
-        raise HTTPException(
-            status_code=403,
-            detail="不能查看其他教師資料",
-        )
-
-    teacher = (
-        db.query(TeacherDB)
-        .filter(
-            TeacherDB.id == teacher_id
-        )
-        .first()
-    )
-
-    if not teacher:
-        raise HTTPException(
-            status_code=404,
-            detail="找不到教師",
-        )
-
-    return teacher
-
 @router.get("/teacher/auth-status")
 def teacher_auth_status(
     user: User = Depends(get_current_user),
@@ -163,4 +128,3 @@ def teacher_auth_status(
         "teacher_profile_status":
             teacher.status if teacher else None,
     }
-

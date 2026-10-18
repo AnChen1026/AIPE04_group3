@@ -588,7 +588,7 @@
       <div class="nav">
         <button class="active" data-page="dashboard">🏠 首頁</button><button data-page="students">👨‍🎓 學生</button><button
           data-page="courses">📚 課程</button><button data-page="lessons">📅 課表</button><button data-page="materials">📁
-          教材</button><button data-page="assignments">📝 作業</button><button data-page="evaluations">📊 評量</button><button
+          教材</button><button
           data-page="chat">💬 聊天</button><button data-page="quizzes">🧩 AI 測驗</button>
       </div>
       <div class="nav-title">帳號</div>
@@ -624,10 +624,6 @@
               <div class="stat-label">今日課堂</div>
               <div class="stat" id="statLessons">—</div>
             </div>
-            <div class="card">
-              <div class="stat-label">學生提交</div>
-              <div class="stat" id="statSubmissions">—</div>
-            </div>
           </div>
           <div class="grid2">
             <div class="panel">
@@ -642,8 +638,7 @@
               </div>
               <div class="toolbar"><button class="btn primary" onclick="showPage('students')">查看學生</button><button
                   class="btn" onclick="showPage('courses')">管理課程</button><button class="btn"
-                  onclick="showPage('materials')">上傳教材</button><button class="btn"
-                  onclick="showPage('assignments')">建立作業</button></div>
+                  onclick="showPage('materials')">上傳教材</button></div>
             </div>
           </div>
         </section>
@@ -652,21 +647,7 @@
           <div class="page-head">
             <div>
               <h1>學生</h1>
-              <div class="muted">管理師生綁定：查看 active 學生，並確認待確認的綁定。</div>
-            </div>
-          </div>
-          <div class="panel">
-            <div class="panel-head">
-              <div>
-                <h2>教師確認綁定</h2>
-                <div class="muted">目前後端沒有提供 pending 綁定清單 API，因此可先輸入 PostgreSQL 中的 binding ID 進行確認。</div>
-              </div>
-            </div>
-            <div class="toolbar"><input id="pendingBindingId" class="search" style="flex:1;min-width:280px"
-                placeholder="貼上 studio_student_bindings.id（UUID）"><button class="btn primary"
-                onclick="confirmTeacherBinding()">✓ 確認綁定</button></div>
-            <div class="notice" style="margin-top:12px">確認後，綁定會變成 <strong>active</strong>；如果尚未確認，狀態會維持
-              <strong>pending</strong>。
+              <div class="muted">已用綁定碼進入你課程的學生。</div>
             </div>
           </div>
           <div class="panel">
@@ -766,55 +747,6 @@
                   </tr>
                 </thead>
                 <tbody id="materialTable"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <section id="page-assignments" class="page">
-          <div class="page-head">
-            <div>
-              <h1>作業</h1>
-              <div class="muted">建立練習作業並查看學生提交。</div>
-            </div><button class="btn primary" onclick="openAssignmentModal()">＋ 新增作業</button>
-          </div>
-          <div class="panel">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>作業</th>
-                    <th>課程 ID</th>
-                    <th>截止時間</th>
-                    <th>ID</th>
-                  </tr>
-                </thead>
-                <tbody id="assignmentTable"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <section id="page-evaluations" class="page">
-          <div class="page-head">
-            <div>
-              <h1>學生評量</h1>
-              <div class="muted">查看學生練習提交與分析結果。</div>
-            </div>
-          </div>
-          <div class="panel">
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>提交 ID</th>
-                    <th>作業 ID</th>
-                    <th>學生 ID</th>
-                    <th>提交時間</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="submissionTable"></tbody>
               </table>
             </div>
           </div>
@@ -935,22 +867,6 @@
     </div>
   </div>
 
-  <div id="assignmentModal" class="modal">
-    <div class="modal-box">
-      <div class="modal-head">
-        <h2>新增作業</h2><button class="close" onclick="closeModal('assignmentModal')">×</button>
-      </div>
-      <div class="form-grid">
-        <div class="form-group full"><label>課程 ID</label><select id="assignmentCourse"></select></div>
-        <div class="form-group full"><label>作業標題</label><input id="assignmentTitle"></div>
-        <div class="form-group full"><label>說明</label><textarea id="assignmentInstructions"></textarea></div>
-        <div class="form-group full"><label>截止時間</label><input id="assignmentDue" type="datetime-local"></div>
-      </div>
-      <div class="actions"><button class="btn" onclick="closeModal('assignmentModal')">取消</button><button
-          class="btn primary" onclick="createAssignment()">建立作業</button></div>
-    </div>
-  </div>
-
   <div id="detailModal" class="modal">
     <div class="modal-box">
       <div class="modal-head">
@@ -962,14 +878,14 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    const $ = id => document.getElementById(id); const API = location.origin; let me = null, teacherProfile = null, students = [], courses = [], lessons = [], materials = [], assignments = [], submissions = [], editingLessonId = null;
+    const $ = id => document.getElementById(id); const API = location.origin; let me = null, teacherProfile = null, students = [], courses = [], lessons = [], materials = [], editingLessonId = null;
     function esc(v) { return String(v ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c])) }
     function fmt(v) { if (!v) return '—'; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
     function toast(s) { $('toast').textContent = s; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 2600) }
     async function api(path, opt = {}) { const o = { credentials: 'include', ...opt, headers: { ...(opt.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(opt.headers || {}) } }; const r = await fetch(API + path, o); const text = await r.text(); let data; try { data = text ? JSON.parse(text) : null } catch { data = text } if (!r.ok) { throw new Error(typeof data === 'object' ? (data.detail || JSON.stringify(data)) : data || ('HTTP ' + r.status)) } return data }
     function showDetail(title, data) { $('detailTitle').textContent = title; $('detailBody').textContent = JSON.stringify(data, null, 2); $('detailModal').classList.add('show') }
     function closeModal(id) { $(id).classList.remove('show') }
-    function showPage(name) { document.querySelectorAll('.page').forEach(x => x.classList.remove('active')); $('page-' + name).classList.add('active'); document.querySelectorAll('.nav button').forEach(x => x.classList.toggle('active', x.dataset.page === name)); const loaders = { dashboard: loadDashboard, students: loadStudents, courses: loadCourses, lessons: loadLessons, materials: loadMaterials, assignments: loadAssignments, evaluations: loadSubmissions, chat: loadInquiries, quizzes: loadQuizzes, profile: loadTeacherProfile }; if (loaders[name]) loaders[name](); }
+    function showPage(name) { document.querySelectorAll('.page').forEach(x => x.classList.remove('active')); $('page-' + name).classList.add('active'); document.querySelectorAll('.nav button').forEach(x => x.classList.toggle('active', x.dataset.page === name)); const loaders = { dashboard: loadDashboard, students: loadStudents, courses: loadCourses, lessons: loadLessons, materials: loadMaterials, chat: loadInquiries, quizzes: loadQuizzes, profile: loadTeacherProfile }; if (loaders[name]) loaders[name](); }
     async function loadInquiries() { try { const rows = await api('/teacher/conversations'); const list = Array.isArray(rows) ? rows : []; $('inquiryList').innerHTML = list.length ? list.map(row => `<div class="list-item"><div><strong>${esc(row.student_name)}</strong><div class="muted">${esc(row.course_title)}｜${row.bound ? '已綁定' : '尚未綁定'}</div></div>${row.bound ? '<span class="badge green">已綁定</span>' : `<button class="btn primary" onclick="issueBindingCode('${esc(row.id)}')">產生綁定碼</button>`}</div>`).join('') : '<div class="empty">還沒有學生洽詢。學生在課程頁按洽詢後，會出現在這裡。</div>' } catch (e) { $('inquiryList').innerHTML = `<div class="empty">${esc(e.message)}</div>` } }
     async function issueBindingCode(id) { if (!confirm('要產生綁定碼並貼進這段對話嗎？')) return; try { const result = await api('/teacher/conversations/' + encodeURIComponent(id) + '/binding-code', { method: 'POST' }); toast('綁定碼 ' + result.code + ' 已貼進對話'); await loadInquiries() } catch (e) { toast('產生綁定碼失敗：' + e.message) } }
     document.querySelectorAll('.nav button[data-page]').forEach(b => b.onclick = () => showPage(b.dataset.page));
@@ -982,7 +898,6 @@
     async function saveTeacherProfile() { try { const body = { name: $('teacherName').value.trim(), gender: $('teacherGender').value.trim(), age: Number($('teacherAge').value), seniority: Number($('teacherSeniority').value), expertise: $('teacherExpertise').value.trim(), short_intros: $('teacherShortIntros').value.trim(), teaching_city: $('teacherCity').value.trim(), teaching_district: $('teacherDistrict').value.trim(), target_learning: $('teacherTargetLearning').value.trim(), teaching_method: $('teacherMethod').value.trim(), teaching_style: $('teacherStyle').value.trim() }; if (!body.name || !body.gender || !body.expertise || !body.short_intros || !body.teaching_city || !body.teaching_district || !body.target_learning || !body.teaching_method || !body.teaching_style) return toast('請完整填寫教師資料'); if (!Number.isFinite(body.age) || body.age < 0) return toast('年齡格式不正確'); if (!Number.isFinite(body.seniority) || body.seniority < 0) return toast('教學年資格式不正確'); $('teacherProfileSaveBtn').disabled = true; teacherProfile = await api('/teacher/profile', { method: 'PATCH', body: JSON.stringify(body) }); closeModal('teacherProfileModal'); renderProfile(); toast('教師資料已更新'); } catch (e) { toast('更新教師資料失敗：' + e.message) } finally { $('teacherProfileSaveBtn').disabled = false } }
     async function loadStudents() { try { students = await api('/teacher/students'); students = Array.isArray(students) ? students : []; $('statStudents').textContent = students.length; renderStudents() } catch (e) { $('studentTable').innerHTML = `<tr><td colspan="4">${esc(e.message)}</td></tr>` } }
     function renderStudents() { const q = ($('studentSearch')?.value || '').toLowerCase(); const list = students.filter(s => JSON.stringify(s).toLowerCase().includes(q)); $('studentTable').innerHTML = list.length ? list.map(s => `<tr><td><strong>${esc(s.name || s.student_name || '學生')}</strong><div class="muted">${esc(s.email || '')}</div></td><td>${esc(s.id || s.student_id || '—')}</td><td><span class="badge green">已連結</span></td><td><button class="btn small" onclick='showDetail("學生資料",${JSON.stringify(s)})'>查看</button></td></tr>`).join('') : `<tr><td colspan="4"><div class="empty">目前沒有學生資料</div></td></tr>` }
-    async function confirmTeacherBinding() { const id = $("pendingBindingId").value.trim(); if (!id) return toast("請輸入 Binding ID"); if (!confirm("確定要確認這筆師生綁定嗎？")) return; try { const r = await api("/bindings/" + encodeURIComponent(id) + "/teacher-confirm", { method: "POST" }); $("pendingBindingId").value = ""; toast("教師確認成功，目前狀態：" + (r.status || "pending")); await loadStudents(); showDetail("教師確認結果", r) } catch (e) { toast("確認綁定失敗：" + e.message) } }
     async function loadCourses() { try { courses = await api('/teacher/courses'); courses = Array.isArray(courses) ? courses : []; $('statCourses').textContent = courses.length; renderCourses() } catch (e) { $('courseTable').innerHTML = `<tr><td colspan="5">${esc(e.message)}</td></tr>` } }
     function renderCourses() { $('courseTable').innerHTML = courses.length ? courses.map(c => `<tr><td><strong>${esc(c.title || '未命名課程')}</strong></td><td>${esc(c.style || '—')}</td><td>${esc(c.price_per_lesson ?? '—')}</td><td>${esc(c.time_slots || '—')}</td><td><span class="badge">${esc(c.status || '—')}</span></td></tr>`).join('') : `<tr><td colspan="5"><div class="empty">尚無課程</div></td></tr>` }
     async function loadLessons() { try { lessons = await api('/teacher/lessons'); lessons = Array.isArray(lessons) ? lessons : []; const today = new Date().toDateString(); $('statLessons').textContent = lessons.filter(x => x.starts_at && new Date(x.starts_at).toDateString() === today).length; renderLessons(); renderTodayLessons() } catch (e) { $('lessonTable').innerHTML = `<tr><td colspan="7">${esc(e.message)}</td></tr>` } }
@@ -990,12 +905,9 @@
     function renderTodayLessons() { const today = new Date().toDateString(); const arr = lessons.filter(x => x.starts_at && new Date(x.starts_at).toDateString() === today).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at)); $('todayLessons').innerHTML = arr.length ? arr.map(x => `<div class="list-item"><div><strong>${esc(new Date(x.starts_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }))} - ${esc(new Date(x.ends_at).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }))}</strong><div class="muted">學生：${esc(x.student_id)}｜課程：${esc(x.course_id)}</div></div><span class="badge green">${esc(x.status || 'scheduled')}</span></div>`).join('') : `<div class="empty">今天沒有排定課堂</div>` }
     async function loadMaterials() { try { materials = await api('/teacher/materials'); materials = Array.isArray(materials) ? materials : []; $('materialTable').innerHTML = materials.length ? materials.map(x => `<tr><td>📄 ${esc(x.filename || '未命名')}</td><td>${esc(x.file_type || '—')}</td><td>${esc(fmt(x.created_at))}</td><td>${esc(x.id || '—')}</td></tr>`).join('') : `<tr><td colspan="4"><div class="empty">尚未上傳教材</div></td></tr>` } catch (e) { $('materialTable').innerHTML = `<tr><td colspan="4">${esc(e.message)}</td></tr>` } }
     async function uploadMaterial() { const f = $('materialFile').files[0]; if (!f) return toast('請先選擇檔案'); try { const fd = new FormData(); fd.append('file', f); await api('/teacher/materials/upload', { method: 'POST', body: fd }); $('materialFile').value = ''; toast('教材上傳成功'); loadMaterials() } catch (e) { toast('上傳失敗：' + e.message) } }
-    async function loadAssignments() { try { assignments = await api('/teacher/assignments'); assignments = Array.isArray(assignments) ? assignments : []; $('assignmentTable').innerHTML = assignments.length ? assignments.map(x => `<tr><td><strong>${esc(x.title || '未命名')}</strong><div class="muted">${esc(x.instructions || '')}</div></td><td>${esc(x.course_id || '—')}</td><td>${esc(fmt(x.due_at))}</td><td>${esc(x.id || '—')}</td></tr>`).join('') : `<tr><td colspan="4"><div class="empty">尚無作業</div></td></tr>` } catch (e) { $('assignmentTable').innerHTML = `<tr><td colspan="4">${esc(e.message)}</td></tr>` } }
-    async function loadSubmissions() { try { submissions = await api('/teacher/submissions'); submissions = Array.isArray(submissions) ? submissions : []; $('statSubmissions').textContent = submissions.length; $('submissionTable').innerHTML = submissions.length ? submissions.map(x => `<tr><td>${esc(x.id || x.submission_id || '—')}</td><td>${esc(x.assignment_id || '—')}</td><td>${esc(x.student_id || '—')}</td><td>${esc(fmt(x.submitted_at || x.created_at))}</td><td><button class="btn small" onclick="loadEvaluation('${esc(x.id || x.submission_id)}')">查看評量</button></td></tr>`).join('') : `<tr><td colspan="5"><div class="empty">目前沒有學生提交</div></td></tr>` } catch (e) { $('submissionTable').innerHTML = `<tr><td colspan="5">${esc(e.message)}</td></tr>` } }
-    async function loadEvaluation(id) { try { showDetail('提交評量', await api('/submissions/' + encodeURIComponent(id) + '/evaluation')) } catch (e) { toast('取得評量失敗：' + e.message) } }
     async function loadQuizzes() { try { const q = await api('/teacher/quizzes'); const arr = Array.isArray(q) ? q : []; $('quizTable').innerHTML = arr.length ? arr.map(x => `<tr><td><strong>${esc(x.title || x.name || '未命名測驗')}</strong></td><td>${esc(x.id || '—')}</td><td><button class="btn small" onclick='showDetail("測驗資料",${JSON.stringify(x)})'>查看</button></td></tr>`).join('') : `<tr><td colspan="3"><div class="empty">目前沒有測驗</div></td></tr>` } catch (e) { $('quizTable').innerHTML = `<tr><td colspan="3">${esc(e.message)}</td></tr>` } }
-    async function loadDashboard() { await Promise.allSettled([loadStudents(), loadCourses(), loadLessons(), loadSubmissions()]) }
-    function fillCourseOptions() { const opts = courses.map(c => `<option value="${esc(c.id)}">${esc(c.title || c.id)}</option>`).join(''); $('lessonCourse').innerHTML = opts || '<option value="">目前沒有課程</option>'; $('assignmentCourse').innerHTML = opts || '<option value="">目前沒有課程</option>' }
+    async function loadDashboard() { await Promise.allSettled([loadStudents(), loadCourses(), loadLessons()]) }
+    function fillCourseOptions() { const opts = courses.map(c => `<option value="${esc(c.id)}">${esc(c.title || c.id)}</option>`).join(''); $('lessonCourse').innerHTML = opts || '<option value="">目前沒有課程</option>' }
     function fillStudentOptions() { const opts = students.map(s => `<option value="${esc(s.id || s.student_id)}">${esc(s.name || s.student_name || s.id)}</option>`).join(''); $('lessonStudent').innerHTML = opts || '<option value="">目前沒有學生</option>' }
     async function prepareLessonForm() { await Promise.allSettled([loadCourses(), loadStudents()]); fillCourseOptions(); fillStudentOptions() }
     async function openLessonModal(id = null) { editingLessonId = id; await prepareLessonForm(); $('lessonModalTitle').textContent = id ? '修改課堂' : '新增課堂'; $('lessonSaveBtn').textContent = id ? '儲存修改' : '建立課堂'; if (id) { const x = lessons.find(v => String(v.id) === String(id)); if (!x) return; $('lessonCourse').value = x.course_id; $('lessonStudent').value = x.student_id; $('lessonStart').value = toLocalInput(x.starts_at); $('lessonEnd').value = toLocalInput(x.ends_at); $('lessonNotes').value = x.notes || '' } else { $('lessonCourse').value = ''; $('lessonStudent').value = ''; $('lessonStart').value = ''; $('lessonEnd').value = ''; $('lessonNotes').value = '' } $('lessonModal').classList.add('show') }
@@ -1004,9 +916,7 @@
     function editLesson(id) { openLessonModal(id) }
     async function deleteLesson(id) { if (!confirm('確定要刪除這堂課嗎？')) return; try { await api('/teacher/lessons/' + encodeURIComponent(id), { method: 'DELETE' }); toast('課堂已刪除'); loadLessons() } catch (e) { toast('刪除失敗：' + e.message) } }
     function openCourseModal() { $('courseModal').classList.add('show') }
-    function openAssignmentModal() { fillCourseOptions(); $('assignmentModal').classList.add('show') }
     async function createCourse() { try { const priceText = $('coursePrice').value.trim(); const body = { title: $('courseName').value.trim(), level: $('courseLevel').value.trim() || null, style: $('courseStyle').value.trim() || null, delivery_mode: $('courseDelivery').value.trim() || null, region: $('courseRegion').value.trim() || null, price_per_lesson: priceText === '' ? null : Number(priceText), time_slots: $('courseTimeSlots').value.trim() || null, status: $('courseStatus').value }; if (!body.title) return toast('請輸入課程名稱'); const r = await api('/courses', { method: 'POST', body: JSON.stringify(body) }); closeModal('courseModal'); toast('課程建立成功'); await loadCourses(); showDetail('建立課程結果', r) } catch (e) { toast('建立課程失敗：' + e.message) } }
-    async function createAssignment() { try { const body = { course_id: $('assignmentCourse').value, title: $('assignmentTitle').value.trim(), instructions: $('assignmentInstructions').value, reference_file: null, due_at: $('assignmentDue').value ? new Date($('assignmentDue').value).toISOString() : null }; if (!body.course_id || !body.title) return toast('請選擇課程並輸入標題'); const r = await api('/assignments', { method: 'POST', body: JSON.stringify(body) }); closeModal('assignmentModal'); toast('作業建立成功'); await loadAssignments(); showDetail('建立作業結果', r) } catch (e) { toast('建立作業失敗：' + e.message) } }
     async function boot() { const user = await loadMe(); if (user) { $('loginPage').style.display = 'none'; $('app').style.display = 'flex'; await loadDashboard() } else { $('loginPage').style.display = 'grid'; $('app').style.display = 'none' } }
     boot();
   </script>

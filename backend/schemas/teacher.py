@@ -1,5 +1,3 @@
-from datetime import datetime, date
-from uuid import UUID as UUIDType
 from pydantic import BaseModel
 
 class TeacherIn(BaseModel):

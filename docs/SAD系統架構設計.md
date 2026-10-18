@@ -165,7 +165,7 @@ flowchart TD
 - LLM 不直接聽原始音訊自由打分，也不編造 JSON 沒有的小節或音符。
 - 低信心時縮小主張範圍或請學生重錄。
 
-目前原型在 `score_test/midi_test.py`，正式功能再搬進 service／worker。
+目前原型在 `backend/audio_scoring/midi_test.py`，正式功能再搬進 service／worker。
 
 ## 10. 老師課前摘要
 
