@@ -40,6 +40,34 @@ def db():
         connection.close()
 
 
+@pytest.fixture(autouse=True)
+def upload_root(tmp_path, monkeypatch):
+    """上傳的檔案都寫到暫存資料夾，測試結束就消失。"""
+    import backend.core.uploads as uploads
+    import backend.services.course as course_service
+    import backend.services.student as student_service
+
+    monkeypatch.setattr(uploads, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "uploads" / "midi")
+    monkeypatch.setattr(student_service, "PRACTICE_UPLOAD_DIR", tmp_path / "uploads" / "practice")
+    return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def analysis_session(db, monkeypatch):
+    """背景評分也用同一個交易，測試才看得到、也才會一起回滾。"""
+    import backend.services.practice as practice
+
+    class SharedSession:
+        def __getattr__(self, name):
+            return getattr(db, name)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(practice, "session_factory", SharedSession)
+
+
 @pytest.fixture
 def make_user(db):
     def make(role: str, name: str | None = None) -> User:

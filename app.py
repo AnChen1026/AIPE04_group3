@@ -18,6 +18,7 @@ from backend.routers.teacher_inquiries import router as teacher_inquiries_router
 from backend.routers.teacher_learning import router as teacher_learning_router
 from backend.routers.teacher_lessons import router as teacher_lessons_router
 from backend.routers.teacher_materials import router as teacher_materials_router
+from backend.routers.teacher_practice import router as teacher_practice_router
 from backend.routers.teacher_profile import router as teacher_profile_router
 from backend.routers.teacher_quizzes import router as teacher_quizzes_router
 from backend.routers.teacher_students import router as teacher_students_router
@@ -49,6 +50,7 @@ for teacher_module in (
     teacher_inquiries_router,
     teacher_lessons_router,
     teacher_materials_router,
+    teacher_practice_router,
     teacher_quizzes_router,
 ):
     app.include_router(teacher_module)

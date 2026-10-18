@@ -22,10 +22,12 @@ from backend.models.student import (
     PracticeRecording,
 )
 from backend.models.user import User
+from backend.core.uploads import PRACTICE_UPLOAD_DIR, stored_path
 from backend.repositories.student import StudentRepository
 from backend.services.chat_hub import chat_hub, message_event
 
-UPLOAD_DIR = Path("uploads")
+RECORDING_SUFFIXES = (".wav", ".webm", ".mp3", ".m4a", ".ogg")
+MAX_RECORDING_BYTES = 20 * 1024 * 1024
 
 
 class StudentBusinessError(Exception):
@@ -98,6 +100,7 @@ def list_public_published_courses(db: Session) -> list[dict]:
                 "price_per_lesson": course.price_per_lesson,
                 "time_slots": course.time_slots,
                 "status": course.status,
+                "has_reference_midi": course.has_reference_midi,
             }
         )
     return courses
@@ -278,14 +281,18 @@ def save_recording(
     content: bytes,
 ) -> PracticeRecording:
     course = require_bound(db, student.id, course_id)
+    if not course.reference_midi_path:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "老師還沒設定這門課的參考曲，暫時不能送出錄音。")
     suffix = Path(filename).suffix.lower()
-    if suffix not in (".wav", ".webm", ".mp3", ".m4a", ".ogg"):
+    if suffix not in RECORDING_SUFFIXES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請上傳音檔，或用網頁錄音。")
     if len(content) == 0:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔是空的。")
+    if len(content) > MAX_RECORDING_BYTES:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔最大 20 MB。")
 
     recording_id = uuid.uuid4()
-    folder = UPLOAD_DIR / "practice" / str(student.id)
+    folder = PRACTICE_UPLOAD_DIR / str(student.id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{recording_id}{suffix}"
     path.write_bytes(content)
@@ -295,7 +302,7 @@ def save_recording(
         course_id=course.id,
         teacher_id=course.teacher_id,
         student_id=student.id,
-        file_path=str(path),
+        file_path=stored_path(path),
         status="pending",
     )
     feedback = PracticeFeedback(
@@ -306,54 +313,12 @@ def save_recording(
         status="pending",
     )
     db.add(recording)
+    # 兩張表之間沒有 relationship，先寫入錄音，回饋的外鍵才找得到
+    db.flush()
     db.add(feedback)
     _commit(db)
     db.refresh(recording)
     return recording
-
-
-def create_course(
-    db: Session,
-    teacher: User,
-    title: str,
-    level: str | None,
-    style: str | None,
-    delivery_mode: str | None,
-    region: str | None,
-    price_per_lesson: int | None,
-    time_slots: str | None,
-    publish: bool,
-    midi_name: str | None,
-    midi_content: bytes | None,
-) -> Course:
-    if title.strip() == "":
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "課程名稱不能是空白。")
-    midi_path = None
-    if midi_content:
-        folder = UPLOAD_DIR / "midi" / str(teacher.id)
-        folder.mkdir(parents=True, exist_ok=True)
-        midi_path = folder / f"{uuid.uuid4()}.mid"
-        midi_path.write_bytes(midi_content)
-        midi_path = str(midi_path)
-    elif midi_name:
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考 MIDI 檔是空的。")
-
-    course = Course(
-        teacher_id=teacher.id,
-        title=title.strip(),
-        level=level or None,
-        style=style or None,
-        delivery_mode=delivery_mode or None,
-        region=region or None,
-        price_per_lesson=price_per_lesson,
-        time_slots=time_slots or None,
-        status="published" if publish else "draft",
-        reference_midi_path=midi_path,
-    )
-    db.add(course)
-    _commit(db)
-    db.refresh(course)
-    return course
 
 
 def issue_binding_code(db: Session, teacher: User, conversation_id: uuid.UUID) -> BindingCode:

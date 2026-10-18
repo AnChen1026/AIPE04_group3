@@ -17,6 +17,7 @@ class CourseResponse(BaseModel):
     price_per_lesson: int | None = None
     time_slots: str | None = None
     status: str
+    has_reference_midi: bool = False
 
     class Config:
         from_attributes = True
@@ -90,3 +91,10 @@ class RecordingResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TeacherRecordingResponse(RecordingResponse):
+    """老師看到的一筆練習：多了是哪位學生。"""
+
+    student_id: uuid.UUID
+    student_name: str

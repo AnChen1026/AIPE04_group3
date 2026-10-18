@@ -14,9 +14,9 @@ from backend.dependencies.common import get_current_user, get_session_user
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
 from backend.repositories.teacher_application import get_application_by_user_id
+from backend.services.course import MAX_MIDI_BYTES, create_course, save_reference_midi
 from backend.services.student import (
     StudentBusinessError,
-    create_course,
     decide_change_request,
     issue_binding_code,
     unbind_student,
@@ -88,28 +88,28 @@ def teacher_create_course(
     if isinstance(user, RedirectResponse):
         return user
     price = int(price_per_lesson) if price_per_lesson.strip().isdigit() else None
-    midi_content = None
-    midi_name = None
-    if reference_midi is not None and reference_midi.filename:
-        midi_name = reference_midi.filename
-        midi_content = reference_midi.file.read()
+    fields = {
+        "title": title,
+        "level": level,
+        "style": style,
+        "delivery_mode": delivery_mode,
+        "region": region,
+        "price_per_lesson": price,
+        "time_slots": time_slots,
+        "status": "published" if publish == "yes" else "draft",
+    }
     try:
-        create_course(
-            db,
-            user,
-            title,
-            level or None,
-            style or None,
-            delivery_mode or None,
-            region or None,
-            price,
-            time_slots or None,
-            publish == "yes",
-            midi_name,
-            midi_content,
-        )
+        course = create_course(db, user.id, fields)
     except StudentBusinessError as error:
         return RedirectResponse(f"/teacher/learning?error={quote(error.detail)}", status_code=303)
+    if reference_midi is not None and reference_midi.filename:
+        try:
+            save_reference_midi(
+                db, user.id, course.id, reference_midi.filename, reference_midi.file.read(MAX_MIDI_BYTES + 1)
+            )
+        except StudentBusinessError as error:
+            message = "課程已建立，但參考 MIDI 沒有存成功：" + error.detail
+            return RedirectResponse(f"/teacher/learning?error={quote(message)}", status_code=303)
     return RedirectResponse("/teacher/learning?success=" + quote("課程已儲存。"), status_code=303)
 
 

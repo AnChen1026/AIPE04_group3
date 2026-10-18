@@ -48,6 +48,10 @@ class Course(Base):
     reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    @property
+    def has_reference_midi(self) -> bool:
+        return bool(self.reference_midi_path)
+
 
 class InquiryConversation(Base):
     """一位學生和一門已發布課程的接洽對話。綁定前後是同一段。"""
