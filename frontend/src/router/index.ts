@@ -8,7 +8,8 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'home', component: HomeView },
-    { path: '/login', name: 'login', component: ComingSoonView, meta: { title: '登入／註冊' } },
+    { path: '/login', name: 'login', component: ComingSoonView, meta: { title: '登入' } },
+    { path: '/signup', name: 'signup', component: ComingSoonView, meta: { title: '註冊' } },
     { path: '/search', name: 'search', component: ComingSoonView, meta: { title: '搜尋課程' } },
     { path: '/courses/:id', name: 'course-detail', component: ComingSoonView, meta: { title: '課程詳情' } },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: ComingSoonView, meta: { title: '找不到頁面' } },

@@ -19,6 +19,20 @@
   --radius-popular: 24px;
   --radius-recommend: 36px;
   --radius-pill: 999px;
+
+  /* 首頁：日系暖色，米白、奶油、淺木色 */
+  --home-bg: #fbf6ef;
+  --home-paper: #fffaf3;
+  --home-ink: #3e342c;
+  --home-muted: #74685e;
+  --home-line: #eadfd2;
+  --home-wood: #e4d2bf;
+  --home-accent: #8f6b49;
+  --home-accent-dark: #6f5238;
+  --radius-card: 20px;
+  --shadow-soft: 0 12px 32px rgba(80, 58, 40, 0.08);
+  --section-space: 96px;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", "PMingLiU", "Songti TC", serif;
 }
 
 *,

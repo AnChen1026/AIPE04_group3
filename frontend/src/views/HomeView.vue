@@ -1,116 +1,70 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { fetchPublishedCourses } from '@/api/courses'
-import CourseCarousel from '@/components/course/CourseCarousel.vue'
-import type { CourseSummary } from '@/types/course'
+import { computed, ref } from 'vue'
+import HeroSection from '@/components/home/HeroSection.vue'
+import FeaturedTeachers from '@/components/home/FeaturedTeachers.vue'
+import PopularCourses from '@/components/home/PopularCourses.vue'
+import Footer from '@/components/home/Footer.vue'
+import { courses, teachers } from '@/mocks/home'
 
-const STYLE_ORDER = ['流行鋼琴', '古典鋼琴', '爵士鋼琴']
+const keyword = ref('')
+const notice = ref('')
 
-const POPULAR_COUNT = 18
+const query = computed(() => keyword.value.trim().toLowerCase())
 
-const courses = ref<CourseSummary[]>([])
-const popularCourses = ref<CourseSummary[]>([])
-const loading = ref(true)
-const errorMessage = ref('')
-
-function shuffleCourses(items: CourseSummary[]) {
-  const copy = [...items]
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1))
-    const current = copy[index]
-    copy[index] = copy[swapIndex]
-    copy[swapIndex] = current
-  }
-  return copy
-}
-
-const rows = computed(() => {
-  const groups = new Map<string, CourseSummary[]>()
-  for (const course of courses.value) {
-    const name = course.style || '其他課程'
-    const list = groups.get(name) ?? []
-    list.push(course)
-    groups.set(name, list)
-  }
-  const names = [
-    ...STYLE_ORDER.filter((name) => groups.has(name)),
-    ...[...groups.keys()].filter((name) => !STYLE_ORDER.includes(name)),
-  ]
-  return names.map((title) => ({ title, courses: groups.get(title) ?? [] }))
+const visibleTeachers = computed(() => {
+  const text = query.value
+  if (!text) return teachers
+  return teachers.filter((teacher) =>
+    [teacher.name, teacher.specialty, teacher.bio].some((field) => field.toLowerCase().includes(text)),
+  )
 })
 
-async function loadCourses() {
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    courses.value = await fetchPublishedCourses()
-    popularCourses.value = shuffleCourses(courses.value).slice(0, POPULAR_COUNT)
-  } catch {
-    errorMessage.value = '課程載入失敗，請稍後再試。'
-  } finally {
-    loading.value = false
-  }
+const visibleCourses = computed(() => {
+  const text = query.value
+  if (!text) return courses
+  return courses.filter((course) =>
+    [course.title, course.category, course.teacherName].some((field) => field.toLowerCase().includes(text)),
+  )
+})
+
+function showTeacherCourses(teacherName: string) {
+  keyword.value = teacherName
+  notice.value = `正在看 ${teacherName} 的課程。`
+  document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' })
 }
 
-onMounted(loadCourses)
+function showCourse(title: string) {
+  keyword.value = title
+  notice.value = `正在看「${title}」。課程詳情頁還沒有做好。`
+  document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' })
+}
 </script>
 
 <template>
   <div class="home">
-    <p v-if="loading" class="home__status">課程載入中…</p>
-
-    <div v-else-if="errorMessage" class="home__status">
-      <p>{{ errorMessage }}</p>
-      <button type="button" class="home__retry" @click="loadCourses">重新載入</button>
-    </div>
-
-    <p v-else-if="rows.length === 0" class="home__status">目前還沒有已發布的課程。</p>
-
-    <template v-else>
-      <CourseCarousel
-        v-if="popularCourses.length"
-        title="熱門課程"
-        :courses="popularCourses"
-      />
-      <CourseCarousel
-        v-for="row in rows"
-        :key="row.title"
-        :title="row.title"
-        :courses="row.courses"
-      />
-    </template>
+    <HeroSection v-model="keyword" />
+    <p v-if="notice" class="home__notice">{{ notice }}</p>
+    <FeaturedTeachers :teachers="visibleTeachers" @view-courses="showTeacherCourses" />
+    <PopularCourses :courses="visibleCourses" @view-course="showCourse" />
+    <Footer />
   </div>
 </template>
 
 <style scoped>
 .home {
-  min-height: calc(100vh - var(--header-height));
-  padding: 8px 0 96px;
-  background: #fbf6ef;
-  color: #1c1c1c;
+  background: var(--home-bg);
+  color: var(--home-ink);
 }
 
-.home :deep(.row) {
-  margin-top: 64px;
+.home__notice {
+  width: min(1120px, calc(100% - 48px));
+  margin: 28px auto 0;
+  color: var(--home-muted);
 }
 
-.home :deep(.row:first-of-type) {
-  margin-top: 20px;
-}
-
-.home__status {
-  padding: 48px 16px;
-  text-align: center;
-  color: #555555;
-}
-
-.home__retry {
-  margin-top: 12px;
-  padding: 8px 20px;
-  border: 1px solid #1c1c1c;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: #1c1c1c;
-  cursor: pointer;
+@media (max-width: 640px) {
+  .home__notice {
+    width: calc(100% - 32px);
+  }
 }
 </style>

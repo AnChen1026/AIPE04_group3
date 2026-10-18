@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import AppHeader from '@/components/layout/AppHeader.vue'
+import Navbar from '@/components/home/Navbar.vue'
 import AiAssistButton from '@/components/common/AiAssistButton.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -12,7 +12,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <AppHeader />
+  <Navbar />
   <main>
     <RouterView />
   </main>
