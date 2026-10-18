@@ -1,6 +1,4 @@
 import classicalCover from '@/assets/images/古典鋼琴.png'
-import popCover from '@/assets/images/流行鋼琴.png'
-import jazzCover from '@/assets/images/爵士鋼琴.png'
 import teacherLin from '@/assets/images/女老師1.png'
 import teacherChen from '@/assets/images/男老師1.png'
 import teacherChou from '@/assets/images/女老師2.png'
@@ -24,11 +22,11 @@ export interface CourseCardData {
   title: string
   category: string
   teacherName: string
-  cover: string
-  level: CourseLevel
-  format: '線上' | '實體'
-  minutes: number
-  price: number
+  cover: string | null
+  level: string
+  format: string
+  minutes: number | null
+  price: number | null
   summary: string
 }
 
@@ -48,7 +46,7 @@ export interface FaqItem {
   answer: string
 }
 
-// 首頁假資料。之後改接 API 時，只要換這個檔案的資料來源。
+// 關於我們、老師介紹、上課流程與常見問題是首頁文案。課程清單改由資料庫的已發布課程提供。
 export const teachers: TeacherCardData[] = [
   {
     id: 'teacher-lin',
@@ -81,45 +79,6 @@ export const teachers: TeacherCardData[] = [
 ]
 
 export const courseLevels: CourseLevel[] = ['入門', '初階', '中階', '進階']
-
-export const courses: CourseCardData[] = [
-  {
-    id: 'course-classical',
-    title: '古典鋼琴入門',
-    category: '古典鋼琴',
-    teacherName: '林安柔',
-    cover: classicalCover,
-    level: '入門',
-    format: '實體',
-    minutes: 60,
-    price: 1200,
-    summary: '從坐姿、手型和讀譜開始，三個月內彈完第一首小奏鳴曲。',
-  },
-  {
-    id: 'course-pop',
-    title: '流行鋼琴伴奏',
-    category: '流行鋼琴',
-    teacherName: '周以恩',
-    cover: popCover,
-    level: '初階',
-    format: '線上',
-    minutes: 50,
-    price: 1000,
-    summary: '學會常用和弦與伴奏型，把喜歡的歌改成自己能彈的版本。',
-  },
-  {
-    id: 'course-jazz',
-    title: '爵士鋼琴即興',
-    category: '爵士鋼琴',
-    teacherName: '陳子謙',
-    cover: jazzCover,
-    level: '中階',
-    format: '實體',
-    minutes: 60,
-    price: 1500,
-    summary: '練藍調音階和七和弦，在固定的和弦進行裡試著說出自己的句子。',
-  },
-]
 
 export const aboutPhotos = [
   { src: studioFemale, alt: '老師在琴房裡示範' },

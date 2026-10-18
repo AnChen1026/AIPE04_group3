@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import HeroSection from '@/components/home/HeroSection.vue'
 import FeaturedTeachers from '@/components/home/FeaturedTeachers.vue'
 import PopularCourses from '@/components/home/PopularCourses.vue'
@@ -8,18 +8,53 @@ import LearningFlow from '@/components/home/LearningFlow.vue'
 import FaqSection from '@/components/home/FaqSection.vue'
 import JoinCta from '@/components/home/JoinCta.vue'
 import Footer from '@/components/home/Footer.vue'
+import { fetchPublishedCourses } from '@/api/courses'
+import type { CourseSummary } from '@/types/course'
 import {
   aboutPhotos,
-  courses,
   faqs,
   highlights,
   studentSteps,
   teacherSteps,
   teachers,
+  type CourseCardData,
 } from '@/mocks/home'
 
 const keyword = ref('')
 const notice = ref('')
+const courses = ref<CourseCardData[]>([])
+const courseStatus = ref('正在讀取已發布的課程…')
+
+function deliveryLabel(mode: string | null): string {
+  if (mode === 'online' || mode === '線上') return '線上'
+  if (mode === 'in_person' || mode === '實體') return '實體'
+  return '未填'
+}
+
+function toCourseCard(course: CourseSummary): CourseCardData {
+  const summary = [course.region, course.timeSlots].filter((item): item is string => Boolean(item)).join(' · ')
+  return {
+    id: course.id,
+    title: course.title,
+    category: course.style || '鋼琴課',
+    teacherName: course.teacherName || '未填老師',
+    cover: course.imageUrl,
+    level: course.level || '未填',
+    format: deliveryLabel(course.deliveryMode),
+    minutes: course.durationMinutes,
+    price: course.pricePerLesson,
+    summary,
+  }
+}
+
+onMounted(async () => {
+  try {
+    courses.value = (await fetchPublishedCourses()).map(toCourseCard)
+    courseStatus.value = ''
+  } catch (problem) {
+    courseStatus.value = problem instanceof Error ? problem.message : '讀不到課程，請確認後端有啟動。'
+  }
+})
 
 const query = computed(() => keyword.value.trim().toLowerCase())
 
@@ -33,8 +68,8 @@ const visibleTeachers = computed(() => {
 
 const visibleCourses = computed(() => {
   const text = query.value
-  if (!text) return courses
-  return courses.filter((course) =>
+  if (!text) return courses.value
+  return courses.value.filter((course) =>
     [course.title, course.category, course.teacherName, course.level].some((field) => field.toLowerCase().includes(text)),
   )
 })
@@ -65,7 +100,7 @@ function showCourse(title: string) {
       {{ notice }}
       <button type="button" @click="clearSearch">看全部課程</button>
     </p>
-    <PopularCourses :courses="visibleCourses" @view-course="showCourse" />
+    <PopularCourses :courses="visibleCourses" :status="courseStatus" @view-course="showCourse" />
     <LearningFlow :student-steps="studentSteps" :teacher-steps="teacherSteps" />
     <FeaturedTeachers :teachers="visibleTeachers" @view-courses="showTeacherCourses" />
     <FaqSection :faqs="faqs" />

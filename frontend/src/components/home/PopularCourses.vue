@@ -6,6 +6,7 @@ import { courseLevels, type CourseCardData, type CourseLevel } from '@/mocks/hom
 
 const props = defineProps<{
   courses: CourseCardData[]
+  status?: string
 }>()
 
 const emit = defineEmits<{
@@ -46,7 +47,8 @@ const shownCourses = computed(() =>
       </div>
     </div>
 
-    <p v-if="shownCourses.length === 0" class="courses__empty">目前沒有符合的課程，換個條件看看。</p>
+    <p v-if="status" class="courses__empty">{{ status }}</p>
+    <p v-else-if="shownCourses.length === 0" class="courses__empty">目前沒有符合的課程，換個條件看看。</p>
     <div v-else class="courses__grid">
       <CourseCard
         v-for="(course, index) in shownCourses"

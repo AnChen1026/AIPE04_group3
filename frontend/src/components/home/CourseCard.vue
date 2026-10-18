@@ -15,24 +15,34 @@ const coverPosition = computed(() => {
   return 'center 68%'
 })
 
-const price = computed(() => `NT$ ${props.course.price.toLocaleString('zh-TW')}`)
+const price = computed(() =>
+  props.course.price === null ? '價格未填' : `NT$ ${props.course.price.toLocaleString('zh-TW')}`,
+)
 </script>
 
 <template>
   <article class="course-card">
     <div class="course-card__cover">
-      <img :src="course.cover" :alt="course.title" :style="{ objectPosition: coverPosition }" loading="lazy" />
+      <img
+        v-if="course.cover"
+        :src="course.cover"
+        :alt="course.title"
+        :style="{ objectPosition: coverPosition }"
+        loading="lazy"
+      />
       <span class="course-card__chip course-card__chip--level">{{ course.level }}</span>
-      <span class="course-card__chip course-card__chip--time">{{ course.minutes }} 分鐘</span>
+      <span v-if="course.minutes !== null" class="course-card__chip course-card__chip--time">{{ course.minutes }} 分鐘</span>
     </div>
     <div class="course-card__body">
-      <p class="course-card__category">{{ course.category }}・{{ course.format }}</p>
+      <p class="course-card__category">
+        {{ course.category }}<template v-if="course.format !== '未填'">・{{ course.format }}</template>
+      </p>
       <h3>{{ course.title }}</h3>
-      <p class="course-card__summary">{{ course.summary }}</p>
+      <p v-if="course.summary" class="course-card__summary">{{ course.summary }}</p>
       <div class="course-card__footer">
         <p>
           <span>{{ course.teacherName }}</span>
-          <strong>{{ price }}<small> / 堂</small></strong>
+          <strong>{{ price }}<small v-if="course.price !== null"> / 堂</small></strong>
         </p>
         <button type="button" @click="emit('viewCourse', course.title)">
           看課程
@@ -53,12 +63,14 @@ const price = computed(() => `NT$ ${props.course.price.toLocaleString('zh-TW')}`
 .course-card__cover {
   position: relative;
   overflow: hidden;
+  aspect-ratio: 4 / 3.4;
   border-radius: var(--radius-card);
+  background: var(--home-cream);
 }
 
 .course-card img {
   width: 100%;
-  aspect-ratio: 4 / 3.4;
+  height: 100%;
   object-fit: cover;
   transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
