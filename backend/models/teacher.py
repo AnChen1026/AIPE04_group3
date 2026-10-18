@@ -33,47 +33,53 @@ class TeacherDB(Base):
 
     age = Column(
         Integer,
-        nullable=False,
+        nullable=True,
     )
 
     seniority = Column(
         Integer,
-        nullable=False,
+        nullable=True,
     )
 
     expertise = Column(
         String(200),
-        nullable=False,
+        nullable=True,
     )
 
     short_intros = Column(
         String(200),
-        nullable=False,
+        nullable=True,
     )
 
     teaching_city = Column(
         String(100),
-        nullable=False,
+        nullable=True,
     )
 
     teaching_district = Column(
         String(100),
-        nullable=False,
+        nullable=True,
     )
 
     target_learning = Column(
         String(255),
-        nullable=False,
+        nullable=True,
     )
 
     teaching_method = Column(
         String(255),
-        nullable=False,
+        nullable=True,
     )
 
     teaching_style = Column(
         String(100),
-        nullable=False,
+        nullable=True,
+    )
+
+    # 老師照片，沒有上傳時前端用預設圖
+    photo_path = Column(
+        String(500),
+        nullable=True,
     )
 
     status = Column(

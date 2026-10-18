@@ -9,6 +9,7 @@ class CourseIn(BaseModel):
     region: str | None = None
     price_per_lesson: int | None = None
     time_slots: str | None = None
+    description: str | None = None
     status: str = "draft"
 
 
@@ -22,4 +23,5 @@ class CourseUpdate(BaseModel):
     region: str | None = None
     price_per_lesson: int | None = None
     time_slots: str | None = None
+    description: str | None = None
     status: str | None = None

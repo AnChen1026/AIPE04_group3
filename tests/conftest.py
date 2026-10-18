@@ -51,6 +51,9 @@ def upload_root(tmp_path, monkeypatch):
     monkeypatch.setattr(uploads, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "uploads" / "midi")
     monkeypatch.setattr(student_service, "PRACTICE_UPLOAD_DIR", tmp_path / "uploads" / "practice")
+    import backend.services.images as image_service
+
+    monkeypatch.setattr(image_service, "IMAGE_DIR", tmp_path / "uploads" / "images")
     (tmp_path / "uploads" / "materials").mkdir(parents=True)
     monkeypatch.setattr(material_router, "MATERIAL_UPLOAD_DIR", tmp_path / "uploads" / "materials")
     return tmp_path

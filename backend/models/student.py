@@ -46,11 +46,18 @@ class Course(Base):
     time_slots: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 課程圖片，沒有上傳時前端用預設圖
+    image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     @property
     def has_reference_midi(self) -> bool:
         return bool(self.reference_midi_path)
+
+    @property
+    def image_url(self) -> str | None:
+        return f"/api/images/courses/{self.id}" if self.image_path else None
 
 
 class InquiryConversation(Base):

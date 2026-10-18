@@ -15,9 +15,11 @@ from backend.services.course import (
     MAX_MIDI_BYTES,
     create_course,
     get_own_course,
+    save_course_image,
     save_reference_midi,
     update_course,
 )
+from backend.services.images import MAX_IMAGE_BYTES
 from backend.services.student import StudentBusinessError
 
 router = APIRouter()
@@ -120,3 +122,17 @@ def download_reference_midi(
     if not course.reference_midi_path:
         raise HTTPException(status_code=404, detail="這門課還沒有參考 MIDI。")
     return FileResponse(resolve_stored_path(course.reference_midi_path), media_type="audio/midi")
+
+
+@router.post("/courses/{course_id}/image", response_model=CourseResponse)
+def upload_course_image(
+    course_id: UUIDType,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """上傳或更換課程圖片。沒有上傳時，首頁用預設的課程圖。"""
+    try:
+        return save_course_image(db, teacher.user_id, course_id, image.file.read(MAX_IMAGE_BYTES + 1))
+    except StudentBusinessError as error:
+        _raise(error)

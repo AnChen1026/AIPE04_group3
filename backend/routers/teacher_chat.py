@@ -36,7 +36,9 @@ def list_conversations(
     db: Session = Depends(get_db),
 ):
     """學生洽詢列表：學生、課程、是否已綁定、未讀數。有新訊息的排前面。"""
-    return conversation_rows(db, StudentRepository.list_teacher_conversations(db, teacher.id), teacher.id)
+    return conversation_rows(
+        db, StudentRepository.list_teacher_conversations(db, teacher.id), teacher.id, include_code=True
+    )
 
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)
@@ -46,7 +48,7 @@ def read_conversation(
     db: Session = Depends(get_db),
 ):
     conversation = _own_conversation(db, teacher, conversation_id)
-    return conversation_rows(db, [conversation], teacher.id)[0]
+    return conversation_rows(db, [conversation], teacher.id, include_code=True)[0]
 
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageResponse])

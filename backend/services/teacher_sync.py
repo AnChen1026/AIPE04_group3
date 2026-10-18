@@ -32,16 +32,8 @@ def _ensure_teacher_profile(session: Session, user: User) -> TeacherDB | None:
         id=uuid.uuid4(),
         user_id=user.id,
         name=user.name,
-        gender=user.sex or "未填寫",
-        age=_calculate_age(user.birthdate),
-        seniority=0,
-        expertise="未填寫",
-        short_intros="未填寫",
-        teaching_city="未填寫",
-        teaching_district="未填寫",
-        target_learning="未填寫",
-        teaching_method="未填寫",
-        teaching_style="未填寫",
+        gender={"male": "男", "female": "女"}.get(user.sex or "", "不透露"),
+        age=_calculate_age(user.birthdate) if user.birthdate else None,
         status="active" if user.is_active else "pending",
     )
     session.add(teacher)

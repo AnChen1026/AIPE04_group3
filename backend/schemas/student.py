@@ -18,15 +18,19 @@ class CourseResponse(BaseModel):
     time_slots: str | None = None
     status: str
     has_reference_midi: bool = False
+    description: str | None = None
+    # 沒有上傳圖片時是 null，前端改用預設圖
+    image_url: str | None = None
 
     class Config:
         from_attributes = True
 
 
 class PublishedCourseResponse(CourseResponse):
-    """訪客看得到的已發布課程。不含 MIDI 路徑。"""
+    """訪客看得到的已發布課程。不含 MIDI 與圖片的檔案路徑。"""
 
     teacher_name: str
+    teacher_photo_url: str | None = None
 
 
 class ConversationResponse(BaseModel):
@@ -45,6 +49,8 @@ class ConversationResponse(BaseModel):
     unread_count: int = 0
     last_message: str | None = None
     last_message_at: datetime | None = None
+    # 老師才看得到：已發出、學生還沒使用的綁定碼
+    binding_code: str | None = None
 
     class Config:
         from_attributes = True

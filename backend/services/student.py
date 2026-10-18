@@ -21,6 +21,7 @@ from backend.models.student import (
     PracticeFeedback,
     PracticeRecording,
 )
+from backend.models.teacher import TeacherDB
 from backend.models.user import User
 from backend.core.uploads import PRACTICE_UPLOAD_DIR, stored_path
 from backend.repositories.student import StudentRepository
@@ -78,15 +79,16 @@ def list_published_courses(db: Session) -> list[Course]:
 
 
 def list_public_published_courses(db: Session) -> list[dict]:
-    """訪客用。只回已發布課程和老師姓名，不回草稿、封存或 MIDI 路徑。"""
+    """訪客用。只回已發布課程和老師姓名、照片網址，不回草稿、封存或任何檔案路徑。"""
     rows = db.execute(
-        select(Course, User.name)
+        select(Course, User.name, TeacherDB.photo_path)
         .join(User, User.id == Course.teacher_id)
+        .outerjoin(TeacherDB, TeacherDB.user_id == Course.teacher_id)
         .where(Course.status == "published")
         .order_by(Course.created_at.desc())
     ).all()
     courses = []
-    for course, teacher_name in rows:
+    for course, teacher_name, photo_path in rows:
         courses.append(
             {
                 "id": course.id,
@@ -101,6 +103,9 @@ def list_public_published_courses(db: Session) -> list[dict]:
                 "time_slots": course.time_slots,
                 "status": course.status,
                 "has_reference_midi": course.has_reference_midi,
+                "description": course.description,
+                "image_url": course.image_url,
+                "teacher_photo_url": f"/api/images/teachers/{course.teacher_id}" if photo_path else None,
             }
         )
     return courses
@@ -222,6 +227,18 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
     _commit(db)
     db.refresh(binding)
     return binding
+
+
+def redeem_code_only(db: Session, student: User, code: str) -> InquiryConversation:
+    """學生只輸入綁定碼：找到老師發給他的那段對話，再照一般規則綁定。"""
+    binding_code = StudentRepository.get_binding_code(db, code.strip().upper())
+    if binding_code is None or binding_code.student_id != student.id:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
+    conversation = StudentRepository.get_conversation(db, binding_code.conversation_id)
+    if conversation is None:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
+    redeem_binding_code(db, student, conversation, binding_code.code)
+    return conversation
 
 
 def require_bound(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> Course:

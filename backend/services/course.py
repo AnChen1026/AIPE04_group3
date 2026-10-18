@@ -38,7 +38,7 @@ def check_course_fields(fields: dict) -> dict:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "單堂價格不能是負數。")
     if "status" in cleaned and cleaned["status"] not in COURSE_STATUSES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "課程狀態只能是草稿、已發布或已封存。")
-    for name, limit in (("style", 100), ("region", 100), ("time_slots", 200)):
+    for name, limit in (("style", 100), ("region", 100), ("time_slots", 200), ("description", 2000)):
         if cleaned.get(name) is not None and len(cleaned[name]) > limit:
             raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"欄位太長，最多 {limit} 字。")
     return cleaned
@@ -97,6 +97,16 @@ def save_reference_midi(
     path.write_bytes(content)
 
     course.reference_midi_path = stored_path(path)
+    db.commit()
+    db.refresh(course)
+    return course
+
+
+def save_course_image(db: Session, teacher_user_id: uuid.UUID, course_id: uuid.UUID, content: bytes) -> Course:
+    from backend.services.images import save_image
+
+    course = get_own_course(db, teacher_user_id, course_id)
+    course.image_path = save_image(content, "courses")
     db.commit()
     db.refresh(course)
     return course

@@ -8,11 +8,17 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.models.student import ConversationMessage, Course, CourseBinding, InquiryConversation
+from backend.models.student import BindingCode, ConversationMessage, Course, CourseBinding, InquiryConversation
 from backend.models.user import User
 
 
-def conversation_rows(db: Session, conversations: list[InquiryConversation], reader_id: uuid.UUID) -> list[dict]:
+def conversation_rows(
+    db: Session,
+    conversations: list[InquiryConversation],
+    reader_id: uuid.UUID,
+    include_code: bool = False,
+) -> list[dict]:
+    """include_code 只給老師用：帶上已發出、學生還沒使用的綁定碼。"""
     if not conversations:
         return []
     ids = [conversation.id for conversation in conversations]
@@ -60,6 +66,15 @@ def conversation_rows(db: Session, conversations: list[InquiryConversation], rea
         )
     }
 
+    codes: dict = {}
+    if include_code:
+        for code in db.scalars(
+            select(BindingCode)
+            .where(BindingCode.conversation_id.in_(ids), BindingCode.used_at.is_(None))
+            .order_by(BindingCode.created_at.asc())
+        ):
+            codes[code.conversation_id] = code.code
+
     rows = []
     for conversation in conversations:
         course = courses.get(conversation.course_id)
@@ -80,6 +95,7 @@ def conversation_rows(db: Session, conversations: list[InquiryConversation], rea
                 "unread_count": unread.get(conversation.id, 0),
                 "last_message": last.body if last else None,
                 "last_message_at": last.created_at if last else None,
+                "binding_code": codes.get(conversation.id),
             }
         )
     # 有新訊息的對話排前面

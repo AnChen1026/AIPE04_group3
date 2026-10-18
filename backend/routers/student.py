@@ -33,6 +33,7 @@ from backend.services.student import (
     list_published_courses,
     mark_conversation_read,
     redeem_binding_code,
+    redeem_code_only,
     require_bound,
     save_recording,
     start_conversation,
@@ -132,6 +133,20 @@ def api_bind(
     except StudentBusinessError as error:
         _raise_business_error(error)
     return {"bound": True, "course_id": str(conversation.course_id)}
+
+
+@router.post("/bind")
+def api_bind_with_code(
+    data: BindIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """只輸入綁定碼就能進入課程，不用先打開聊天。"""
+    try:
+        conversation = redeem_code_only(db, current_user, data.code)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    return {"bound": True, "course_id": str(conversation.course_id), "conversation_id": str(conversation.id)}
 
 
 @router.get("/courses/{course_id}/schedule", response_model=list[LessonResponse])
