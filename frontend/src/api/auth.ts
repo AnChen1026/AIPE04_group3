@@ -44,3 +44,15 @@ export function registerTeacher(input: TeacherRegisterInput, proof?: File | null
 export function fetchGoogleUrl(role: 'student' | 'teacher', intent: 'login' | 'register'): Promise<{ url: string }> {
   return request('/api/auth/google-url', { query: { role, intent } })
 }
+
+export interface ProfileInput {
+  name: string
+  phone_number: string | null
+  birthdate: string | null
+  sex: 'male' | 'female'
+}
+
+// 學生、老師都能改自己的基本資料；Email 與角色不能在這裡改
+export function updateMe(input: ProfileInput): Promise<CurrentUser> {
+  return request<CurrentUser>('/api/auth/me', { method: 'PATCH', body: { ...input } })
+}

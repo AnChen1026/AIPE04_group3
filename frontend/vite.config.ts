@@ -22,7 +22,8 @@ export default defineConfig({
     // 瀏覽器視為同源，Session Cookie 會自動帶上；網址列上的頁面路徑都交給 Vue Router。
     proxy: {
       '/backend': {
-        target: 'http://127.0.0.1:8000',
+        // 預設 8000；同時跑兩份後端測試時，可用環境變數 BACKEND_URL 換位置
+        target: process.env.BACKEND_URL ?? 'http://127.0.0.1:8000',
         changeOrigin: true,
         ws: true,
         rewrite: (path) => path.replace(/^\/backend/, ''),

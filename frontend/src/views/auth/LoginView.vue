@@ -6,6 +6,7 @@ import RolePicker from '@/components/auth/RolePicker.vue'
 import { fetchGoogleUrl } from '@/api/auth'
 import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
+import { safeRedirect } from '@/utils/redirect'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,15 +19,7 @@ const error = ref('')
 const submitting = ref(false)
 
 function nextPath(userRole: string) {
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-  // 只回到站內頁面，而且要是這個身分能進的地方
-  if (redirect.startsWith('/') && !redirect.startsWith('//')) {
-    if (redirect.startsWith('/teacher') && userRole !== 'teacher') return auth.homePath
-    if (redirect.startsWith('/student') && userRole !== 'student') return auth.homePath
-    if (redirect.startsWith('/admin') && userRole !== 'admin') return auth.homePath
-    return redirect
-  }
-  return auth.homePath
+  return safeRedirect(route.query.redirect, userRole, auth.homePath)
 }
 
 async function submit() {
@@ -104,7 +97,7 @@ async function googleLogin() {
 
       <p class="login__footer">
         還沒有帳號？
-        <RouterLink :to="{ name: 'signup', query: { role: role ?? 'student' } }" class="login__link">立即註冊</RouterLink>
+        <RouterLink :to="{ name: 'signup', query: { role: role ?? 'student', redirect: route.query.redirect } }" class="login__link">立即註冊</RouterLink>
       </p>
     </form>
   </AuthCard>

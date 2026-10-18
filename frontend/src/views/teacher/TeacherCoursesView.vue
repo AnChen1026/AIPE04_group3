@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchMyCourses } from '@/api/teacher'
 import type { Course } from '@/types/api'
+import { apiUrl } from '@/api/http'
+import { imageForCourse } from '@/assets/courseImages'
 import { COURSE_STATUS_LABELS, deliveryText, priceText } from '@/utils/format'
 
 const courses = ref<Course[]>([])
@@ -69,6 +71,13 @@ onMounted(async () => {
     {{ courses.length === 0 ? '還沒有課程，先新增一門吧。' : '沒有符合的課程。' }}
   </div>
   <article v-for="course in shown" :key="course.id" class="card course">
+    <img
+      class="course__image"
+      :src="course.image_url ? apiUrl(course.image_url) : imageForCourse(course.title, course.style)"
+      :alt="course.title"
+      loading="lazy"
+    />
+    <div class="course__body">
     <header class="course__head">
       <h2>{{ course.title }}</h2>
       <RouterLink :to="`/teacher/courses/${course.id}/edit`" class="btn btn--ghost btn--small">編輯</RouterLink>
@@ -84,6 +93,7 @@ onMounted(async () => {
       <span class="muted">{{ course.has_reference_midi ? '已設定參考 MIDI' : '尚未設定參考 MIDI，學生還不能送出練習錄音' }}</span>
       <span class="badge" :class="statusClass(course.status)">{{ COURSE_STATUS_LABELS[course.status] }}</span>
     </footer>
+    </div>
   </article>
 </template>
 
@@ -94,6 +104,35 @@ onMounted(async () => {
 
 .courses__filters {
   margin-bottom: 16px;
+}
+
+.course {
+  display: flex;
+  gap: 20px;
+}
+
+.course__image {
+  flex: none;
+  width: 150px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 16px;
+  background: var(--home-cream);
+}
+
+.course__body {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .course {
+    flex-direction: column;
+  }
+
+  .course__image {
+    width: 100%;
+  }
 }
 
 .course__head {

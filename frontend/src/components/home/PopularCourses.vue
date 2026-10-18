@@ -10,14 +10,18 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  viewCourse: [title: string]
+  viewCourse: [course: CourseCardData]
 }>()
+
+// 首頁最多放 6 門，其他用上方程度篩選或搜尋找
+const MAX_SHOWN = 6
 
 const level = ref<CourseLevel | null>(null)
 
-const shownCourses = computed(() =>
+const matchedCourses = computed(() =>
   level.value ? props.courses.filter((course) => course.level === level.value) : props.courses,
 )
+const shownCourses = computed(() => matchedCourses.value.slice(0, MAX_SHOWN))
 </script>
 
 <template>
@@ -58,6 +62,9 @@ const shownCourses = computed(() =>
         @view-course="emit('viewCourse', $event)"
       />
     </div>
+    <p v-if="!status && matchedCourses.length > MAX_SHOWN" class="courses__more">
+      共 {{ matchedCourses.length }} 門課，這裡先列出 {{ MAX_SHOWN }} 門。可以用上方的程度或搜尋框找更多。
+    </p>
   </section>
 </template>
 
@@ -113,6 +120,13 @@ const shownCourses = computed(() =>
 .courses__empty {
   margin-top: 40px;
   color: var(--home-muted);
+}
+
+.courses__more {
+  margin: 32px 0 0;
+  color: var(--home-muted);
+  font-size: 14px;
+  text-align: center;
 }
 
 @media (max-width: 980px) {

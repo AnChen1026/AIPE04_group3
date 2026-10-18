@@ -15,7 +15,8 @@ const error = ref('')
 onMounted(async () => {
   await auth.ensureLoaded()
   if (!auth.user) {
-    router.replace({ name: 'login', query: { redirect: route.fullPath, role: 'student' } })
+    // 訪客先註冊（頁面上也能切到登入），完成後回到這裡打開聊天
+    router.replace({ name: 'signup', query: { redirect: route.fullPath, role: 'student' } })
     return
   }
   if (auth.user.role !== 'student') {

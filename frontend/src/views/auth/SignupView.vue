@@ -6,9 +6,12 @@ import RolePicker from '@/components/auth/RolePicker.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import { registerStudent, registerTeacher } from '@/api/auth'
 import { ApiError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
+import { safeRedirect } from '@/utils/redirect'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const role = ref<'student' | 'teacher' | null>(
   route.query.role === 'teacher' ? 'teacher' : route.query.role === 'student' ? 'student' : null,
@@ -32,6 +35,7 @@ const submitting = ref(false)
 const done = ref(false)
 
 const isTeacher = computed(() => role.value === 'teacher')
+const fromContact = computed(() => String(route.query.redirect ?? '').includes('/contact'))
 
 // 設計稿的「錯誤提示：哪欄資料有誤、沒有選擇身分」
 function validate(): boolean {
@@ -76,10 +80,13 @@ async function submit() {
         },
         proof.value,
       )
+      done.value = true
     } else {
+      // 學生註冊完直接登入，從「與老師接洽」來的就直接打開聊天
       await registerStudent(base)
+      await auth.login(base.email, base.password)
+      router.replace(safeRedirect(route.query.redirect, 'student', '/student'))
     }
-    done.value = true
   } catch (problem) {
     serverError.value = problem instanceof ApiError ? problem.message : '註冊失敗，請稍後再試。'
   } finally {
@@ -97,7 +104,7 @@ function finish() {
 </script>
 
 <template>
-  <AuthCard title="建立新帳號">
+  <AuthCard title="建立新帳號" :subtitle="fromContact ? '註冊完成後，會直接帶你到和老師的對話。' : undefined">
     <form novalidate @submit.prevent="submit">
       <p class="signup__label">註冊身分<span class="required">*</span></p>
       <RolePicker v-model="role" student-label="學生" teacher-label="老師" :invalid="!!errors.role" />
@@ -175,14 +182,14 @@ function finish() {
         {{ submitting ? '建立中…' : '建立帳號' }}
       </button>
       <p class="signup__footer">
-        已有帳號？<RouterLink :to="{ name: 'login', query: { role: role ?? 'student' } }">立即登入</RouterLink>
+        已有帳號？<RouterLink :to="{ name: 'login', query: { role: role ?? 'student', redirect: route.query.redirect } }">立即登入</RouterLink>
       </p>
     </form>
 
     <NoticeDialog
       :open="done"
       message="註冊成功！"
-      :detail="isTeacher ? '老師帳號送出審核，通過後就能開課。現在可以先登入查看審核狀態。' : '現在可以登入，開始找課。'"
+      detail="老師帳號送出審核，通過後就能開課。現在可以先登入查看審核狀態。"
       confirm-text="前往登入"
       @confirm="finish"
       @cancel="finish"

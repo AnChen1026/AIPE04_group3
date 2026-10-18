@@ -3,7 +3,9 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { createCourse, fetchCourse, updateCourse, uploadReferenceMidi } from '@/api/teacher'
+import ImagePicker from '@/components/console/ImagePicker.vue'
+import { createCourse, fetchCourse, updateCourse, uploadCourseImage, uploadReferenceMidi } from '@/api/teacher'
+import { imageForCourse } from '@/assets/courseImages'
 import { apiUrl } from '@/api/http'
 import { useLeaveGuard } from '@/composables/useLeaveGuard'
 import type { CourseInput } from '@/types/api'
@@ -21,8 +23,14 @@ const form = reactive({
   region: '',
   price_per_lesson: '' as string | number,
   time_slots: '',
+  description: '',
   status: 'draft' as CourseInput['status'],
 })
+const imageUrl = ref<string | null>(null)
+const image = ref<File | null>(null)
+const imagePicker = ref<InstanceType<typeof ImagePicker> | null>(null)
+const created = ref(false)
+const defaultImage = computed(() => imageForCourse(form.title, form.style))
 const original = ref('')
 const hasMidi = ref(false)
 const midiFile = ref<File | null>(null)
@@ -32,7 +40,12 @@ const serverError = ref('')
 const saving = ref(false)
 const saved = ref(false)
 
-const dirty = computed(() => midiFile.value !== null || (original.value !== '' && JSON.stringify(form) !== original.value))
+const dirty = computed(
+  () =>
+    midiFile.value !== null ||
+    image.value !== null ||
+    (original.value !== '' && JSON.stringify(form) !== original.value),
+)
 const guard = useLeaveGuard(dirty)
 
 onMounted(async () => {
@@ -46,9 +59,11 @@ onMounted(async () => {
       region: course.region ?? '',
       price_per_lesson: course.price_per_lesson ?? '',
       time_slots: course.time_slots ?? '',
+      description: course.description ?? '',
       status: course.status,
     })
     hasMidi.value = course.has_reference_midi
+    imageUrl.value = course.image_url ? apiUrl(course.image_url) : null
   }
   original.value = JSON.stringify(form)
 })
@@ -62,6 +77,25 @@ function validate() {
   if (form.status === 'published' && !form.level) errors.level = '發布前請選擇找課程度，學生才找得到。'
   if (midiFile.value && !/\.midi?$/i.test(midiFile.value.name)) errors.midi = '請選擇 .mid 或 .midi 檔。'
   return Object.keys(errors).length === 0
+}
+
+function startAnother() {
+  created.value = false
+  Object.assign(form, {
+    title: '',
+    level: '',
+    style: '',
+    delivery_mode: '',
+    region: '',
+    price_per_lesson: '',
+    time_slots: '',
+    description: '',
+    status: 'draft',
+  })
+  original.value = JSON.stringify(form)
+  hasMidi.value = false
+  imageUrl.value = null
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function onMidi(event: Event) {
@@ -80,10 +114,16 @@ async function save() {
     region: form.region.trim() || null,
     price_per_lesson: form.price_per_lesson === '' ? null : Number(form.price_per_lesson),
     time_slots: form.time_slots.trim() || null,
+    description: form.description.trim() || null,
     status: form.status,
   }
   try {
     const course = courseId.value ? await updateCourse(courseId.value, input) : await createCourse(input)
+    if (image.value) {
+      const updated = await uploadCourseImage(course.id, image.value)
+      imageUrl.value = updated.image_url ? `${apiUrl(updated.image_url)}?v=${Date.now()}` : null
+      imagePicker.value?.reset()
+    }
     if (midiFile.value) {
       await uploadReferenceMidi(course.id, midiFile.value)
       hasMidi.value = true
@@ -91,8 +131,9 @@ async function save() {
       if (midiInput.value) midiInput.value.value = ''
     }
     original.value = JSON.stringify(form)
-    saved.value = true
-    if (!courseId.value) router.replace(`/teacher/courses/${course.id}/edit`)
+    // 新增完回到列表或再新增一門，不會停在剛建立的課程上，避免下一門蓋掉這一門
+    if (courseId.value) saved.value = true
+    else created.value = true
   } catch (problem) {
     serverError.value = problem instanceof Error ? problem.message : '儲存失敗，請稍後再試。'
   } finally {
@@ -108,6 +149,14 @@ async function save() {
   </PageHeader>
 
   <form class="card" novalidate @submit.prevent="save">
+    <ImagePicker
+      ref="imagePicker"
+      v-model="image"
+      :current="imageUrl"
+      :fallback="defaultImage"
+      label="課程圖片"
+      class="course__image"
+    />
     <div class="form-grid">
       <div class="field field--full">
         <label class="field__label" for="course-title">課程名稱<span class="required">*</span></label>
@@ -161,6 +210,16 @@ async function save() {
         </select>
       </div>
       <div class="field field--full">
+        <label class="field__label" for="course-description">課程介紹</label>
+        <textarea
+          id="course-description"
+          v-model="form.description"
+          class="textarea"
+          maxlength="2000"
+          placeholder="這門課適合誰、會學到什麼、上課怎麼進行"
+        ></textarea>
+      </div>
+      <div class="field field--full">
         <span class="field__label">參考 MIDI</span>
         <p class="midi__state">
           <template v-if="hasMidi">
@@ -179,6 +238,15 @@ async function save() {
 
   <NoticeDialog :open="saved" message="更新成功！" @confirm="saved = false" @cancel="saved = false" />
   <NoticeDialog
+    :open="created"
+    message="課程已建立！"
+    :detail="form.status === 'published' ? '學生已經可以在首頁看到這門課。' : '目前是草稿，發布後學生才看得到。'"
+    confirm-text="回課程列表"
+    cancel-text="再新增一門"
+    @confirm="router.push('/teacher/courses')"
+    @cancel="startAnother"
+  />
+  <NoticeDialog
     :open="guard.asking.value"
     message="課程還沒儲存"
     detail="離開這一頁，剛剛修改的內容會不見。"
@@ -193,6 +261,10 @@ async function save() {
 <style scoped>
 .required {
   color: #b5553c;
+}
+
+.course__image {
+  margin-bottom: 22px;
 }
 
 .midi__state {

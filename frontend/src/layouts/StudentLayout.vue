@@ -12,6 +12,7 @@ const items = computed<NavItem[]>(() => [
   { to: '/student', label: '我的課程', icon: 'home', exact: true, badge: unread.value },
   { to: '/student/schedule', label: '課表', icon: 'schedule' },
   { to: '/student/practice', label: '練習', icon: 'mic' },
+  { to: '/student/profile', label: '基本資料', icon: 'profile' },
 ])
 
 watch(

@@ -28,6 +28,10 @@ export interface CourseCardData {
   minutes: number | null
   price: number | null
   summary: string
+  region: string | null
+  timeSlots: string | null
+  description: string | null
+  teacherPhoto: string | null
 }
 
 export interface HighlightItem {

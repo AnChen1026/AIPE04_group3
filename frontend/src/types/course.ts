@@ -11,6 +11,9 @@ export interface CourseResponse {
   time_slots: string | null
   status: string
   teacher_name?: string | null
+  description?: string | null
+  image_url?: string | null
+  teacher_photo_url?: string | null
 }
 
 // 首頁卡片需要的欄位。老師名稱、時數、圖片後端目前沒有回傳，先允許為空。
@@ -26,4 +29,6 @@ export interface CourseSummary {
   region: string | null
   timeSlots: string | null
   imageUrl: string | null
+  description: string | null
+  teacherPhotoUrl: string | null
 }

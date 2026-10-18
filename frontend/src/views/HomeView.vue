@@ -8,6 +8,7 @@ import LearningFlow from '@/components/home/LearningFlow.vue'
 import FaqSection from '@/components/home/FaqSection.vue'
 import JoinCta from '@/components/home/JoinCta.vue'
 import Footer from '@/components/home/Footer.vue'
+import CourseDetailDialog from '@/components/home/CourseDetailDialog.vue'
 import { fetchPublishedCourses } from '@/api/courses'
 import type { CourseSummary } from '@/types/course'
 import {
@@ -24,6 +25,7 @@ const keyword = ref('')
 const notice = ref('')
 const courses = ref<CourseCardData[]>([])
 const courseStatus = ref('正在讀取已發布的課程…')
+const selectedCourse = ref<CourseCardData | null>(null)
 
 function deliveryLabel(mode: string | null): string {
   if (mode === 'online' || mode === '線上') return '線上'
@@ -32,7 +34,8 @@ function deliveryLabel(mode: string | null): string {
 }
 
 function toCourseCard(course: CourseSummary): CourseCardData {
-  const summary = [course.region, course.timeSlots].filter((item): item is string => Boolean(item)).join(' · ')
+  const summary =
+    course.description || [course.region, course.timeSlots].filter((item): item is string => Boolean(item)).join(' · ')
   return {
     id: course.id,
     title: course.title,
@@ -44,6 +47,10 @@ function toCourseCard(course: CourseSummary): CourseCardData {
     minutes: course.durationMinutes,
     price: course.pricePerLesson,
     summary,
+    region: course.region,
+    timeSlots: course.timeSlots,
+    description: course.description,
+    teacherPhoto: course.teacherPhotoUrl,
   }
 }
 
@@ -85,10 +92,9 @@ function clearSearch() {
   notice.value = ''
 }
 
-function showCourse(title: string) {
-  keyword.value = title
-  notice.value = `正在看「${title}」。課程詳情頁還沒有做好。`
-  document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' })
+// 點課程卡打開課程詳情，裡面有「與老師接洽」
+function showCourse(course: CourseCardData) {
+  selectedCourse.value = course
 }
 </script>
 
@@ -106,6 +112,7 @@ function showCourse(title: string) {
     <FaqSection :faqs="faqs" />
     <JoinCta />
     <Footer />
+    <CourseDetailDialog :course="selectedCourse" @close="selectedCourse = null" />
   </div>
 </template>
 

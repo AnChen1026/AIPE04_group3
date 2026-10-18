@@ -37,7 +37,7 @@ async function issueCode() {
   actionError.value = ''
   try {
     await issueBindingCode(conversationId)
-    await chat.reload()
+    await Promise.all([chat.reload(), refreshInfo()])
   } catch (problem) {
     actionError.value = problem instanceof Error ? problem.message : '綁定碼沒有產生成功。'
   } finally {
@@ -72,9 +72,12 @@ onMounted(async () => {
           <span class="muted">這位學生已經進入這門課。</span>
         </template>
         <template v-else>
-          <span class="muted">決定收這位學生時，發一組只屬於他、這門課的綁定碼。</span>
+          <span v-if="conversation?.binding_code" class="muted">
+            已發綁定碼 <code class="chat-code">{{ conversation.binding_code }}</code>，學生還沒使用。
+          </span>
+          <span v-else class="muted">決定收這位學生時，發一組只屬於他、這門課的綁定碼。</span>
           <button type="button" class="btn btn--primary btn--small" :disabled="issuing" @click="asking = true">
-            {{ issuing ? '產生中…' : '發綁定碼' }}
+            {{ issuing ? '產生中…' : conversation?.binding_code ? '重發綁定碼' : '發綁定碼' }}
           </button>
         </template>
       </div>
@@ -104,5 +107,13 @@ onMounted(async () => {
 
 .chat-actions .btn {
   margin-left: auto;
+}
+
+.chat-code {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--home-cream);
+  color: var(--home-accent-dark);
+  letter-spacing: 0.1em;
 }
 </style>

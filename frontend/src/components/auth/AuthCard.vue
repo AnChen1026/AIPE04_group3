@@ -16,6 +16,10 @@ defineProps<{ title?: string; subtitle?: string }>()
     </aside>
     <section class="auth__panel">
       <div class="auth__card">
+        <RouterLink to="/" class="auth__back">
+          <span aria-hidden="true">‹</span>
+          回首頁
+        </RouterLink>
         <RouterLink to="/" class="auth__brand">琴室</RouterLink>
         <p class="auth__platform">鋼琴課程管理與推廣平台</p>
         <h1 v-if="title" class="auth__title">{{ title }}</h1>
@@ -87,6 +91,28 @@ defineProps<{ title?: string; subtitle?: string }>()
   border-radius: 32px;
   background: var(--home-paper);
   box-shadow: var(--shadow-soft);
+}
+
+.auth__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: -8px 0 8px -6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  color: var(--home-muted);
+  font-size: 13px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.auth__back span {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.auth__back:hover {
+  background: var(--home-cream);
+  color: var(--home-ink);
 }
 
 .auth__brand {

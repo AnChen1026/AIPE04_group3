@@ -90,6 +90,7 @@ const router = createRouter({
         { path: 'chat/:id', name: 'student-chat-room', component: () => import('@/views/student/StudentChatRoomView.vue'), meta: { title: '聊天' } },
         { path: 'schedule', name: 'student-schedule', component: () => import('@/views/student/StudentScheduleView.vue'), meta: { title: '課表' } },
         { path: 'practice', name: 'student-practice', component: () => import('@/views/student/StudentPracticeView.vue'), meta: { title: '練習' } },
+        { path: 'profile', name: 'student-profile', component: () => import('@/views/student/StudentProfileView.vue'), meta: { title: '基本資料' } },
       ],
     },
 

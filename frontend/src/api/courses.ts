@@ -1,4 +1,4 @@
-import { request } from './http'
+import { apiUrl, request } from './http'
 import { imageForCourse } from '@/assets/courseImages'
 import { mockCourses } from '@/mocks/courses'
 import type { CourseResponse, CourseSummary } from '@/types/course'
@@ -17,7 +17,9 @@ function toCourseSummary(course: CourseResponse): CourseSummary {
     deliveryMode: course.delivery_mode,
     region: course.region,
     timeSlots: course.time_slots,
-    imageUrl: imageForCourse(course.title, course.style),
+    imageUrl: course.image_url ? apiUrl(course.image_url) : imageForCourse(course.title, course.style),
+    description: course.description ?? null,
+    teacherPhotoUrl: course.teacher_photo_url ? apiUrl(course.teacher_photo_url) : null,
   }
 }
 

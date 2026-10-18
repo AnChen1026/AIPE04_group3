@@ -12,6 +12,8 @@ export interface Course {
   time_slots: string | null
   status: 'draft' | 'published' | 'archived'
   has_reference_midi: boolean
+  description: string | null
+  image_url: string | null
 }
 
 export interface CourseInput {
@@ -22,6 +24,7 @@ export interface CourseInput {
   region: string | null
   price_per_lesson: number | null
   time_slots: string | null
+  description: string | null
   status: Course['status']
 }
 
@@ -40,6 +43,7 @@ export interface Conversation {
   unread_count: number
   last_message: string | null
   last_message_at: string | null
+  binding_code?: string | null
 }
 
 export interface Message {
@@ -128,24 +132,26 @@ export interface LessonSummary {
   generated_at: string
 }
 
+// 只有姓名、性別必填，其他都可以留空
 export interface TeacherProfile {
   id: string
   user_id: string
   name: string
   gender: string
-  age: number
-  seniority: number
-  expertise: string
-  short_intros: string
-  teaching_city: string
-  teaching_district: string
-  target_learning: string
-  teaching_method: string
-  teaching_style: string
+  age: number | null
+  seniority: number | null
+  expertise: string | null
+  short_intros: string | null
+  teaching_city: string | null
+  teaching_district: string | null
+  target_learning: string | null
+  teaching_method: string | null
+  teaching_style: string | null
   status: string
+  photo_url: string | null
 }
 
-export type TeacherProfileInput = Omit<TeacherProfile, 'id' | 'user_id' | 'status'>
+export type TeacherProfileInput = Omit<TeacherProfile, 'id' | 'user_id' | 'status' | 'photo_url'>
 
 export interface BoundStudent {
   id: string

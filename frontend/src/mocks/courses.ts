@@ -20,6 +20,8 @@ export const mockCourses: CourseSummary[] = mockCourseRows.map((course) => ({
   deliveryMode: null,
   region: null,
   timeSlots: null,
+  description: null,
+  teacherPhotoUrl: null,
   ...course,
   imageUrl: imageForCourse(course.title),
 }))

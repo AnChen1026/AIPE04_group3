@@ -18,6 +18,13 @@ export const redeemBindingCode = (conversationId: string, code: string) =>
     body: { code },
   })
 
+// 只輸入綁定碼就加入課程
+export const joinWithCode = (code: string) =>
+  request<{ bound: boolean; course_id: string; conversation_id: string }>('/api/student/bind', {
+    method: 'POST',
+    body: { code },
+  })
+
 // ---------- 課表與課務申請
 export const fetchStudentSchedule = (courseId: string) => request<Lesson[]>(`/api/student/courses/${courseId}/schedule`)
 export const fetchMyChangeRequests = (courseId: string) =>

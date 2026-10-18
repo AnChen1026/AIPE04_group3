@@ -3,6 +3,8 @@ import { onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchTeacherProfile } from '@/api/teacher'
 import type { TeacherProfile } from '@/types/api'
+import { apiUrl } from '@/api/http'
+import defaultPhoto from '@/assets/images/女老師3.png'
 
 const profile = ref<TeacherProfile | null>(null)
 const error = ref('')
@@ -35,10 +37,19 @@ onMounted(async () => {
     <RouterLink to="/teacher/profile/edit" class="btn btn--primary">編輯</RouterLink>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
+  <div v-if="profile" class="card profile__head">
+    <img :src="profile.photo_url ? apiUrl(profile.photo_url) : defaultPhoto" :alt="`${profile.name}的照片`" />
+    <div>
+      <strong>{{ profile.name }}</strong>
+      <span class="muted">{{ profile.photo_url ? '學生在課程頁會看到這張照片。' : '還沒上傳照片，目前顯示預設圖。' }}</span>
+    </div>
+  </div>
   <dl v-if="profile" class="card profile">
     <div v-for="row in rows" :key="row.key" class="profile__row">
       <dt>{{ row.label }}</dt>
-      <dd>{{ profile[row.key] === '' || profile[row.key] === null ? '未填' : `${profile[row.key]}${row.suffix ?? ''}` }}</dd>
+      <dd :class="{ muted: profile[row.key] === '' || profile[row.key] === null }">
+        {{ profile[row.key] === '' || profile[row.key] === null ? '未填' : `${profile[row.key]}${row.suffix ?? ''}` }}
+      </dd>
     </div>
   </dl>
 </template>
@@ -46,6 +57,35 @@ onMounted(async () => {
 <style scoped>
 .profile {
   margin: 0;
+}
+
+.profile__head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.profile__head img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  object-position: center 20%;
+  border-radius: 50%;
+}
+
+.profile__head div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile__head strong {
+  font-family: var(--font-serif);
+  font-size: 20px;
+}
+
+.profile__head span {
+  font-size: 13px;
 }
 
 .profile__row {

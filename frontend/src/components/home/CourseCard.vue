@@ -7,7 +7,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  viewCourse: [title: string]
+  viewCourse: [course: CourseCardData]
 }>()
 
 const coverPosition = computed(() => {
@@ -44,7 +44,7 @@ const price = computed(() =>
           <span>{{ course.teacherName }}</span>
           <strong>{{ price }}<small v-if="course.price !== null"> / 堂</small></strong>
         </p>
-        <button type="button" @click="emit('viewCourse', course.title)">
+        <button type="button" @click="emit('viewCourse', course)">
           看課程
           <span aria-hidden="true">→</span>
         </button>

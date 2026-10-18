@@ -1,15 +1,24 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import { fetchMyConversations } from '@/api/student'
+import NoticeDialog from '@/components/console/NoticeDialog.vue'
+import { fetchMyConversations, joinWithCode } from '@/api/student'
 import type { Conversation } from '@/types/api'
 import { formatShort } from '@/utils/format'
 
 const conversations = ref<Conversation[]>([])
 const loaded = ref(false)
 const error = ref('')
+const router = useRouter()
 
-onMounted(async () => {
+// 老師給的綁定碼：直接在這裡輸入就能加入課程，不用先打開聊天
+const code = ref('')
+const joining = ref(false)
+const joinError = ref('')
+const joined = ref<{ courseId: string; title: string } | null>(null)
+
+async function load() {
   try {
     conversations.value = await fetchMyConversations()
   } catch (problem) {
@@ -17,7 +26,29 @@ onMounted(async () => {
   } finally {
     loaded.value = true
   }
-})
+}
+
+async function join() {
+  joinError.value = ''
+  if (!code.value.trim()) {
+    joinError.value = '請輸入老師給你的綁定碼。'
+    return
+  }
+  joining.value = true
+  try {
+    const result = await joinWithCode(code.value.trim().toUpperCase())
+    code.value = ''
+    await load()
+    const course = conversations.value.find((item) => item.course_id === result.course_id)
+    joined.value = { courseId: result.course_id, title: course?.course_title ?? '這門課' }
+  } catch (problem) {
+    joinError.value = problem instanceof Error ? problem.message : '綁定失敗，請確認綁定碼。'
+  } finally {
+    joining.value = false
+  }
+}
+
+onMounted(load)
 </script>
 
 <template>
@@ -25,6 +56,19 @@ onMounted(async () => {
     <RouterLink :to="{ path: '/', hash: '#courses' }" class="btn btn--primary">找新課程</RouterLink>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
+
+  <form class="card join" novalidate @submit.prevent="join">
+    <div class="join__text">
+      <h2 class="card__title">輸入綁定碼</h2>
+      <p class="muted">老師決定收你之後，會在聊天裡給你一組綁定碼，輸入後就能看課表、送練習。</p>
+    </div>
+    <div class="join__form">
+      <label class="visually-hidden" for="join-code">綁定碼</label>
+      <input id="join-code" v-model="code" class="input join__input" placeholder="例如 A8ACE5E2" autocomplete="off" />
+      <button type="submit" class="btn btn--primary" :disabled="joining">{{ joining ? '確認中…' : '加入課程' }}</button>
+    </div>
+    <p v-if="joinError" class="error-text join__error" role="alert">{{ joinError }}</p>
+  </form>
 
   <div v-if="loaded && conversations.length === 0" class="card empty">
     還沒有洽詢任何課程。到首頁找一門喜歡的課，按「聯繫老師」就能開始聊。
@@ -58,9 +102,49 @@ onMounted(async () => {
       </footer>
     </article>
   </div>
+
+  <NoticeDialog
+    :open="joined !== null"
+    :message="`已經加入「${joined?.title ?? ''}」！`"
+    detail="現在可以看課表、請假或調課，也能照老師指定的曲子錄音練習。"
+    confirm-text="去練習"
+    cancel-text="留在這裡"
+    @confirm="router.push({ path: '/student/practice', query: { course: joined!.courseId } })"
+    @cancel="joined = null"
+  />
 </template>
 
 <style scoped>
+.join {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  background: var(--home-cream);
+}
+
+.join__text p {
+  margin: -6px 0 0;
+  font-size: 13px;
+}
+
+.join__form {
+  display: flex;
+  gap: 10px;
+}
+
+.join__input {
+  width: 180px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.join__error {
+  flex-basis: 100%;
+}
+
 .courses {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

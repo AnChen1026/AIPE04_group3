@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { fetchMyStudents, fetchTeacherConversations, unbindStudent } from '@/api/teacher'
+import { fetchMyStudents, fetchTeacherConversations, issueBindingCode, unbindStudent } from '@/api/teacher'
 import type { BoundStudent, Conversation } from '@/types/api'
 import { formatDate } from '@/utils/format'
 
@@ -11,6 +11,30 @@ const conversations = ref<Conversation[]>([])
 const keyword = ref('')
 const error = ref('')
 const pendingUnbind = ref<{ student: BoundStudent; courseId: string; courseTitle: string } | null>(null)
+const issuing = ref('')
+const copied = ref('')
+
+// 還在洽詢、沒有加入課程的學生。老師決定收學生時，在這裡（或聊天裡）發綁定碼
+const inquiries = computed(() => conversations.value.filter((item) => !item.bound))
+
+async function issue(conversation: Conversation) {
+  issuing.value = conversation.id
+  error.value = ''
+  try {
+    await issueBindingCode(conversation.id)
+    await load()
+  } catch (problem) {
+    error.value = problem instanceof Error ? problem.message : '綁定碼沒有產生成功。'
+  } finally {
+    issuing.value = ''
+  }
+}
+
+async function copy(code: string) {
+  await navigator.clipboard?.writeText(code).catch(() => undefined)
+  copied.value = code
+  window.setTimeout(() => (copied.value = ''), 1600)
+}
 
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
@@ -61,6 +85,34 @@ onMounted(load)
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
+  <section v-if="inquiries.length" class="card inquiries">
+    <h2 class="card__title">洽詢中、還沒加入的學生</h2>
+    <p class="muted inquiries__hint">
+      綁定碼只給這位學生的這門課。發出後也會貼進你們的聊天；學生可以在聊天或「我的課程」輸入。重發會讓舊碼失效。
+    </p>
+    <ul>
+      <li v-for="item in inquiries" :key="item.id">
+        <div class="inquiries__who">
+          <strong>{{ item.student_name }}</strong>
+          <span class="muted">{{ item.course_title }}</span>
+        </div>
+        <div class="inquiries__actions">
+          <template v-if="item.binding_code">
+            <code class="inquiries__code">{{ item.binding_code }}</code>
+            <button type="button" class="btn btn--ghost btn--small" @click="copy(item.binding_code)">
+              {{ copied === item.binding_code ? '已複製' : '複製' }}
+            </button>
+          </template>
+          <button type="button" class="btn btn--primary btn--small" :disabled="issuing === item.id" @click="issue(item)">
+            {{ item.binding_code ? '重發綁定碼' : '發綁定碼' }}
+          </button>
+          <RouterLink :to="`/teacher/chat/${item.id}`" class="btn btn--ghost btn--small">聊天</RouterLink>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <h2 class="students__title">已加入課程的學生</h2>
   <div v-if="shown.length === 0" class="card empty">
     {{ students.length === 0 ? '還沒有學生綁定你的課程。' : '找不到符合的學生。' }}
   </div>
@@ -113,6 +165,62 @@ onMounted(load)
 <style scoped>
 .search-input {
   width: min(260px, 100%);
+}
+
+.inquiries {
+  margin-bottom: 24px;
+}
+
+.inquiries__hint {
+  margin: -4px 0 8px;
+  font-size: 13px;
+}
+
+.inquiries ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inquiries li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-top: 1px solid var(--home-line);
+}
+
+.inquiries__who {
+  display: flex;
+  flex-direction: column;
+}
+
+.inquiries__who span {
+  font-size: 13px;
+}
+
+.inquiries__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inquiries__code {
+  padding: 4px 12px;
+  border-radius: 10px;
+  background: var(--home-cream);
+  color: var(--home-accent-dark);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+}
+
+.students__title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 500;
 }
 
 .student__head {

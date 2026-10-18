@@ -18,12 +18,24 @@ export const fetchTeacherProfile = () => request<TeacherProfile>('/teacher/me')
 export const saveTeacherProfile = (input: TeacherProfileInput) =>
   request<TeacherProfile>('/teacher/profile', { method: 'POST', body: { ...input } })
 
+export function uploadTeacherPhoto(file: File) {
+  const form = new FormData()
+  form.append('photo', file)
+  return request<TeacherProfile>('/teacher/photo', { method: 'POST', body: form })
+}
+
 // ---------- 課程
 export const fetchMyCourses = () => request<Course[]>('/teacher/courses')
 export const fetchCourse = (id: string) => request<Course>(`/courses/${id}`)
 export const createCourse = (input: CourseInput) => request<Course>('/courses', { method: 'POST', body: { ...input } })
 export const updateCourse = (id: string, input: Partial<CourseInput>) =>
   request<Course>(`/courses/${id}`, { method: 'PATCH', body: { ...input } })
+
+export function uploadCourseImage(id: string, file: File) {
+  const form = new FormData()
+  form.append('image', file)
+  return request<Course>(`/courses/${id}/image`, { method: 'POST', body: form })
+}
 
 export function uploadReferenceMidi(id: string, file: File) {
   const form = new FormData()

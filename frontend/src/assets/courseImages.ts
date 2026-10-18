@@ -8,9 +8,9 @@ const courseImages = [
   { keyword: '爵士', url: jazzPiano },
 ]
 
-// 依課程名稱或風格挑素材。對不上的課程維持沒有圖片。
-export function imageForCourse(title: string, style?: string | null): string | null {
+// 老師沒上傳課程圖片時，依課程名稱或風格挑預設圖；都對不上就用古典鋼琴那張
+export function imageForCourse(title: string, style?: string | null): string {
   const text = `${style ?? ''}${title}`
   const match = courseImages.find((item) => text.includes(item.keyword))
-  return match?.url ?? null
+  return match?.url ?? classicalPiano
 }

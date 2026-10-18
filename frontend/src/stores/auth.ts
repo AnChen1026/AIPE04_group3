@@ -43,10 +43,14 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value
   }
 
+  function setUser(current: CurrentUser) {
+    user.value = current
+  }
+
   async function logout() {
     await logoutRequest().catch(() => undefined)
     user.value = null
   }
 
-  return { user, loaded, isLoggedIn, homePath, loadCurrentUser, ensureLoaded, login, logout }
+  return { user, loaded, isLoggedIn, homePath, loadCurrentUser, ensureLoaded, login, logout, setUser }
 })
