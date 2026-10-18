@@ -303,6 +303,7 @@ def save_recording(
         teacher_id=course.teacher_id,
         student_id=student.id,
         file_path=stored_path(path),
+        reference_midi_path=course.reference_midi_path,
         status="pending",
     )
     feedback = PracticeFeedback(

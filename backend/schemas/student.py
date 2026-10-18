@@ -98,3 +98,19 @@ class TeacherRecordingResponse(RecordingResponse):
 
     student_id: uuid.UUID
     student_name: str
+
+
+class LessonSummaryResponse(BaseModel):
+    """課前摘要。只給老師看。"""
+
+    lesson_id: uuid.UUID
+    course_id: uuid.UUID
+    student_id: uuid.UUID
+    lesson_starts_at: datetime
+    window_start: datetime | None
+    window_end: datetime
+    summary_text: str
+    written_by: str
+    stats: dict
+    source_recording_ids: list[str]
+    generated_at: datetime

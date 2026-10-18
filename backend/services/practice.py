@@ -47,10 +47,12 @@ def _analyze(db: Session, recording_id: uuid.UUID) -> None:
 
     course = db.get(Course, recording.course_id)
     try:
-        if course is None or not course.reference_midi_path:
+        # 用送出當時的參考 MIDI；舊資料沒有記錄時才用課程現在的
+        midi_path = recording.reference_midi_path or (course.reference_midi_path if course else None)
+        if not midi_path:
             raise scorer.ScoringFailed("這門課還沒有參考 MIDI。")
         result = scorer.score_recording(
-            resolve_stored_path(course.reference_midi_path),
+            resolve_stored_path(midi_path),
             resolve_stored_path(recording.file_path),
         )
     except scorer.ScoringFailed as error:

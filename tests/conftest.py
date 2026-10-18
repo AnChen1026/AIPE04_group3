@@ -57,6 +57,14 @@ def upload_root(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_llm(monkeypatch):
+    """測試不呼叫真的 Gemini。需要時在測試裡再換成假的回覆。"""
+    import backend.services.llm as llm
+
+    monkeypatch.setattr(llm, "generate_text", lambda system_instruction, content: None)
+
+
+@pytest.fixture(autouse=True)
 def analysis_session(db, monkeypatch):
     """背景評分也用同一個交易，測試才看得到、也才會一起回滾。"""
     import backend.services.practice as practice
