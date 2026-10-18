@@ -49,7 +49,7 @@ onUnmounted(() => {
 
       <nav class="navbar__actions" aria-label="帳號">
         <template v-if="authStore.isLoggedIn">
-          <span class="navbar__name">{{ authStore.user?.name }}</span>
+          <RouterLink :to="authStore.homePath" class="navbar__name">{{ authStore.user?.name }}</RouterLink>
           <button type="button" class="navbar__text" @click="handleLogout">登出</button>
         </template>
         <template v-else>

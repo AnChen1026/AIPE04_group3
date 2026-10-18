@@ -1,29 +1,51 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { fetchCurrentUser, logout as logoutRequest } from '@/api/auth'
+import { fetchCurrentUser, login as loginRequest, logout as logoutRequest } from '@/api/auth'
 import type { CurrentUser } from '@/types/user'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<CurrentUser | null>(null)
   const loaded = ref(false)
+  let loading: Promise<void> | null = null
 
   const isLoggedIn = computed(() => user.value !== null)
 
+  // 登入後該去的地方：老師到後台、學生到學生專區
+  const homePath = computed(() => {
+    if (user.value?.role === 'teacher') return '/teacher'
+    if (user.value?.role === 'student') return '/student'
+    return '/'
+  })
+
   // 未登入或後端沒開時都視為訪客，首頁照常顯示
-  async function loadCurrentUser() {
-    try {
-      user.value = await fetchCurrentUser()
-    } catch {
-      user.value = null
-    } finally {
-      loaded.value = true
-    }
+  function loadCurrentUser(): Promise<void> {
+    loading ??= fetchCurrentUser()
+      .then((current) => {
+        user.value = current
+      })
+      .catch(() => {
+        user.value = null
+      })
+      .finally(() => {
+        loaded.value = true
+      })
+    return loading
+  }
+
+  async function ensureLoaded() {
+    if (!loaded.value) await loadCurrentUser()
+  }
+
+  async function login(email: string, password: string) {
+    user.value = await loginRequest(email, password)
+    loaded.value = true
+    return user.value
   }
 
   async function logout() {
-    await logoutRequest()
+    await logoutRequest().catch(() => undefined)
     user.value = null
   }
 
-  return { user, loaded, isLoggedIn, loadCurrentUser, logout }
+  return { user, loaded, isLoggedIn, homePath, loadCurrentUser, ensureLoaded, login, logout }
 })

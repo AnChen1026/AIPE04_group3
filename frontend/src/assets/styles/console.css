@@ -1,0 +1,264 @@
+/* 登入頁、老師後台、學生專區共用的元件樣式。顏色沿用首頁的米白、奶油、淺木色。 */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--home-ink);
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn--primary {
+  background: var(--home-accent);
+  color: var(--home-paper);
+}
+
+.btn--primary:not(:disabled):hover {
+  background: var(--home-accent-dark);
+}
+
+.btn--ghost {
+  border-color: var(--home-wood);
+  background: var(--home-paper);
+}
+
+.btn--ghost:not(:disabled):hover {
+  border-color: var(--home-accent);
+}
+
+.btn--danger {
+  border-color: #e6c3b8;
+  color: #9a4a35;
+}
+
+.btn--danger:not(:disabled):hover {
+  background: #f8e9e4;
+}
+
+.btn--small {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.btn--block {
+  width: 100%;
+  min-height: 46px;
+  font-size: 15px;
+}
+
+.card {
+  padding: 22px 24px;
+  border: 1px solid var(--home-line);
+  border-radius: 22px;
+  background: var(--home-paper);
+}
+
+.card + .card {
+  margin-top: 16px;
+}
+
+.card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--home-ink);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field + .field {
+  margin-top: 14px;
+}
+
+.field__label {
+  color: var(--home-ink);
+  font-size: 14px;
+}
+
+.field__label .required {
+  color: #b5553c;
+}
+
+.field__hint {
+  color: var(--home-muted);
+  font-size: 12px;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--home-line);
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: var(--home-ink);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.textarea {
+  min-height: 120px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  resize: vertical;
+}
+
+.select {
+  appearance: none;
+  padding-right: 40px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--home-muted) 50%),
+    linear-gradient(135deg, var(--home-muted) 50%, transparent 50%);
+  background-position: calc(100% - 22px) 50%, calc(100% - 16px) 50%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  border-color: var(--home-accent);
+  box-shadow: 0 0 0 3px rgba(143, 107, 73, 0.14);
+}
+
+.input[aria-invalid='true'],
+.select[aria-invalid='true'] {
+  border-color: #c9765f;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.form-grid .field + .field {
+  margin-top: 0;
+}
+
+.form-grid .field--full {
+  grid-column: 1 / -1;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--home-cream);
+  color: var(--home-ink);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.badge--accent {
+  background: var(--home-accent);
+  color: var(--home-paper);
+}
+
+.badge--soft {
+  background: #efe6d8;
+  color: var(--home-accent-dark);
+}
+
+.badge--muted {
+  background: #ece7e1;
+  color: var(--home-muted);
+}
+
+.badge--warn {
+  background: #f6e3c8;
+  color: #8a5a1f;
+}
+
+.badge--error {
+  background: #f6dfd8;
+  color: #9a4a35;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 6px 16px;
+  border: 1px solid var(--home-wood);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--home-ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--home-accent);
+  background: var(--home-accent);
+  color: var(--home-paper);
+}
+
+.empty {
+  padding: 36px 16px;
+  color: var(--home-muted);
+  text-align: center;
+}
+
+.error-text {
+  margin: 0;
+  color: #9a4a35;
+  font-size: 14px;
+}
+
+.muted {
+  color: var(--home-muted);
+}
+
+.search-input {
+  position: relative;
+}
+
+.search-input .input {
+  min-height: 36px;
+  padding-right: 38px;
+}
+
+.search-input svg {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  color: var(--home-muted);
+  translate: 0 -50%;
+}
+
+@media (max-width: 720px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

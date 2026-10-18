@@ -18,28 +18,14 @@ export default defineConfig({
   server: {
     // 後端 CORS 已允許 localhost:3000
     port: 3000,
-    // /api 轉給 FastAPI，瀏覽器視為同源，Session Cookie 才會自動帶上
+    // 前端呼叫後端一律走 /backend，轉給 FastAPI 時拿掉這段前綴。
+    // 瀏覽器視為同源，Session Cookie 會自動帶上；網址列上的頁面路徑都交給 Vue Router。
     proxy: {
-      '/api': {
+      '/backend': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-      },
-      // 「與老師聯繫」會整頁前往後端：未登入先到登入頁，學生登入後打開聊天室
-      '/courses': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/login': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/student': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/logout': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/backend/, ''),
       },
     },
   },
