@@ -59,7 +59,7 @@ async def upload_material(
     material = MaterialDB(
         id=uuid.uuid4(),
 
-        teacher_id=teacher.id,
+        teacher_id=teacher.user_id,
 
         filename=file.filename,
 
@@ -88,7 +88,7 @@ def get_my_materials(
     return (
         db.query(MaterialDB)
         .filter(
-            MaterialDB.teacher_id == teacher.id
+            MaterialDB.teacher_id == teacher.user_id
         )
         .all()
     )

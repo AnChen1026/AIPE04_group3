@@ -44,12 +44,15 @@ def db():
 def upload_root(tmp_path, monkeypatch):
     """上傳的檔案都寫到暫存資料夾，測試結束就消失。"""
     import backend.core.uploads as uploads
+    import backend.routers.teacher_materials as material_router
     import backend.services.course as course_service
     import backend.services.student as student_service
 
     monkeypatch.setattr(uploads, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "uploads" / "midi")
     monkeypatch.setattr(student_service, "PRACTICE_UPLOAD_DIR", tmp_path / "uploads" / "practice")
+    (tmp_path / "uploads" / "materials").mkdir(parents=True)
+    monkeypatch.setattr(material_router, "MATERIAL_UPLOAD_DIR", tmp_path / "uploads" / "materials")
     return tmp_path
 
 

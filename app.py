@@ -4,8 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.core.config import get_session_secret_key
-from backend.core.database import SessionLocal, engine
-from backend.models.base import Base
+from backend.core.database import SessionLocal
 from backend.routers.admin import router as admin_router
 from backend.routers.public_courses import router as public_courses_router
 from backend.routers.auth import router as auth_router
@@ -69,9 +68,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    """本機測試：若 .env 有管理員帳密就建立 admin 帳號。"""
-    # 只補老師端還沒有的表，不會改掉學生端已經用 Alembic 建好的表。
-    Base.metadata.create_all(bind=engine)
+    """本機測試：若 .env 有管理員帳密就建立 admin 帳號。資料表一律用 alembic upgrade head 建立。"""
     db = SessionLocal()
     try:
         seed_admin_if_needed(db)

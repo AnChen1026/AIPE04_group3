@@ -15,7 +15,7 @@ class MaterialDB(Base):
 
     teacher_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("teacher_profiles.id"),
+        ForeignKey("users.id"),
         nullable=False,
     )
 

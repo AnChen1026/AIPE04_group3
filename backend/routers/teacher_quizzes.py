@@ -17,7 +17,7 @@ def get_my_quizzes(
     return (
         db.query(QuizDB)
         .filter(
-            QuizDB.teacher_id == teacher.id
+            QuizDB.teacher_id == teacher.user_id
         )
         .all()
     )

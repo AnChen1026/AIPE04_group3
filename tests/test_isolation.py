@@ -88,3 +88,15 @@ def test_公開課程只列已發布_不含MIDI路徑(make_user, make_course, lo
     assert str(draft.id) not in ids
     assert str(archived.id) not in ids
     assert all("reference_midi_path" not in row for row in rows)
+
+
+def test_教材與測驗只看得到自己的(make_user, login):
+    owner = login(make_user("teacher"))
+    stranger = login(make_user("teacher"))
+
+    upload = owner.post("/teacher/materials/upload", files={"file": ("scale.pdf", b"%PDF-1.4", "application/pdf")})
+    assert upload.status_code == 200, upload.text
+
+    assert [row["filename"] for row in owner.get("/teacher/materials").json()] == ["scale.pdf"]
+    assert stranger.get("/teacher/materials").json() == []
+    assert stranger.get("/teacher/quizzes").json() == []
