@@ -106,4 +106,4 @@
 - [x] 從空白 PostgreSQL 升級 001→011，執行 `alembic heads` 與 `alembic check`。
 - [x] 執行所有後端測試與 Vue build/type-check、本次檔案 lint。
 - [x] 更新資料字典、啟動方式與無模型金鑰時的行為。
-- [ ] 檢查 diff、提交、推送並建立以 `feature/frontend` 為目標且標明依賴 PR #29 的 PR。
+- [x] 檢查 diff、提交、推送並建立以 `feature/frontend` 為目標且標明依賴 PR #29 的 PR。
