@@ -4,10 +4,10 @@
 | --- | --- |
 | 版本 | V1.4 |
 | 文件類型 | Software Architecture Document |
-| 最後更新 | 2026-10-15 |
+| 最後更新 | 2026-10-19 |
 | 對應文件 | PRD、SRS、User Flow、資料表設計、功能製作與分工說明 |
 
-本文件以 PRD／SRS／User Flow V1.4 為準，說明系統分層與呼叫方式。正式目標畫面是 Vue；目前 Repository 內的 Jinja 頁面是後端流程測試介面。本文中的 Worker 與 Object Storage 是目標架構，不代表已完整實作。
+本文件以 PRD／SRS／User Flow V1.4 為準，說明系統分層與呼叫方式。畫面都在 Vue（`frontend/`），後端只提供 API，已不再有 Jinja 測試頁。本文中的 Worker 與 Object Storage 是目標架構，不代表已完整實作。
 
 ## 1. 架構目標
 
@@ -39,7 +39,7 @@ flowchart TD
 
 平台維運管理員第一版只做必要帳號／異常與稽核，完整管理員介面延後。
 
-目前可執行版本由 `backend/main.py` 啟動 FastAPI API，畫面由 Vue（`frontend/`）負責，檔案存在本機 `uploads/`。Background Worker 與 Object Storage 完整部署仍是目標狀態。
+目前可執行版本由 `backend/main.py` 啟動 FastAPI API，畫面由 Vue（`frontend/`）負責，檔案存在本機 `uploads/`。目前錄音評分用 FastAPI 的 BackgroundTasks 在同一個服務背景執行；獨立的 Background Worker 與 Object Storage 仍是目標狀態。
 
 ## 3. 目標容器與責任
 
@@ -61,14 +61,20 @@ MVP 可先同一個 FastAPI 服務，但程式仍維持模組邊界；音訊處�
 
 ```text
 backend/
+├── main.py              建立 FastAPI、掛 Session／CORS、載入 router
 ├── routers/
-│   ├── auth.py
-│   ├── admin.py
-│   ├── student.py
-│   ├── student_views.py
-│   └── teacher_*.py
+│   ├── auth.py          註冊、登入、Google 驗證
+│   ├── admin.py         老師審核、師生名單
+│   ├── public_courses.py、images.py、recommendations.py
+│   ├── student.py       學生 API
+│   ├── chat_ws.py       接洽對話 WebSocket
+│   ├── health.py
+│   └── teacher_*.py     老師端 API
 ├── services/
+│   ├── practice.py      錄音評分流程
+│   ├── lesson_summary.py
 │   └── teacher_sync.py
+├── audio_scoring/       錄音與參考 MIDI 比對評分
 ├── repositories/
 ├── models/
 ├── schemas/
