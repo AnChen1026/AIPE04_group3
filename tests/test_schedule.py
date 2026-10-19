@@ -53,8 +53,8 @@ def test_時段被占用時同意也不改課表(db, make_user, make_course, log
     make_lesson(course, other_student, next_week(14))
 
     request_id = _request_reschedule(student_client, course, lesson, next_week(14))
-    response = teacher_client.post(f"/teacher/learning/change-requests/{request_id}", data={"decision": "approve"})
-    assert "error" in response.headers["location"]
+    response = teacher_client.post(f"/teacher/change-requests/{request_id}/decision", json={"approve": True})
+    assert response.status_code == 409
 
     db.refresh(lesson)
     assert lesson.starts_at == original
@@ -66,8 +66,8 @@ def test_時段空著時同意才更新課表(db, make_user, make_course, login,
     target = next_week(15)
 
     request_id = _request_reschedule(student_client, course, lesson, target)
-    response = teacher_client.post(f"/teacher/learning/change-requests/{request_id}", data={"decision": "approve"})
-    assert "success" in response.headers["location"]
+    response = teacher_client.post(f"/teacher/change-requests/{request_id}/decision", json={"approve": True})
+    assert response.status_code == 200
 
     db.refresh(lesson)
     assert lesson.starts_at == target
@@ -79,8 +79,8 @@ def test_別位老師不能處理這筆申請(db, make_user, make_course, login,
     request_id = _request_reschedule(student_client, course, lesson, next_week(16))
 
     stranger_client = login(make_user("teacher"))
-    response = stranger_client.post(f"/teacher/learning/change-requests/{request_id}", data={"decision": "approve"})
-    assert "error" in response.headers["location"]
+    response = stranger_client.post(f"/teacher/change-requests/{request_id}/decision", json={"approve": True})
+    assert response.status_code == 404
 
     lessons = db.query(LessonSession).filter(LessonSession.id == lesson.id).all()
     assert lessons[0].starts_at == next_week(10)
