@@ -23,7 +23,7 @@
 - [x] Add regression coverage for fresh install and any integration failures; fix the underlying causes.
 - [x] Add reproducible PostgreSQL CI and update setup/migration handoff documentation.
 - [x] Run complete backend tests, inspect diff and commit the validated result.
-- [x] Attempt publication and record access requirement: gh is not authenticated, and the connected GitHub account receives HTTP 404 when writing this repository. No remote branch or PR was created.
+- [x] GitHub authentication confirmed after user login. Publish the validated changes to the existing `feature/database-integration` branch and update PR #29 to target main; do not merge.
 
 ## Validation evidence (2026-10-20)
 
@@ -32,17 +32,16 @@
 - First full run reproduced 10 failures after a migration downgrade left the schema at 009. Migration fixtures now restore head and avoid API transactions.
 - Added regression reproducing leaked MIDI files when the metadata query fails; query and commit failures now both clean the new file and preserve old metadata.
 - Final full backend suite: **58 passed**, no skips, 22 existing dependency deprecation warnings.
-- `git diff --check` passed. GitHub Actions configuration added; remote CI has not run because publication is blocked by authentication/access.
+- `git diff --check` passed. GitHub Actions configuration added; remote CI result is tracked on PR #29 after publication.
 
-## Publish after authenticating an account with repository write access
+## Publication handoff
 
-From this worktree, with `codex/database-merge-ready` checked out:
+The original authentication failure was resolved by user login. Use the existing PR #29 rather than opening a duplicate:
 
 ```bash
-gh auth login
-gh auth setup-git
-git push -u origin codex/database-merge-ready
-gh pr create --base main --head codex/database-merge-ready --title "整合資料庫 010 並加入 PostgreSQL 回歸驗證" --body-file docs/database/database-pr-description.md
+git push origin HEAD:feature/database-integration
+gh pr edit 29 --base main --body-file docs/database/database-pr-description.md
+gh pr checks 29
 ```
 
-The local merge simulation succeeds without conflicts. The workflow's remote result and any repository-required reviews remain to be checked before merging main.
+The local merge simulation succeeds without conflicts. Remote CI and any repository-required reviews must pass before a separately authorized merge. Main remains unchanged.
