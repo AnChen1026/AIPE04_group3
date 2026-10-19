@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-打開 <http://localhost:3000>。要讀登入狀態和課程時，另外在根目錄啟動後端（`python app.py`，port 8000）。
+打開 <http://localhost:3000>。要讀登入狀態和課程時，另外在根目錄啟動後端（`python -m backend.main`，port 8000）。
 
 開發伺服器會把瀏覽器的 `/backend` 轉給後端，並拿掉這個前綴。例如前端打 `/backend/api/auth/me`，後端收到的是 `/api/auth/me`。瀏覽器視為同源，Session Cookie 會自動帶上。同時跑兩份後端時，可用環境變數 `BACKEND_URL` 換後端位址，預設是 `http://127.0.0.1:8000`。WebSocket 也走這條轉址。
 

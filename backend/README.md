@@ -2,7 +2,7 @@
 
 一次請求照這個順序走：`routers` 接到網址，`services` 檢查規則，`repositories` 讀寫資料，`models` 對應資料表。
 
-專案唯一正式啟動入口是根目錄的 `app.py`。老師端檔案已依用途放回下列共用分層，不再使用 `backend/teacher/`。
+專案唯一正式啟動入口是 `backend/main.py`，在根目錄執行 `python -m backend.main`。老師端檔案已依用途放回下列共用分層，不再使用 `backend/teacher/`。
 
 | 資料夾 | 放什麼 |
 | --- | --- |

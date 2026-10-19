@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
-from app import app
+from backend.main import app
 from backend.routers import auth as auth_router
 
 

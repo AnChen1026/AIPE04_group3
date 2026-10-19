@@ -39,7 +39,7 @@ flowchart TD
 
 平台維運管理員第一版只做必要帳號／異常與稽核，完整管理員介面延後。
 
-目前可執行版本由根目錄 `app.py` 啟動 FastAPI，使用 Jinja 測試頁與本機 `uploads/`。Vue、Background Worker 與 Object Storage 完整部署仍是目標狀態。
+目前可執行版本由 `backend/main.py` 啟動 FastAPI API，畫面由 Vue（`frontend/`）負責，檔案存在本機 `uploads/`。Background Worker 與 Object Storage 完整部署仍是目標狀態。
 
 ## 3. 目標容器與責任
 
@@ -57,7 +57,7 @@ MVP 可先同一個 FastAPI 服務，但程式仍維持模組邊界；音訊處�
 
 ## 4. 後端模組
 
-實際 Repository 使用下列共用分層；根目錄 `app.py` 是唯一正式啟動入口：
+實際 Repository 使用下列共用分層；`backend/main.py` 是唯一正式啟動入口：
 
 ```text
 backend/

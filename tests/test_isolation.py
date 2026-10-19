@@ -105,7 +105,7 @@ def test_教材與測驗只看得到自己的(make_user, login):
 def test_首頁推薦端口已保留_尚未實作():
     from fastapi.testclient import TestClient
 
-    from app import app
+    from backend.main import app
 
     client = TestClient(app)
     assert client.post("/api/recommendations", json={"message": "想學鋼琴"}).status_code == 501

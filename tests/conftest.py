@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app import app
+from backend.main import app
 from backend.core.database import engine, get_db
 from backend.core.security import hash_password
 from backend.models.student import Course, LessonSession

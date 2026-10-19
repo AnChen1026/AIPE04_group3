@@ -70,7 +70,7 @@ SESSION_SECRET_KEY=請換成一串自己產生的隨機文字
 
 ```powershell
 alembic upgrade head
-python app.py
+python -m backend.main
 ```
 
 後端在 [http://127.0.0.1:8000](http://127.0.0.1:8000)，只有 API（文件在 `/docs`）。畫面要另外啟動 Vue，見 [frontend/README.md](frontend/README.md)。
