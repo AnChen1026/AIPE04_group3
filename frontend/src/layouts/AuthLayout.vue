@@ -12,7 +12,7 @@ import '@/assets/styles/auth.css'
       <img class="auth-layout__photo" :src="photo" alt="" />
       <div class="auth-layout__caption">
         <p class="auth-layout__mark">melo.</p>
-        <p class="auth-layout__tagline">找一位老師，把想彈的曲子練完。</p>
+        <p class="auth-layout__tagline">讓喜歡的音樂，成為生活的一部分</p>
       </div>
     </aside>
 
@@ -80,6 +80,7 @@ import '@/assets/styles/auth.css'
 .auth-layout__caption {
   position: absolute;
   z-index: 1;
+  right: clamp(40px, 4vw, 64px);
   left: clamp(40px, 4vw, 64px);
   margin: 0;
   color: #fffaf3;
@@ -101,6 +102,7 @@ import '@/assets/styles/auth.css'
   letter-spacing: 0.01em;
 }
 
+/* 和首頁大標題同一句，這裡用小字一行 */
 .auth-layout__tagline {
   margin-top: 14px !important;
   font-family: var(--font-serif);
@@ -222,8 +224,9 @@ import '@/assets/styles/auth.css'
   }
 
   .auth-layout__caption {
+    right: 28px;
     bottom: 20px;
-    left: 32px;
+    left: 28px;
   }
 
   .auth-layout__mark {
@@ -232,7 +235,8 @@ import '@/assets/styles/auth.css'
 
   .auth-layout__tagline {
     margin-top: 0 !important;
-    font-size: 15px;
+    font-size: 14px;
+    letter-spacing: 0.08em;
   }
 
   .auth-layout__panel {
