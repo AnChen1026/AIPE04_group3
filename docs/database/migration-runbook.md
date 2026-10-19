@@ -19,7 +19,7 @@ alembic history --verbose
 預期 head：
 
 ```text
-010_reference_midis (head)
+011_recommendations (head)
 ```
 
 建立新版本前，先同步主分支並確認目前 head。新 Migration 的 `down_revision` 必須指向當下唯一 head。
@@ -46,7 +46,7 @@ pytest tests/database -q
 
 測試會清除測試資料庫的 `public` schema。不得把正式、開發共用或含重要資料的 URL 放進 `TEST_DATABASE_URL`；fixture 會拒絕非 PostgreSQL 及名稱不是 `_test` 的資料庫。
 
-## 010 上線前檢查
+## 010 參考 MIDI 上線前檢查
 
 檢查需要回填的課程數：
 

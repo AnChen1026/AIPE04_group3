@@ -58,10 +58,11 @@ docker compose up -d postgres
 
 ### 3. 建立 `.env`
 
-在專案根目錄新增 `.env`。這個檔案不要 commit。
+把專案根目錄的 `.env.example` 複製成 `.env`。這個檔案不要 commit。
 
 ```text
 DATABASE_URL=postgresql+psycopg://aipe04:aipe04@localhost:5432/aipe04
+TEST_DATABASE_URL=postgresql+psycopg://aipe04:aipe04@localhost:5432/aipe04_test
 SESSION_SECRET_KEY=請換成一串自己產生的隨機文字
 ```
 
@@ -80,13 +81,13 @@ python app.py
 
 ## 測試
 
-PostgreSQL 要先啟動，`.env` 要有 `DATABASE_URL`。在專案根目錄執行：
+PostgreSQL 要先啟動，`.env` 要有 `DATABASE_URL` 與名稱以 `_test` 結尾的 `TEST_DATABASE_URL`。第一次也要先在 `frontend` 執行 `npm install`。在專案根目錄執行：
 
 ```bash
-pytest
+python scripts/verify_merge.py
 ```
 
-測試會連到 `.env` 的資料庫，但每個測試結束後整個回滾，不會留下資料。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、首頁推薦、課程編輯與參考 MIDI、練習錄音的評分狀態，以及課前摘要。測試會把評分換成假的，所以跑得很快；真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
+驗證程式只允許使用名稱以 `_test` 結尾的獨立測試資料庫，會執行 Migration、後端測試、Model 差異檢查、Vue 程式檢查、型別檢查與正式版建置。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、首頁推薦、課程編輯與參考 MIDI、練習錄音的評分狀態，以及課前摘要。真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
 
 ## 協作
 
@@ -104,5 +105,6 @@ pytest
 | 功能規格 | `docs/SRS功能文件.md` |
 | 使用者怎麼操作 | `docs/User_Flow.md` |
 | 分支與 Pull Request | `docs/GitHub團隊協作說明.md` |
+| 專案架構、固定開發流程與自行驗證 | `docs/專案架構與開發驗證手冊.md` |
 | 專案用語 | `GLOSSARY.md` |
 | 老師端後端檔案位置 | `docs/教師端後端模組說明.md` |

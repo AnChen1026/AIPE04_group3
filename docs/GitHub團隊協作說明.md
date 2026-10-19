@@ -9,10 +9,13 @@
 ## 1. 核心規則
 
 1. 不直接在 `main` 寫程式。
-2. 只在自己的功能分支修改自己負責的模組。
-3. 不要動到別人的程式碼與未提交內容。
-4. `.env`、API Key、Password、Token、真實個資與錄音不可 Push。
-5. 功能完成後開 Pull Request，由組長或指定 Reviewer 合併。
+2. `main` 是唯一長期正式主線；每次新功能都從最新 `main` 建立新分支。
+3. 只在自己的功能分支修改自己負責的模組。
+4. 不要動到別人的程式碼與未提交內容。
+5. `.env`、API Key、Password、Token、真實個資與錄音不可 Push。
+6. 功能完成後開 Pull Request，由組長或指定 Reviewer 合併。
+
+完整架構、資料來源、開發步驟與驗收標準以 `docs/專案架構與開發驗證手冊.md` 為準。舊 `feature/AICourseFinder` 只作研究參考，未來正式搜尋與 RAG 不在該分支繼續開發。
 
 ## 2. 分支
 
