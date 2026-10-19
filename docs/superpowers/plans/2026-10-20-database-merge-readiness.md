@@ -23,7 +23,7 @@
 - [x] Add regression coverage for fresh install and any integration failures; fix the underlying causes.
 - [x] Add reproducible PostgreSQL CI and update setup/migration handoff documentation.
 - [x] Run complete backend tests, inspect diff and commit the validated result.
-- [ ] Publish branch/PR if authenticated access is available; otherwise report the exact remaining access requirement.
+- [x] Attempt publication and record access requirement: gh is not authenticated, and the connected GitHub account receives HTTP 404 when writing this repository. No remote branch or PR was created.
 
 ## Validation evidence (2026-10-20)
 
@@ -32,4 +32,17 @@
 - First full run reproduced 10 failures after a migration downgrade left the schema at 009. Migration fixtures now restore head and avoid API transactions.
 - Added regression reproducing leaked MIDI files when the metadata query fails; query and commit failures now both clean the new file and preserve old metadata.
 - Final full backend suite: **58 passed**, no skips, 22 existing dependency deprecation warnings.
-- `git diff --check` passed. GitHub Actions configuration added; remote CI result is pending publication.
+- `git diff --check` passed. GitHub Actions configuration added; remote CI has not run because publication is blocked by authentication/access.
+
+## Publish after authenticating an account with repository write access
+
+From this worktree, with `codex/database-merge-ready` checked out:
+
+```bash
+gh auth login
+gh auth setup-git
+git push -u origin codex/database-merge-ready
+gh pr create --base main --head codex/database-merge-ready --title "整合資料庫 010 並加入 PostgreSQL 回歸驗證" --body-file docs/database/database-pr-description.md
+```
+
+The local merge simulation succeeds without conflicts. The workflow's remote result and any repository-required reviews remain to be checked before merging main.
