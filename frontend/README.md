@@ -58,7 +58,6 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `tsconfig.app.json` | 檢查 `src/` 裡的 Vue 與 TypeScript。 |
 | `tsconfig.node.json` | 檢查 `vite.config.ts` 這種給 Node 跑的設定檔。 |
 | `env.d.ts` | 告訴 TypeScript：`.vue` 檔和 `VITE_` 環境變數是合法的。 |
-| `.env.development` | 只有開發時生效。現在用它決定首頁課程要不要改看假資料。 |
 | `eslint.config.ts` | ESLint 的程式風格規則。 |
 | `.oxlintrc.json` | oxlint 的檢查規則。`npm run lint` 會先跑它。 |
 | `.editorconfig` | 存檔時用 2 個空白縮排、檔尾換行。 |
@@ -77,7 +76,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | --- | --- |
 | `src/api/http.ts` | 共同的 `fetch`。JSON 和 FormData 都從這裡送。 |
 | `src/api/auth.ts` | 登入、登出、註冊、讀取與修改目前登入者、Google 登入網址、Google 老師補送申請。 |
-| `src/api/courses.ts` | 首頁與全部課程頁讀已發布課程。開發時可改走假資料。 |
+| `src/api/courses.ts` | 首頁與全部課程頁讀資料庫裡的已發布課程。 |
 | `src/api/teacher.ts` | 老師後台：個人資料、課程、課表、學生、作業、聊天。 |
 | `src/api/student.ts` | 學生專區：聯繫老師、綁定碼、課表、練習、聊天。 |
 | `src/api/admin.ts` | 管理員：審核老師申請、讀老師與學生名單。 |
@@ -149,7 +148,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/utils/redirect.ts` | 登入後要回去的網址。只接受這個角色能進的站內路徑。 |
 | `src/utils/courseCard.ts` | 把後端課程轉成課程卡欄位，首頁與全部課程頁共用。 |
 
-### 樣式、圖片、假資料
+### 樣式、圖片、文案
 
 | 檔案 | 做什麼 |
 | --- | --- |
@@ -157,20 +156,15 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/assets/styles/console.css` | 登入頁和後台樣式。 |
 | `src/assets/courseImages.ts` | 課程沒有上傳圖片時，依名稱或風格改用古典、流行、爵士三張預設圖。 |
 | `src/assets/images/` | 三張課程預設圖，以及首頁精選老師用的人物圖。 |
-| `src/mocks/courses.ts` | 寫死的假課程。只有 `VITE_USE_MOCK_COURSES=true` 時首頁才會用。 |
 | `src/mocks/home.ts` | 首頁文案：精選老師、學習流程、常見問題。這些還沒接後端。 |
 
 `src/components/layout/AppHeader.vue`、`src/components/course/CourseCarousel.vue`、`CoursePosterCard.vue`、`CourseImage.vue` 是上一版橫向課程卡，現在沒有頁面引用。目前首頁用的是 `src/components/home/`。
 
-## 假資料和本機資料庫
+## 課程資料從哪來
 
-前端不會直接連 PostgreSQL。
+前端不會直接連 PostgreSQL，一律透過後端 API 讀資料庫。
 
-`.env.development` 的 `VITE_USE_MOCK_COURSES=false` 時，首頁和全部課程頁呼叫 `GET /api/courses`。這支不用登入，只回資料庫裡狀態是 `published` 的課程，並帶老師姓名。草稿和封存不會出現。課程有上傳圖片就用那張；沒有就用 `src/assets/images/` 的三張預設圖。
-
-改成 `true` 會改看 `src/mocks/courses.ts`，不讀資料庫。假資料沒有風格與地區，全部課程頁的這兩個篩選會是空的。
-
-本機若要一次看到很多已發布課程，可在專案根目錄執行 `python scripts/seed_demo_courses.py`。它會建立 30 位老師和 100 堂已發布課程。
+首頁和全部課程頁呼叫 `GET /api/courses`。這支不用登入，只回資料庫裡狀態是 `published` 的課程，並帶老師姓名。草稿和封存不會出現。課程有上傳圖片就用那張；沒有就用 `src/assets/images/` 的三張預設圖。全部課程頁的風格、地區選項是從這些課程整理出來的。
 
 ## 設計稿
 
