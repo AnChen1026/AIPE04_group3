@@ -39,8 +39,8 @@ def test_老師不能對別人的對話發碼或解除別人課程的綁定(make
 
     code = issue_code(a_client, conversation_id).json()["code"]
     bind(student_client, conversation_id, code)
-    unbind = b_client.post(f"/teacher/learning/courses/{course_a.id}/students/{student.id}/unbind")
-    assert "error" in unbind.headers["location"]
+    unbind = b_client.post(f"/teacher/courses/{course_a.id}/students/{student.id}/unbind")
+    assert unbind.status_code == 404
     assert student_client.get(f"/api/student/courses/{course_a.id}/schedule").status_code == 200
 
 

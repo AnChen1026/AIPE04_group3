@@ -2,7 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vue'
+import TeacherApplicationForm from '@/components/console/TeacherApplicationForm.vue'
 import { fetchChangeRequests, fetchTeacherConversations } from '@/api/teacher'
+import { fetchCurrentUser } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -13,6 +15,11 @@ const pending = ref(0)
 // 老師帳號要管理員核准後才能用後台；審核中或沒通過時只顯示狀態
 const approved = computed(() => auth.user?.is_active === true)
 const status = computed(() => auth.user?.application_status)
+
+// 補填申請後重新讀一次登入資料，畫面換成「審核中」
+async function onApplied() {
+  auth.setUser(await fetchCurrentUser())
+}
 
 const items = computed<NavItem[]>(() => [
   { to: '/teacher', label: '資訊總覽', icon: 'overview', exact: true },
@@ -39,6 +46,7 @@ watch(() => route.fullPath, refreshBadges, { immediate: true })
 <template>
   <ConsoleShell heading="教師管理後台" :items="items">
     <RouterView v-if="approved" />
+    <TeacherApplicationForm v-else-if="!status" @submitted="onApplied" />
     <div v-else class="card pending">
       <h1>{{ status === 'rejected' ? '老師申請沒有通過' : '老師申請審核中' }}</h1>
       <p v-if="status === 'rejected'">

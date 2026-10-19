@@ -143,7 +143,7 @@ def test_解除綁定後學生不能再送錄音或回聽(bound_setup, scoring):
     add_midi(teacher_client, course)
     recording_id = upload(student_client, course).json()["id"]
 
-    teacher_client.post(f"/teacher/learning/courses/{course.id}/students/{student.id}/unbind")
+    teacher_client.post(f"/teacher/courses/{course.id}/students/{student.id}/unbind")
     assert upload(student_client, course).status_code == 403
     assert student_client.get(f"/api/student/recordings/{recording_id}/audio").status_code == 403
 

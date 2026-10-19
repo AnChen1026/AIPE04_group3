@@ -15,7 +15,8 @@ const auth = useAuthStore()
 const role = ref<'student' | 'teacher' | null>(route.query.role === 'teacher' ? 'teacher' : 'student')
 const email = ref('')
 const password = ref('')
-const error = ref('')
+// Google 驗證失敗時，後端導回登入頁並在網址帶 error
+const error = ref(typeof route.query.error === 'string' ? route.query.error : '')
 const submitting = ref(false)
 
 function nextPath(userRole: string) {

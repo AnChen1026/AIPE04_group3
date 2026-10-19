@@ -49,3 +49,14 @@ def get_session_secret_key():
             "沒有設定 SESSION_SECRET_KEY，請在專案根目錄 .env 設定隨機密鑰。"
         )
     return secret_key
+
+
+def get_frontend_url():
+    """Vue 網站的網址，Google 驗證完會導回這裡。
+
+    沒設定時回空字串，導向站內路徑；本機開發時 GOOGLE_REDIRECT_URI 走前端的 /backend 代理即可。
+    """
+    frontend_url = read_env_value("FRONTEND_URL")
+    if frontend_url is None:
+        return ""
+    return frontend_url.rstrip("/")

@@ -41,6 +41,20 @@ export function registerTeacher(input: TeacherRegisterInput, proof?: File | null
   return request<CurrentUser>('/api/auth/register/teacher', { method: 'POST', body: form })
 }
 
+export interface TeacherApplicationInput {
+  teaching_subjects: string
+  teaching_experience: string
+  bio: string
+}
+
+// Google 註冊的老師補送申請資料，可附證明文件
+export function submitTeacherApplication(input: TeacherApplicationInput, proof?: File | null): Promise<unknown> {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(input)) form.append(key, value)
+  if (proof) form.append('proof_file', proof)
+  return request('/api/auth/teacher-application', { method: 'POST', body: form })
+}
+
 export function fetchGoogleUrl(role: 'student' | 'teacher', intent: 'login' | 'register'): Promise<{ url: string }> {
   return request('/api/auth/google-url', { query: { role, intent } })
 }
