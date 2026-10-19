@@ -1,25 +1,27 @@
-from datetime import datetime, date
-from uuid import UUID as UUIDType
 from pydantic import BaseModel
 
+
 class CourseIn(BaseModel):
-    studio_id: UUIDType | None = None
-
-    course_name: str
-    course_intros: str
-
-    course_price: int = 0
-
-    class_date: date | None = None
-
+    title: str
+    level: str | None = None
+    style: str | None = None
+    delivery_mode: str | None = None
+    region: str | None = None
     price_per_lesson: int | None = None
-
-    start_at: datetime
-    end_at: datetime
-
-    duration_minutes: int | None = None
-
+    time_slots: str | None = None
+    description: str | None = None
     status: str = "draft"
 
-    student_id: UUIDType | None = None
 
+class CourseUpdate(BaseModel):
+    """只改有傳的欄位。要清空某欄就傳 null 或空字串。"""
+
+    title: str | None = None
+    level: str | None = None
+    style: str | None = None
+    delivery_mode: str | None = None
+    region: str | None = None
+    price_per_lesson: int | None = None
+    time_slots: str | None = None
+    description: str | None = None
+    status: str | None = None

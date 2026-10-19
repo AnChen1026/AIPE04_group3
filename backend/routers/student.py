@@ -3,14 +3,19 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.uploads import resolve_stored_path
 from backend.dependencies.common import get_current_user, require_roles
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
+from backend.services.conversation import conversation_rows
 from backend.schemas.student import (
+    BindIn,
+    MessageIn,
     ChangeRequestResponse,
     ConversationResponse,
     CourseResponse,
@@ -19,13 +24,16 @@ from backend.schemas.student import (
     MessageResponse,
     RecordingResponse,
 )
+from backend.services.practice import run_recording_analysis
 from backend.services.student import (
+    MAX_RECORDING_BYTES,
     StudentBusinessError,
     add_message,
     create_change_request,
     list_published_courses,
     mark_conversation_read,
     redeem_binding_code,
+    redeem_code_only,
     require_bound,
     save_recording,
     start_conversation,
@@ -65,7 +73,20 @@ def api_my_conversations(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return StudentRepository.list_student_conversations(db, current_user.id)
+    """我的接洽對話：課程、老師、是否已綁定、未讀數與最後一則訊息。"""
+    return conversation_rows(db, StudentRepository.list_student_conversations(db, current_user.id), current_user.id)
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationResponse)
+def api_my_conversation(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conversation = StudentRepository.get_conversation(db, conversation_id)
+    if conversation is None or not student_can_read_conversation(conversation, current_user):
+        raise HTTPException(status_code=404, detail="找不到這段對話。")
+    return conversation_rows(db, [conversation], current_user.id)[0]
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageResponse])
@@ -84,7 +105,7 @@ def api_messages(
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageResponse)
 def api_send_message(
     conversation_id: uuid.UUID,
-    body: str,
+    data: MessageIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -92,7 +113,7 @@ def api_send_message(
     if conversation is None or not student_can_read_conversation(conversation, current_user):
         raise HTTPException(status_code=404, detail="找不到這段對話。")
     try:
-        return add_message(db, conversation, current_user, body)
+        return add_message(db, conversation, current_user, data.body, data.client_message_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
 
@@ -100,7 +121,7 @@ def api_send_message(
 @router.post("/conversations/{conversation_id}/bind")
 def api_bind(
     conversation_id: uuid.UUID,
-    code: str,
+    data: BindIn,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -108,10 +129,24 @@ def api_bind(
     if conversation is None or not student_can_read_conversation(conversation, current_user):
         raise HTTPException(status_code=404, detail="找不到這段對話。")
     try:
-        redeem_binding_code(db, current_user, conversation, code)
+        redeem_binding_code(db, current_user, conversation, data.code)
     except StudentBusinessError as error:
         _raise_business_error(error)
     return {"bound": True, "course_id": str(conversation.course_id)}
+
+
+@router.post("/bind")
+def api_bind_with_code(
+    data: BindIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """只輸入綁定碼就能進入課程，不用先打開聊天。"""
+    try:
+        conversation = redeem_code_only(db, current_user, data.code)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    return {"bound": True, "course_id": str(conversation.course_id), "conversation_id": str(conversation.id)}
 
 
 @router.get("/courses/{course_id}/schedule", response_model=list[LessonResponse])
@@ -125,6 +160,20 @@ def api_schedule(
     except StudentBusinessError as error:
         _raise_business_error(error)
     return StudentRepository.list_schedule(db, current_user.id, course_id)
+
+
+@router.get("/courses/{course_id}/change-requests", response_model=list[ChangeRequestResponse])
+def api_my_change_requests(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """我在這門課送出的約課、請假、調課，以及老師處理的結果。"""
+    try:
+        require_bound(db, current_user.id, course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    return StudentRepository.list_change_requests_for_student(db, current_user.id, course_id)
 
 
 @router.post("/courses/{course_id}/change-requests", response_model=ChangeRequestResponse)
@@ -153,17 +202,7 @@ def api_change_request(
         _raise_business_error(error)
 
 
-@router.post("/courses/{course_id}/recordings", response_model=RecordingResponse)
-def api_upload_recording(
-    course_id: uuid.UUID,
-    audio: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    try:
-        recording = save_recording(db, current_user, course_id, audio.filename or "audio.webm", audio.file.read())
-    except StudentBusinessError as error:
-        _raise_business_error(error)
+def _recording_response(db: Session, recording) -> RecordingResponse:
     feedback = StudentRepository.get_feedback(db, recording.id)
     return RecordingResponse(
         id=recording.id,
@@ -172,3 +211,88 @@ def api_upload_recording(
         submitted_at=recording.submitted_at,
         feedback=FeedbackResponse.model_validate(feedback) if feedback else None,
     )
+
+
+def _own_recording(db: Session, user: User, recording_id: uuid.UUID):
+    recording = StudentRepository.get_recording(db, recording_id)
+    if recording is None or recording.student_id != user.id:
+        raise HTTPException(status_code=404, detail="找不到這段錄音。")
+    return recording
+
+
+@router.post("/courses/{course_id}/recordings", response_model=RecordingResponse)
+def api_upload_recording(
+    course_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """送出後先回傳 pending，評分在背景跑完再更新；之後用 GET /api/student/recordings/{id} 查進度。"""
+    try:
+        recording = save_recording(
+            db,
+            current_user,
+            course_id,
+            audio.filename or "audio.webm",
+            audio.file.read(MAX_RECORDING_BYTES + 1),
+        )
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    background_tasks.add_task(run_recording_analysis, recording.id)
+    return _recording_response(db, recording)
+
+
+@router.get("/courses/{course_id}/recordings", response_model=list[RecordingResponse])
+def api_my_recordings(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        require_bound(db, current_user.id, course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    return [
+        _recording_response(db, recording)
+        for recording in StudentRepository.list_recordings(db, current_user.id, course_id)
+    ]
+
+
+@router.get("/recordings/{recording_id}", response_model=RecordingResponse)
+def api_my_recording(
+    recording_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _recording_response(db, _own_recording(db, current_user, recording_id))
+
+
+@router.get("/recordings/{recording_id}/audio")
+def api_my_recording_audio(
+    recording_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    recording = _own_recording(db, current_user, recording_id)
+    try:
+        require_bound(db, current_user.id, recording.course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    return FileResponse(resolve_stored_path(recording.file_path))
+
+
+@router.get("/courses/{course_id}/reference-midi")
+def api_reference_midi(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """已綁定的學生可以下載老師指定的參考曲來練習。"""
+    try:
+        course = require_bound(db, current_user.id, course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+    if not course.reference_midi_path:
+        raise HTTPException(status_code=404, detail="這門課還沒有參考 MIDI。")
+    return FileResponse(resolve_stored_path(course.reference_midi_path), media_type="audio/midi")

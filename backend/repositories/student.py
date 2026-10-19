@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from backend.models.student import (
@@ -77,6 +77,19 @@ class StudentRepository:
         )
 
     @staticmethod
+    def get_message_by_client_id(
+        db: Session,
+        conversation_id: uuid.UUID,
+        client_message_id: str,
+    ) -> ConversationMessage | None:
+        return db.scalar(
+            select(ConversationMessage).where(
+                ConversationMessage.conversation_id == conversation_id,
+                ConversationMessage.client_message_id == client_message_id,
+            )
+        )
+
+    @staticmethod
     def list_messages(db: Session, conversation_id: uuid.UUID) -> list[ConversationMessage]:
         return list(
             db.scalars(
@@ -85,17 +98,6 @@ class StudentRepository:
                 .order_by(ConversationMessage.created_at.asc())
             ).all()
         )
-
-    @staticmethod
-    def unread_count(db: Session, conversation_id: uuid.UUID, reader_id: uuid.UUID) -> int:
-        messages = db.scalars(
-            select(ConversationMessage).where(
-                ConversationMessage.conversation_id == conversation_id,
-                ConversationMessage.sender_id != reader_id,
-                ConversationMessage.read_at.is_(None),
-            )
-        ).all()
-        return len(messages)
 
     @staticmethod
     def get_binding(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> CourseBinding | None:
@@ -113,7 +115,18 @@ class StudentRepository:
 
     @staticmethod
     def get_binding_code(db: Session, code: str) -> BindingCode | None:
-        return db.scalar(select(BindingCode).where(BindingCode.code == code))
+        return db.scalar(select(BindingCode).where(BindingCode.code == code).with_for_update())
+
+    @staticmethod
+    def delete_unused_binding_codes(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> None:
+        """作廢這位學生在這門課還沒用過的綁定碼。對話裡的舊訊息還在，但碼已經不能用。"""
+        db.execute(
+            delete(BindingCode).where(
+                BindingCode.student_id == student_id,
+                BindingCode.course_id == course_id,
+                BindingCode.used_at.is_(None),
+            )
+        )
 
     @staticmethod
     def list_schedule(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> list[LessonSession]:

@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.models.student import (
@@ -19,10 +21,14 @@ from backend.models.student import (
     PracticeFeedback,
     PracticeRecording,
 )
+from backend.models.teacher import TeacherDB
 from backend.models.user import User
+from backend.core.uploads import PRACTICE_UPLOAD_DIR, stored_path
 from backend.repositories.student import StudentRepository
+from backend.services.chat_hub import chat_hub, message_event
 
-UPLOAD_DIR = Path("uploads")
+RECORDING_SUFFIXES = (".wav", ".webm", ".mp3", ".m4a", ".ogg")
+MAX_RECORDING_BYTES = 20 * 1024 * 1024
 
 
 class StudentBusinessError(Exception):
@@ -40,8 +46,69 @@ def _commit(db: Session) -> None:
         raise
 
 
+def list_home_course_rows(db: Session) -> list[dict]:
+    """首頁依課程類型分成橫向列，只顯示已發布課程。"""
+    rows = db.execute(
+        select(Course, User.name)
+        .join(User, User.id == Course.teacher_id)
+        .where(Course.status == "published")
+        .order_by(Course.title)
+    ).all()
+    grouped: dict[str, list[dict]] = {}
+    style_order: list[str] = []
+    for course, teacher_name in rows:
+        style = course.style or "其他鋼琴"
+        if style not in grouped:
+            grouped[style] = []
+            style_order.append(style)
+        grouped[style].append(
+            {
+                "id": course.id,
+                "title": course.title,
+                "region": course.region or "地區未填",
+                "teacher_name": teacher_name,
+            }
+        )
+    preferred = ["古典鋼琴", "流行鋼琴", "爵士鋼琴"]
+    style_order.sort(key=lambda name: preferred.index(name) if name in preferred else len(preferred))
+    return [{"style": style, "courses": grouped[style]} for style in style_order]
+
+
 def list_published_courses(db: Session) -> list[Course]:
     return StudentRepository.list_published_courses(db)
+
+
+def list_public_published_courses(db: Session) -> list[dict]:
+    """訪客用。只回已發布課程和老師姓名、照片網址，不回草稿、封存或任何檔案路徑。"""
+    rows = db.execute(
+        select(Course, User.name, TeacherDB.photo_path)
+        .join(User, User.id == Course.teacher_id)
+        .outerjoin(TeacherDB, TeacherDB.user_id == Course.teacher_id)
+        .where(Course.status == "published")
+        .order_by(Course.created_at.desc())
+    ).all()
+    courses = []
+    for course, teacher_name, photo_path in rows:
+        courses.append(
+            {
+                "id": course.id,
+                "teacher_id": course.teacher_id,
+                "teacher_name": teacher_name,
+                "title": course.title,
+                "level": course.level,
+                "style": course.style,
+                "delivery_mode": course.delivery_mode,
+                "region": course.region,
+                "price_per_lesson": course.price_per_lesson,
+                "time_slots": course.time_slots,
+                "status": course.status,
+                "has_reference_midi": course.has_reference_midi,
+                "description": course.description,
+                "image_url": course.image_url,
+                "teacher_photo_url": f"/api/images/teachers/{course.teacher_id}" if photo_path else None,
+            }
+        )
+    return courses
 
 
 def start_conversation(db: Session, student: User, course_id: uuid.UUID) -> InquiryConversation:
@@ -71,21 +138,48 @@ def student_can_read_conversation(conversation: InquiryConversation, student: Us
     return conversation.student_id == student.id
 
 
-def add_message(db: Session, conversation: InquiryConversation, sender: User, body: str) -> ConversationMessage:
+def add_message(
+    db: Session,
+    conversation: InquiryConversation,
+    sender: User,
+    body: str,
+    client_message_id: str | None = None,
+) -> ConversationMessage:
     text = body.strip()
     if text == "":
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "訊息不能是空白。")
     if sender.id not in (conversation.student_id, conversation.teacher_id):
         raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "不能在這段對話發言。")
 
+    client_id = (client_message_id or "").strip() or None
+    if client_id is not None and len(client_id) > 64:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "訊息編號太長。")
+    if client_id is not None:
+        existing = StudentRepository.get_message_by_client_id(db, conversation.id, client_id)
+        if existing is not None:
+            chat_hub.publish(conversation.id, message_event(existing))
+            return existing
+
     message = ConversationMessage(
         conversation_id=conversation.id,
         sender_id=sender.id,
+        client_message_id=client_id,
         body=text,
     )
     db.add(message)
-    _commit(db)
+    try:
+        _commit(db)
+    except IntegrityError:
+        db.rollback()
+        if client_id is None:
+            raise
+        existing = StudentRepository.get_message_by_client_id(db, conversation.id, client_id)
+        if existing is None:
+            raise
+        chat_hub.publish(conversation.id, message_event(existing))
+        return existing
     db.refresh(message)
+    chat_hub.publish(conversation.id, message_event(message))
     return message
 
 
@@ -110,6 +204,9 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這組綁定碼不能進入這門課。")
     if binding_code.conversation_id != conversation.id:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這組綁定碼不屬於這段對話。")
+    course = StudentRepository.get_course(db, conversation.course_id)
+    if course is None or course.status == "archived":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這門課已經停止開放，不能綁定。")
 
     binding = StudentRepository.get_binding(db, student.id, conversation.course_id)
     now = datetime.now(timezone.utc)
@@ -130,6 +227,18 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
     _commit(db)
     db.refresh(binding)
     return binding
+
+
+def redeem_code_only(db: Session, student: User, code: str) -> InquiryConversation:
+    """學生只輸入綁定碼：找到老師發給他的那段對話，再照一般規則綁定。"""
+    binding_code = StudentRepository.get_binding_code(db, code.strip().upper())
+    if binding_code is None or binding_code.student_id != student.id:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
+    conversation = StudentRepository.get_conversation(db, binding_code.conversation_id)
+    if conversation is None:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
+    redeem_binding_code(db, student, conversation, binding_code.code)
+    return conversation
 
 
 def require_bound(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> Course:
@@ -189,14 +298,18 @@ def save_recording(
     content: bytes,
 ) -> PracticeRecording:
     course = require_bound(db, student.id, course_id)
+    if not course.reference_midi_path:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "老師還沒設定這門課的參考曲，暫時不能送出錄音。")
     suffix = Path(filename).suffix.lower()
-    if suffix not in (".wav", ".webm", ".mp3", ".m4a", ".ogg"):
+    if suffix not in RECORDING_SUFFIXES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請上傳音檔，或用網頁錄音。")
     if len(content) == 0:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔是空的。")
+    if len(content) > MAX_RECORDING_BYTES:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔最大 20 MB。")
 
     recording_id = uuid.uuid4()
-    folder = UPLOAD_DIR / "practice" / str(student.id)
+    folder = PRACTICE_UPLOAD_DIR / str(student.id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{recording_id}{suffix}"
     path.write_bytes(content)
@@ -206,7 +319,8 @@ def save_recording(
         course_id=course.id,
         teacher_id=course.teacher_id,
         student_id=student.id,
-        file_path=str(path),
+        file_path=stored_path(path),
+        reference_midi_path=course.reference_midi_path,
         status="pending",
     )
     feedback = PracticeFeedback(
@@ -217,61 +331,26 @@ def save_recording(
         status="pending",
     )
     db.add(recording)
+    # 兩張表之間沒有 relationship，先寫入錄音，回饋的外鍵才找得到
+    db.flush()
     db.add(feedback)
     _commit(db)
     db.refresh(recording)
     return recording
 
 
-def create_course(
-    db: Session,
-    teacher: User,
-    title: str,
-    level: str | None,
-    style: str | None,
-    delivery_mode: str | None,
-    region: str | None,
-    price_per_lesson: int | None,
-    time_slots: str | None,
-    publish: bool,
-    midi_name: str | None,
-    midi_content: bytes | None,
-) -> Course:
-    if title.strip() == "":
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "課程名稱不能是空白。")
-    midi_path = None
-    if midi_content:
-        folder = UPLOAD_DIR / "midi" / str(teacher.id)
-        folder.mkdir(parents=True, exist_ok=True)
-        midi_path = folder / f"{uuid.uuid4()}.mid"
-        midi_path.write_bytes(midi_content)
-        midi_path = str(midi_path)
-    elif midi_name:
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考 MIDI 檔是空的。")
-
-    course = Course(
-        teacher_id=teacher.id,
-        title=title.strip(),
-        level=level or None,
-        style=style or None,
-        delivery_mode=delivery_mode or None,
-        region=region or None,
-        price_per_lesson=price_per_lesson,
-        time_slots=time_slots or None,
-        status="published" if publish else "draft",
-        reference_midi_path=midi_path,
-    )
-    db.add(course)
-    _commit(db)
-    db.refresh(course)
-    return course
-
-
 def issue_binding_code(db: Session, teacher: User, conversation_id: uuid.UUID) -> BindingCode:
     conversation = StudentRepository.get_conversation(db, conversation_id)
     if conversation is None or conversation.teacher_id != teacher.id:
         raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到這段接洽對話。")
+    course = StudentRepository.get_course(db, conversation.course_id)
+    if course is None or course.status == "archived":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這門課已封存，不能再發綁定碼。")
+    if StudentRepository.is_bound(db, conversation.student_id, conversation.course_id):
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這位學生已經綁定這門課。")
 
+    # 同一位學生、同一門課只留最新的一組碼，舊碼一律作廢
+    StudentRepository.delete_unused_binding_codes(db, conversation.student_id, conversation.course_id)
     code = secrets.token_hex(4).upper()
     binding_code = BindingCode(
         code=code,
@@ -281,15 +360,16 @@ def issue_binding_code(db: Session, teacher: User, conversation_id: uuid.UUID) -
         conversation_id=conversation.id,
     )
     db.add(binding_code)
-    db.add(
-        ConversationMessage(
-            conversation_id=conversation.id,
-            sender_id=teacher.id,
-            body=f"綁定碼：{code}",
-        )
+    message = ConversationMessage(
+        conversation_id=conversation.id,
+        sender_id=teacher.id,
+        body=f"綁定碼：{code}",
     )
+    db.add(message)
     _commit(db)
     db.refresh(binding_code)
+    db.refresh(message)
+    chat_hub.publish(conversation.id, message_event(message))
     return binding_code
 
 
@@ -361,6 +441,8 @@ def unbind_student(db: Session, teacher: User, course_id: uuid.UUID, student_id:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這位學生目前沒有綁定這門課。")
     binding.status = "unbound"
     binding.unbound_at = datetime.now(timezone.utc)
+    # 解除後要重新綁定，必須由老師再發一組新碼
+    StudentRepository.delete_unused_binding_codes(db, student_id, course_id)
     _commit(db)
     db.refresh(binding)
     return binding
