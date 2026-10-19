@@ -1,17 +1,40 @@
 services:
-  python-env:
-    build: . # 自動讀取旁邊的新版 Dockerfile 進行現地打包與套件安裝
+
+  # 1. 後端fastapi 服務
+  backend:
+    build:
+      context: ./backend # 告訴 Docker 去 ./backend 資料夾找 Dockerfile
+      dockerfile: Dockerfile # 自動讀取新版 Dockerfile 進行現地打包與套件安裝
     container_name: python-dev-box # 固定容器名稱
     ports:
       - "8000:8000" # 💡 全新加入：將容器內的 8000 通訊埠（FastAPI 預設）映射到本機電腦的 8000 埠
     volumes:
-      - .:/app # 核心傳送門：開發者目前的 Git 資料夾 ＝ 容器內的 /app
-    command: sleep infinity # 核心發呆指令：維持開機，方便開發者一邊用 Cursor 改扣、一邊手動測試
+      - ./backend:/app # 核心傳送門：開發者目前的 Git 資料夾 ＝ 容器內的 /app
+      # 只把 backend 資料夾掛載進去，避免混到前端檔案
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - postgres
+    env_file:
+      - .env # 自動讀取外層的 .env 環境變數
+    networks:
+      - app-network
+
+  # 2. Vue 前端服務 (使用 Vite 打包)
+  frontend:
+    build:
+      context: ./frontend # 告訴 Docker 去 ./frontend 資料夾找 Dockerfile
+      dockerfile: Dockerfile
+    container_name: vue-dev-box
+    ports:
+      - "80:80" # 將本機的 80 埠對應到容器內 Nginx 的 80 埠
+    restart: always
+    depends_on:
+      - backend
+    networks:
+      - app-network
 
   postgres:
-    image: postgres:16
+    image: postgres:17
     container_name: aipe04-postgres
     environment:
       POSTGRES_USER: aipe04
@@ -21,6 +44,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
