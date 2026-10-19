@@ -12,13 +12,21 @@ services:
       - ./backend:/app # 只把 backend 資料夾掛載進去，避免混到前端檔案
     command: sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload" # 先自動升級資料庫結構，再啟動 Uvicorn 服務
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy # 確保資料庫「健康檢查通過」後端才啟動
     env_file:
       - .env # 自動讀取外層的 .env 環境變數
     networks:
       - app-network
+    # #  日誌大小限制
+    # logging:
+    #   driver: "json-file"
+    #   options:
+    #     max-size: "10m" # 每個日誌檔案上限 10 Megabytes
+    #     max-file: "3" # 最多保留 3 個檔案，舊的自動覆蓋
 
-  # 2. Vue 前端服務 (使用 Vite 打包)
+
+    # 2. Vue 前端服務 (使用 Vite 打包)
   frontend:
     build:
       context: ./frontend # 告訴 Docker 去 ./frontend 資料夾找 Dockerfile
@@ -31,6 +39,13 @@ services:
       - backend
     networks:
       - app-network
+    # # 日誌大小限制
+    # logging:
+    #   driver: "json-file"
+    #   options:
+    #     max-size: "10m"
+    #     max-file: "3"
+
 
   postgres:
     image: postgres:17
@@ -45,6 +60,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - app-network
+    # 每 5 秒檢查一次資料庫是不是真的活著
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U aipe04 -d aipe04" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
