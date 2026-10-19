@@ -70,3 +70,11 @@ export interface ProfileInput {
 export function updateMe(input: ProfileInput): Promise<CurrentUser> {
   return request<CurrentUser>('/api/auth/me', { method: 'PATCH', body: { ...input } })
 }
+
+// 修改自己的密碼。新密碼至少 8 個字元；還沒有密碼的 Google 帳號不用填目前密碼
+export function changePassword(currentPassword: string | null, newPassword: string): Promise<{ message: string }> {
+  return request('/api/auth/me/password', {
+    method: 'POST',
+    body: { current_password: currentPassword, new_password: newPassword },
+  })
+}

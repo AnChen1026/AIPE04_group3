@@ -24,12 +24,12 @@ async function onApplied() {
 const items = computed<NavItem[]>(() => [
   { to: '/teacher', label: '資訊總覽', icon: 'overview', exact: true },
   { to: '/teacher/studio', label: '工作室管理', icon: 'studio' },
-  { to: '/teacher/profile', label: '個人資料', icon: 'profile' },
   { to: '/teacher/schedule', label: '課表', icon: 'schedule', badge: pending.value },
   { to: '/teacher/students', label: '學生', icon: 'students' },
   { to: '/teacher/courses', label: '課程', icon: 'courses' },
   { to: '/teacher/practice', label: '作業', icon: 'practice' },
   { to: '/teacher/chat', label: '聊天', icon: 'chat', badge: unread.value },
+  { to: '/teacher/settings', label: '設定', icon: 'settings' },
 ])
 
 // 換頁時更新選單上的未讀與待處理數字

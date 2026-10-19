@@ -12,5 +12,7 @@ export interface CurrentUser {
   is_active: boolean
   auth_provider: string
   application_status: string | null
+  // 只用 Google 註冊、還沒設定密碼時為 false
+  has_password?: boolean
   created_at: string
 }
