@@ -1,0 +1,17 @@
+#  排除前端極度肥大的本地套件資料夾（Docker 內部會自己執行 npm install）
+node_modules/
+/dist
+
+#  排除前端環境變數與本地設定
+.env
+.env.local
+.env.*.local
+
+#  排除編輯器與日誌
+.vscode/
+.idea/
+.git
+.gitignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
