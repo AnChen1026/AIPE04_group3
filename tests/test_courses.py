@@ -145,3 +145,32 @@ def test_參考MIDI只有綁定學生能下載(make_user, make_course, login):
     response = student_client.get(f"/api/student/courses/{course.id}/reference-midi")
     assert response.status_code == 200
     assert response.content == SAMPLE_MIDI.read_bytes()
+
+
+@pytest.mark.parametrize("failure_point", ["query", "commit"])
+def test_metadata寫入失敗會清掉新檔且保留舊MIDI(db, make_user, make_course, monkeypatch, tmp_path, failure_point):
+    teacher = make_user("teacher")
+    course = make_course(teacher)
+    midi_dir = tmp_path / "midi"
+    monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", midi_dir)
+    course_service.save_reference_midi(db, teacher.id, course.id, "original.mid", SAMPLE_MIDI.read_bytes())
+    old_path = course.reference_midi_path
+    old_files = set(midi_dir.rglob("*.mid"))
+    teacher_id, course_id = teacher.id, course.id
+
+    def fail_query(*args, **kwargs):
+        raise RuntimeError("forced metadata query failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(db, failure_point, fail_query)
+        with pytest.raises(RuntimeError, match="forced metadata query failure"):
+            course_service.save_reference_midi(
+                db, teacher_id, course_id, "replacement.mid", SAMPLE_MIDI_2.read_bytes()
+            )
+
+    assert set(midi_dir.rglob("*.mid")) == old_files
+    db.expire_all()
+    assert db.get(type(course), course_id).reference_midi_path == old_path
+    reference = db.scalar(select(ReferenceMidi).where(ReferenceMidi.course_id == course_id))
+    assert reference.storage_key == old_path
+    assert reference.original_filename == "original.mid"

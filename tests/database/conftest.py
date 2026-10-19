@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.engine import make_url
@@ -44,4 +45,14 @@ def migration_database(
     try:
         yield config, engine
     finally:
+        # 降版測試結束後恢復 head，讓同一輪後續 API 測試仍能使用完整 schema。
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+            connection.exec_driver_sql("DROP SCHEMA public CASCADE")
+            connection.exec_driver_sql("CREATE SCHEMA public")
+        command.upgrade(config, "head")
         engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def analysis_session():
+    """Migration 不跑背景評分，也不建立父層的 API 交易。"""

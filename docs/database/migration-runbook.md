@@ -16,11 +16,13 @@ alembic heads
 alembic history --verbose
 ```
 
-預期 head：
+本資料庫整合分支的預期 head（不包含另一功能分支的首頁推薦 011）：
 
 ```text
 010_reference_midis (head)
 ```
+
+首頁推薦 `011_recommendations` 合併後，以 `alembic heads` 的實際唯一 head 為準。
 
 建立新版本前，先同步主分支並確認目前 head。新 Migration 的 `down_revision` 必須指向當下唯一 head。
 
@@ -34,6 +36,38 @@ alembic upgrade head
 
 應用程式不再執行 `Base.metadata.create_all()`；缺少 Migration 時，啟動網站不會替你補表。
 
+## 可重現的隔離驗收
+
+先安裝 `requirements.txt`。下面使用獨立、無持久化 volume 的 PostgreSQL 16 容器，不使用開發資料庫：
+
+```bash
+docker run -d --name aipe04-db-test \
+  -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_password \
+  -e POSTGRES_DB=aipe04_test -p 127.0.0.1:55432:5432 postgres:16
+docker exec aipe04-db-test pg_isready -U test_user -d aipe04_test
+```
+
+等 `pg_isready` 顯示 accepting connections 後，在 macOS／Linux 執行：
+
+```bash
+export DATABASE_URL=postgresql+psycopg://test_user:test_password@127.0.0.1:55432/aipe04_test
+export TEST_DATABASE_URL="$DATABASE_URL"
+export SESSION_SECRET_KEY=test-only-session-key
+alembic upgrade head
+python -m pytest tests -q
+alembic current
+```
+
+Windows PowerShell 用 `$env:DATABASE_URL = "..."` 設定相同環境變數。這裡的帳密只用於可刪除的測試容器。
+
+驗收後清除本次容器：
+
+```bash
+docker rm -f aipe04-db-test
+```
+
+測試涵蓋空庫 001→010、009 舊路徑回填、010→009→010、單一 head、MIDI metadata 雙寫與失敗清理，以及完整 API 回歸。`.github/workflows/database.yml` 在 PR 與 main push 執行相同驗收；音訊評分和 LLM 在測試中使用替身。
+
 ## Migration 整合測試
 
 破壞性測試只能使用名稱以 `_test` 結尾的獨立 PostgreSQL：
@@ -44,7 +78,7 @@ DATABASE_URL=postgresql+psycopg://USER:PASSWORD@127.0.0.1:5432/project_test \
 pytest tests/database -q
 ```
 
-測試會清除測試資料庫的 `public` schema。不得把正式、開發共用或含重要資料的 URL 放進 `TEST_DATABASE_URL`；fixture 會拒絕非 PostgreSQL 及名稱不是 `_test` 的資料庫。
+測試會清除測試資料庫的 `public` schema。不得把正式、開發共用或含重要資料的 URL 放進 `TEST_DATABASE_URL`；fixture 會拒絕非 PostgreSQL 及名稱不是 `_test` 的資料庫。Migration 測試不建立 API 背景評分交易，並在結束時清空測試 schema、升回 head，避免降版測試影響同一輪後續 API 測試。
 
 ## 010 上線前檢查
 

@@ -110,3 +110,27 @@ def test_downgrade_to_009_preserves_legacy_course_path(
             {"course_id": legacy["course_id"]},
         ).scalar_one()
     assert midi_path == legacy["legacy_path"]
+    command.upgrade(config, "head")
+    with engine.connect() as connection:
+        assert connection.execute(
+            text("SELECT storage_key FROM reference_midis WHERE course_id = :course_id"),
+            {"course_id": legacy["course_id"]},
+        ).scalar_one() == legacy["legacy_path"]
+
+
+def test_fresh_database_upgrades_to_single_head(migration_database):
+    from alembic.script import ScriptDirectory
+    from backend.models.base import Base
+
+    config, engine = migration_database
+    command.upgrade(config, "head")
+    assert ScriptDirectory.from_config(config).get_heads() == [REFERENCE_MIDI_REVISION]
+    tables = set(inspect(engine).get_table_names())
+    assert set(Base.metadata.tables) <= tables
+    assert "lesson_preparation_summaries" in tables
+    assert "lesson_summaries" not in tables
+    with engine.connect() as connection:
+        assert connection.exec_driver_sql(
+            "SELECT version_num FROM alembic_version"
+        ).scalar_one() == REFERENCE_MIDI_REVISION
+    command.upgrade(config, "head")  # 重跑不應重複建立資料表或 metadata。
