@@ -2,8 +2,8 @@
   <footer class="footer">
     <div class="footer__inner">
       <div class="footer__brand">
-        <p class="footer__logo">琴室</p>
-        <p>一對一的鋼琴課，從找到老師開始。</p>
+        <p class="footer__logo" aria-label="melo">melo.</p>
+        <p>想上鋼琴課，從找到老師開始</p>
       </div>
       <nav class="footer__nav" aria-label="頁尾">
         <div>
@@ -23,7 +23,7 @@
         </div>
       </nav>
     </div>
-    <p class="footer__bottom">© 琴室 鋼琴課程平台</p>
+    <p class="footer__bottom">© melo 鋼琴課程平台</p>
   </footer>
 </template>
 
@@ -51,10 +51,10 @@
 .footer__logo {
   margin-bottom: 8px !important;
   color: var(--home-ink);
-  font-family: var(--font-serif);
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--font-logo);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
 }
 
 .footer__nav {

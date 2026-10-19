@@ -9,8 +9,8 @@ defineProps<{
 
 <template>
   <section id="faq" class="faq" aria-labelledby="faq-title">
-    <SectionHeading v-reveal label="常見問題" title="開始之前，" accent="你可能想知道" heading-id="faq-title">
-      還有其他問題，可以先洽詢老師，或點右下角的 AI 找課助理。
+    <SectionHeading v-reveal label="常見問題" title="開始之前" accent="你可能想知道" heading-id="faq-title">
+      還有其他問題，可以先聯繫老師，或點右下角的 AI 找課助理
     </SectionHeading>
 
     <div class="faq__list">

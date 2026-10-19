@@ -119,7 +119,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title}｜琴室` : '琴室｜一對一鋼琴課'
+  document.title = to.meta.title ? `${to.meta.title}｜melo` : 'melo｜一對一鋼琴課'
 })
 
 export default router

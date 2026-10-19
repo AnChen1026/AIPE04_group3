@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import AuthCard from '@/components/auth/AuthCard.vue'
-import RolePicker from '@/components/auth/RolePicker.vue'
+import AuthField from '@/components/auth/AuthField.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 
 // 後端這一輪沒有做「寄送重設連結」（PRD：改密碼、Email 認證留到之後），
 // 先保留設計稿的版面，送出時誠實說明目前的處理方式。
-const role = ref<'student' | 'teacher' | null>('student')
 const email = ref('')
 const error = ref('')
 const notice = ref(false)
@@ -22,17 +21,13 @@ function submit() {
 </script>
 
 <template>
-  <AuthCard title="忘記密碼？" subtitle="輸入您的電子郵件，我們會協助您重設密碼。">
-    <RolePicker v-model="role" student-label="我是學生" teacher-label="我是老師" />
-    <form novalidate @submit.prevent="submit">
-      <div class="field">
-        <label class="field__label" for="forgot-email">電子郵件</label>
-        <input id="forgot-email" v-model="email" class="input" type="email" autocomplete="email" placeholder="請輸入電子郵件" />
-      </div>
-      <p v-if="error" class="error-text" role="alert">{{ error }}</p>
-      <button type="submit" class="btn btn--primary btn--block">寄送重設連結</button>
-      <p class="forgot__footer">
-        想起密碼了？<RouterLink :to="{ name: 'login', query: { role: role ?? 'student' } }">立即登入</RouterLink>
+  <AuthCard eyebrow="RESET" title="忘記密碼？" subtitle="輸入註冊時的電子郵件，我們會協助你重設密碼。">
+    <form class="auth-form" novalidate @submit.prevent="submit">
+      <AuthField id="forgot-email" v-model="email" label="電子郵件" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" />
+      <p v-if="error" class="auth-alert" role="alert">{{ error }}</p>
+      <button type="submit" class="auth-button">寄送重設連結</button>
+      <p class="auth-switch">
+        想起密碼了？<RouterLink :to="{ name: 'login' }" class="auth-link">立即登入</RouterLink>
       </p>
     </form>
 
@@ -46,28 +41,3 @@ function submit() {
     />
   </AuthCard>
 </template>
-
-<style scoped>
-form {
-  margin-top: 16px;
-}
-
-.btn--block {
-  margin-top: 18px;
-}
-
-.error-text {
-  margin-top: 8px;
-}
-
-.forgot__footer {
-  margin: 16px 0 0;
-  color: var(--home-muted);
-  font-size: 13px;
-  text-align: center;
-}
-
-.forgot__footer a {
-  color: var(--home-accent);
-}
-</style>

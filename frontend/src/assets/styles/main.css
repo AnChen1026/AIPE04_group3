@@ -37,6 +37,8 @@
   --radius-arch: 999px 999px 28px 28px;
   --font-sans: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
   --font-serif: 'Noto Serif TC', 'Songti TC', 'PMingLiU', serif;
+  /* Logo 視覺寫法 melo. 用的襯線字，接近品牌圖上的字體 */
+  --font-logo: 'Libre Baskerville', 'Noto Serif TC', serif;
 }
 
 *,

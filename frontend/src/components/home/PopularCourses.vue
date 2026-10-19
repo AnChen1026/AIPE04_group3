@@ -74,7 +74,7 @@ function prev() {
         accent="剛好適合你的課"
         heading-id="courses-title"
       >
-        依自己的程度挑選。不確定程度也沒關係，先和老師聊聊。
+        依自己的程度挑選，不確定程度也沒關係，先和老師聊聊。
       </SectionHeading>
 
       <div v-reveal="120" class="courses__tools">
