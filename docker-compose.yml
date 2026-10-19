@@ -9,8 +9,7 @@ services:
     ports:
       - "8000:8000" # 💡 全新加入：將容器內的 8000 通訊埠（FastAPI 預設）映射到本機電腦的 8000 埠
     volumes:
-      - ./backend:/app # 核心傳送門：開發者目前的 Git 資料夾 ＝ 容器內的 /app
-      # 只把 backend 資料夾掛載進去，避免混到前端檔案
+      - ./backend:/app # 只把 backend 資料夾掛載進去，避免混到前端檔案
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - postgres
