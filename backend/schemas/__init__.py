@@ -10,18 +10,12 @@ from backend.schemas.user import (
     UserResponse,
     UserUpdate,
 )
-from backend.schemas.chat import MessageIn
 from backend.schemas.course import CourseIn
-from backend.schemas.practice import AssignmentIn
-from backend.schemas.studio import BindingIn
 from backend.schemas.teacher import TeacherIn
 
 __all__ = [
-    "AssignmentIn",
-    "BindingIn",
     "CourseIn",
     "GoogleUrlResponse",
-    "MessageIn",
     "TeacherApplicationForm",
     "TeacherApplicationResponse",
     "TeacherIn",

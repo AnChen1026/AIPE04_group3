@@ -4,15 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.core.config import get_session_secret_key
-from backend.core.database import SessionLocal, engine
-from backend.models.base import Base
+from backend.core.database import SessionLocal
 from backend.routers.admin import router as admin_router
+from backend.routers.images import router as images_router
 from backend.routers.public_courses import router as public_courses_router
+from backend.routers.recommendations import router as recommendations_router
 from backend.routers.auth import router as auth_router
 from backend.routers.student import router as student_router
 from backend.routers.student_views import router as student_views_router
 from backend.routers.chat_ws import router as chat_ws_router
-from backend.routers.teacher_bindings import router as teacher_bindings_router
 from backend.routers.teacher_chat import router as teacher_chat_router
 from backend.routers.teacher_courses import router as teacher_courses_router
 from backend.routers.teacher_dashboard import router as teacher_dashboard_router
@@ -38,6 +38,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(public_courses_router)
+app.include_router(images_router)
+app.include_router(recommendations_router)
 app.include_router(admin_router)
 app.include_router(student_router)
 app.include_router(student_views_router)
@@ -48,13 +50,12 @@ for teacher_module in (
     teacher_dashboard_router,
     teacher_profile_router,
     teacher_students_router,
-    teacher_bindings_router,
+    teacher_chat_router,
     teacher_courses_router,
     teacher_inquiries_router,
     teacher_lessons_router,
     teacher_materials_router,
     teacher_practice_router,
-    teacher_chat_router,
     teacher_quizzes_router,
 ):
     app.include_router(teacher_module)
@@ -73,9 +74,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    """本機測試：若 .env 有管理員帳密就建立 admin 帳號。"""
-    # 只補老師端還沒有的表，不會改掉學生端已經用 Alembic 建好的表。
-    Base.metadata.create_all(bind=engine)
+    """本機測試：若 .env 有管理員帳密就建立 admin 帳號。資料表一律用 alembic upgrade head 建立。"""
     db = SessionLocal()
     try:
         seed_admin_if_needed(db)

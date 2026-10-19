@@ -1,4 +1,4 @@
-# score_test：演奏評分測試說明
+# backend/audio_scoring：演奏評分測試說明
 
 這個資料夾用來測試 `midi_test.py`：把「標準答案 MIDI」和「學生演奏音檔」比對，算出音高／節奏分數，再請 Gemini 寫文字回饋。
 
@@ -32,13 +32,13 @@
 
 ```bash
 pip install -r requirements.txt
-python score_test/midi_test.py
+python backend/audio_scoring/midi_test.py
 ```
 
 可改用其他檔案：
 
 ```bash
-python score_test/midi_test.py --midi score_test/midi_test_data/test1.mid --audio score_test/audio_test_data/test3.mp3
+python backend/audio_scoring/midi_test.py --midi backend/audio_scoring/midi_test_data/test1.mid --audio backend/audio_scoring/audio_test_data/test3.mp3
 ```
 
 若要產生 AI 回饋，在專案根目錄 `.env` 寫入 `GEMINI_API_KEY=你的key`。`.env` 不要提交到 Git。
@@ -409,8 +409,8 @@ JSON 長這樣（精簡示例）：
 
 ```json
 {
-  "standard_midi": "score_test/midi_test_data/test1.mid",
-  "student_audio": "score_test/audio_test_data/test3.mp3",
+  "standard_midi": "backend/audio_scoring/midi_test_data/test1.mid",
+  "student_audio": "backend/audio_scoring/audio_test_data/test3.mp3",
   "time_signature": "4/4",
   "tempo_bpm": 120.0,
   "pickup_supported": false,

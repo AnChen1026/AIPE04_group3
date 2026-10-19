@@ -5,7 +5,7 @@
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     CheckConstraint,
@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.models.base import Base
@@ -46,7 +46,18 @@ class Course(Base):
     time_slots: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 課程圖片，沒有上傳時前端用預設圖
+    image_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    @property
+    def has_reference_midi(self) -> bool:
+        return bool(self.reference_midi_path)
+
+    @property
+    def image_url(self) -> str | None:
+        return f"/api/images/courses/{self.id}" if self.image_path else None
 
 
 class InquiryConversation(Base):
@@ -83,7 +94,10 @@ class ConversationMessage(Base):
     sender_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     client_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    # 用送出當下的時間，同一個交易裡的多則訊息才排得出先後
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), server_default=func.now()
+    )
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -178,6 +192,8 @@ class PracticeRecording(Base):
     teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    # 送出當時這門課的參考 MIDI。老師之後換曲子，舊練習仍知道是跟哪一首比的
+    reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -205,3 +221,28 @@ class PracticeFeedback(Base):
     rhythm_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     feedback_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+
+
+class LessonPreparationSummary(Base):
+    """老師上課前看的練習整理：上一堂結束到這一堂開始前。和每一筆練習回饋分開保存。"""
+
+    __tablename__ = "lesson_preparation_summaries"
+    __table_args__ = (
+        UniqueConstraint("lesson_id", name="uq_lesson_preparation_summaries_lesson"),
+        CheckConstraint("written_by IN ('llm', 'rules')", name="ck_lesson_preparation_summaries_written_by"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lesson_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("lesson_sessions.id"), nullable=False)
+    course_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("courses.id"), nullable=False)
+    teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    window_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 來源錄音與狀態的雜湊；和現在算出來的不同，就代表摘要需要更新
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_recording_ids: Mapped[list] = mapped_column(JSONB, nullable=False)
+    stats: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    summary_text: Mapped[str] = mapped_column(Text, nullable=False)
+    written_by: Mapped[str] = mapped_column(String(16), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

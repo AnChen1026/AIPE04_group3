@@ -4,17 +4,20 @@ import uuid
 from datetime import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.uploads import resolve_stored_path
 from backend.dependencies.common import get_session_user
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
+from backend.services.practice import run_recording_analysis
 from backend.services.student import (
+    MAX_RECORDING_BYTES,
     StudentBusinessError,
     add_message,
     create_change_request,
@@ -201,6 +204,7 @@ def post_change_request(
 def post_recording(
     course_id: uuid.UUID,
     request: Request,
+    background_tasks: BackgroundTasks,
     audio: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
@@ -208,9 +212,12 @@ def post_recording(
     if isinstance(user, RedirectResponse):
         return user
     try:
-        save_recording(db, user, course_id, audio.filename or "audio.webm", audio.file.read())
+        recording = save_recording(
+            db, user, course_id, audio.filename or "audio.webm", audio.file.read(MAX_RECORDING_BYTES + 1)
+        )
     except StudentBusinessError as error:
         return RedirectResponse(f"/student?error={quote(error.detail)}", status_code=303)
+    background_tasks.add_task(run_recording_analysis, recording.id)
     return RedirectResponse("/student?success=" + quote("錄音已送出，練習回饋處理中。"), status_code=303)
 
 
@@ -224,4 +231,4 @@ def download_own_recording(recording_id: uuid.UUID, request: Request, db: Sessio
         return RedirectResponse("/student?error=" + quote("不能讀取這段錄音。"), status_code=303)
     if not StudentRepository.is_bound(db, user.id, recording.course_id):
         return RedirectResponse("/student?error=" + quote("解除綁定後不能聽這段錄音。"), status_code=303)
-    return FileResponse(recording.file_path)
+    return FileResponse(resolve_stored_path(recording.file_path))

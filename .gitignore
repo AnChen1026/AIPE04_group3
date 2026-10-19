@@ -28,8 +28,8 @@ venv/
 Thumbs.db
 
 # 評分測試執行後產生的中間檔，不需要上傳
-score_test/converted_midi/
-score_test/processed_audio/
+backend/audio_scoring/converted_midi/
+backend/audio_scoring/processed_audio/
 
 
 # uv 專屬快取

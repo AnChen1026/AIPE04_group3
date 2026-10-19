@@ -9,9 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.models.base import Base
 
-APPLICATION_STATUSES = ("pending", "approved", "rejected")
-
-
 class TeacherApplication(Base):
     """一位老師對應一筆註冊申請。"""
 
