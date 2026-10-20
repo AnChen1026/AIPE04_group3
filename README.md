@@ -134,3 +134,44 @@ pytest
 | 重要決定與原因 | `docs/adr/` |
 | 後端檔案分工 | `backend/README.md` |
 | 前端頁面與檔案 | `frontend/README.md` |
+
+
+
+
+# 🚀 AIPE04 Group3 專案開發環境指南
+
+本專案採用 **Monorepo 前後端分離架構**，使用 Docker 進行本地開發環境標準化。
+
+## 🛠️ 開發前置準備
+
+1. 請確保您的電腦已安裝並啟動 **Docker Desktop**。
+2. **設定環境變數**：
+   - 請複製根目錄下的 `.env.example` 並重新命名為 `.env`。
+   - 打開 `.env` 並填入您本機想設定的資料庫密碼。
+
+## 🎬 一鍵啟動
+
+在專案根目錄開啟終端機，執行以下指令：
+
+```bash
+docker-compose up --build
+```
+
+啟動成功後，即可透過瀏覽器造訪：
+* **前端網頁畫面 (Vue/Nginx)**: `http://localhost`
+* **後端 API 說明文件 (FastAPI)**: `http://localhost:8000/docs`
+
+## 💾 維運工具 (資料庫備份與還原)
+
+本專案提供了一鍵資料庫運維指令，請在根目錄執行：
+* **備份目前的資料庫**: `bash db-helper.sh backup`
+* **還原至最新一次備份**: `bash db-helper.sh restore`
+
+## 🗃️ 資料庫版本控制 (Alembic)
+
+當後端工程師修改了 `backend/models/` 底下的 SQLAlchemy 結構時，請執行以下步驟：
+1. **產生遷移腳本 (相當於 Git Commit)**:
+   ```bash
+   docker compose exec backend alembic revision --autogenerate -m "描述您的資料庫修改"
+   ```
+2. 重啟容器時，系統將會**自動執行** `alembic upgrade head` 將實體資料庫更新至最新狀態。

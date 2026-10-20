@@ -59,8 +59,9 @@ for teacher_module in (
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
+        "http://localhost",       # 這是 Docker 前端 Nginx 的網址
+        "http://127.0.0.1",
+        "http://localhost:5173",  # 本機 Vite 開發環境（可選）
     ],
     allow_credentials=True,
     allow_methods=["*"],
