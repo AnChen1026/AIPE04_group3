@@ -56,7 +56,7 @@ async function logout() {
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </button>
-        <RouterLink to="/" class="shell__brand">琴室</RouterLink>
+        <RouterLink to="/" class="shell__brand" aria-label="melo">melo.</RouterLink>
         <span class="shell__heading">{{ heading }}</span>
         <span class="shell__user">{{ auth.user?.name }}</span>
       </header>
@@ -115,10 +115,10 @@ async function logout() {
 
 .shell__brand {
   color: var(--home-ink);
-  font-family: var(--font-serif);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--font-logo);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
 }
 
 .shell__heading {

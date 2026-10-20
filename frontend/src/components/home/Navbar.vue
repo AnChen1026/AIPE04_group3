@@ -48,7 +48,7 @@ onUnmounted(() => {
 <template>
   <header class="navbar" :class="{ 'navbar--solid': solid }">
     <div class="navbar__inner">
-      <RouterLink to="/" class="navbar__brand">琴室</RouterLink>
+      <RouterLink to="/" class="navbar__brand" aria-label="melo">melo.</RouterLink>
 
       <nav class="navbar__links" aria-label="首頁區塊">
         <RouterLink :to="{ path: '/', hash: '#about' }">關於</RouterLink>
@@ -126,11 +126,12 @@ onUnmounted(() => {
 
 .navbar__brand {
   color: var(--home-ink);
-  font-family: var(--font-serif);
-  font-size: 26px;
-  font-weight: 600;
+  font-family: var(--font-logo);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
   transition: color 0.35s ease;
-  letter-spacing: 0.04em;
 }
 
 .navbar__actions {

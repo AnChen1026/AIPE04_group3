@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AuthCard from '@/components/auth/AuthCard.vue'
+import AuthField from '@/components/auth/AuthField.vue'
 import RolePicker from '@/components/auth/RolePicker.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import { registerStudent, registerTeacher } from '@/api/auth'
@@ -104,85 +105,72 @@ function finish() {
 </script>
 
 <template>
-  <AuthCard title="建立新帳號" :subtitle="fromContact ? '註冊完成後，會直接帶你到和老師的對話。' : undefined">
-    <form novalidate @submit.prevent="submit">
-      <p class="signup__label">註冊身分<span class="required">*</span></p>
-      <RolePicker v-model="role" student-label="學生" teacher-label="老師" :invalid="!!errors.role" />
-      <p v-if="errors.role" class="error-text">{{ errors.role }}</p>
+  <AuthCard
+    eyebrow="SIGN UP"
+    title="建立帳號"
+    :subtitle="fromContact ? '註冊完成後，會直接帶你到和老師的對話。' : '幾個步驟，就能開始找老師，或開設自己的鋼琴課。'"
+  >
+    <form class="auth-form" novalidate @submit.prevent="submit">
+      <div class="auth-field">
+        <p class="auth-field__label" id="signup-role-label">註冊身分<span class="auth-field__required" aria-hidden="true">*</span></p>
+        <RolePicker
+          v-model="role"
+          student-label="我是學生"
+          teacher-label="我是老師"
+          student-hint="找老師、上課與練習"
+          teacher-hint="開課與管理學生"
+          :invalid="!!errors.role"
+        />
+        <p v-if="errors.role" class="auth-field__error">{{ errors.role }}</p>
+      </div>
 
-      <div class="field">
-        <label class="field__label" for="signup-name">姓名<span class="required">*</span></label>
-        <input id="signup-name" v-model="form.name" class="input" autocomplete="name" placeholder="請輸入真實姓名" :aria-invalid="!!errors.name" />
-        <p v-if="errors.name" class="error-text">{{ errors.name }}</p>
-      </div>
-      <div class="field">
-        <label class="field__label" for="signup-email">電子郵件<span class="required">*</span></label>
-        <input id="signup-email" v-model="form.email" class="input" type="email" autocomplete="email" placeholder="example@email.com" :aria-invalid="!!errors.email" />
-        <p v-if="errors.email" class="error-text">{{ errors.email }}</p>
-      </div>
-      <div class="field">
-        <label class="field__label" for="signup-phone">手機號碼<span class="required">*</span></label>
-        <input id="signup-phone" v-model="form.phone_number" class="input" inputmode="tel" autocomplete="tel" placeholder="0912345678" :aria-invalid="!!errors.phone_number" />
-        <p v-if="errors.phone_number" class="error-text">{{ errors.phone_number }}</p>
-      </div>
-      <div class="signup__pair">
-        <div class="field">
-          <label class="field__label" for="signup-birthdate">生日<span class="required">*</span></label>
-          <input id="signup-birthdate" v-model="form.birthdate" class="input" type="date" :aria-invalid="!!errors.birthdate" />
-          <p v-if="errors.birthdate" class="error-text">{{ errors.birthdate }}</p>
-        </div>
-        <div class="field">
-          <label class="field__label" for="signup-sex">性別<span class="required">*</span></label>
-          <select id="signup-sex" v-model="form.sex" class="select" :aria-invalid="!!errors.sex">
+      <AuthField id="signup-name" v-model="form.name" label="姓名" autocomplete="name" placeholder="請輸入真實姓名" :maxlength="100" required :error="errors.name" />
+      <AuthField id="signup-email" v-model="form.email" label="電子郵件" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" required :error="errors.email" />
+      <AuthField id="signup-password" v-model="form.password" label="密碼" type="password" autocomplete="new-password" placeholder="至少 8 個字元" required :error="errors.password" />
+      <AuthField id="signup-confirm" v-model="form.password_confirm" label="確認密碼" type="password" autocomplete="new-password" placeholder="再輸入一次密碼" required :error="errors.password_confirm" />
+
+      <p class="auth-section-title">基本資料</p>
+      <AuthField id="signup-phone" v-model="form.phone_number" label="手機號碼" inputmode="tel" autocomplete="tel" placeholder="0912345678" required :error="errors.phone_number" />
+      <div class="auth-pair">
+        <AuthField id="signup-birthdate" label="生日" required :error="errors.birthdate">
+          <input id="signup-birthdate" v-model="form.birthdate" class="auth-input" type="date" :aria-invalid="!!errors.birthdate || undefined" />
+        </AuthField>
+        <AuthField id="signup-sex" label="性別" required :error="errors.sex">
+          <select id="signup-sex" v-model="form.sex" class="auth-input" required :aria-invalid="!!errors.sex || undefined">
             <option value="" disabled>請選擇</option>
             <option value="female">女</option>
             <option value="male">男</option>
           </select>
-          <p v-if="errors.sex" class="error-text">{{ errors.sex }}</p>
-        </div>
-      </div>
-      <div class="field">
-        <label class="field__label" for="signup-password">設定密碼<span class="required">*</span></label>
-        <input id="signup-password" v-model="form.password" class="input" type="password" autocomplete="new-password" placeholder="至少 8 個字元" :aria-invalid="!!errors.password" />
-        <p v-if="errors.password" class="error-text">{{ errors.password }}</p>
-      </div>
-      <div class="field">
-        <label class="field__label" for="signup-confirm">確認密碼<span class="required">*</span></label>
-        <input id="signup-confirm" v-model="form.password_confirm" class="input" type="password" autocomplete="new-password" placeholder="再次輸入密碼" :aria-invalid="!!errors.password_confirm" />
-        <p v-if="errors.password_confirm" class="error-text">{{ errors.password_confirm }}</p>
+        </AuthField>
       </div>
 
-      <template v-if="isTeacher">
-        <p class="signup__note">老師帳號要經過平台審核，通過後才能開課。</p>
-        <div class="field">
-          <label class="field__label" for="signup-subjects">教學科目<span class="required">*</span></label>
-          <input id="signup-subjects" v-model="form.teaching_subjects" class="input" :aria-invalid="!!errors.teaching_subjects" />
-          <p v-if="errors.teaching_subjects" class="error-text">{{ errors.teaching_subjects }}</p>
+      <Transition name="signup-teacher">
+        <div v-if="isTeacher" class="signup__teacher">
+          <p class="auth-section-title">教學資料</p>
+          <p class="auth-note">老師帳號送出後由平台審核，通過後就能開課。</p>
+          <AuthField id="signup-subjects" v-model="form.teaching_subjects" label="教學科目" :maxlength="200" required :error="errors.teaching_subjects" />
+          <AuthField id="signup-experience" label="教學經歷" required :error="errors.teaching_experience">
+            <textarea id="signup-experience" v-model="form.teaching_experience" class="auth-input" rows="2" placeholder="例如：教學 5 年，學生從兒童到成人" :aria-invalid="!!errors.teaching_experience || undefined"></textarea>
+          </AuthField>
+          <AuthField id="signup-bio" label="自我介紹" required :error="errors.bio">
+            <textarea id="signup-bio" v-model="form.bio" class="auth-input" rows="2" :aria-invalid="!!errors.bio || undefined"></textarea>
+          </AuthField>
+          <AuthField id="signup-proof" label="證明文件（選填）" hint="例如畢業證書或檢定證明，PDF、JPG、PNG。">
+            <input id="signup-proof" class="signup__file" type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onProof" />
+          </AuthField>
         </div>
-        <div class="field">
-          <label class="field__label" for="signup-experience">教學經歷<span class="required">*</span></label>
-          <textarea id="signup-experience" v-model="form.teaching_experience" class="textarea" placeholder="例如：教學 5 年，學生從兒童到成人" :aria-invalid="!!errors.teaching_experience"></textarea>
-          <p v-if="errors.teaching_experience" class="error-text">{{ errors.teaching_experience }}</p>
-        </div>
-        <div class="field">
-          <label class="field__label" for="signup-bio">自我介紹<span class="required">*</span></label>
-          <textarea id="signup-bio" v-model="form.bio" class="textarea" :aria-invalid="!!errors.bio"></textarea>
-          <p v-if="errors.bio" class="error-text">{{ errors.bio }}</p>
-        </div>
-        <div class="field">
-          <label class="field__label" for="signup-proof">證明文件（選填）</label>
-          <input id="signup-proof" type="file" accept=".pdf,.jpg,.jpeg,.png" @change="onProof" />
-          <span class="field__hint">例如畢業證書或檢定證明，PDF、JPG、PNG。</span>
-        </div>
-      </template>
+      </Transition>
 
-      <p class="signup__terms">建立帳號代表您同意服務條款及隱私權政策。</p>
-      <p v-if="serverError" class="error-text" role="alert">{{ serverError }}</p>
-      <button type="submit" class="btn btn--primary btn--block" :disabled="submitting">
+      <p v-if="serverError" class="auth-alert" role="alert">{{ serverError }}</p>
+
+      <button type="submit" class="auth-button" :disabled="submitting">
         {{ submitting ? '建立中…' : '建立帳號' }}
       </button>
-      <p class="signup__footer">
-        已有帳號？<RouterLink :to="{ name: 'login', query: { role: role ?? 'student', redirect: route.query.redirect } }">立即登入</RouterLink>
+      <p class="auth-note signup__terms">建立帳號代表你同意服務條款及隱私權政策。</p>
+
+      <p class="auth-switch">
+        已經有帳號？
+        <RouterLink :to="{ name: 'login', query: { role: role ?? 'student', redirect: route.query.redirect } }" class="auth-link">立即登入</RouterLink>
       </p>
     </form>
 
@@ -198,52 +186,50 @@ function finish() {
 </template>
 
 <style scoped>
-.signup__label {
-  margin: 20px 0 0;
-  font-size: 14px;
+.signup__teacher {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-.required {
-  color: #b5553c;
-}
-
-form .field {
-  margin-top: 14px;
-}
-
-.signup__pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.signup__note {
-  margin: 18px 0 0;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--home-cream);
-  color: var(--home-accent-dark);
+.signup__file {
+  width: 100%;
+  padding: 10px 0;
+  color: var(--home-muted);
   font-size: 13px;
+}
+
+.signup__file::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 14px;
+  border: 1px solid var(--home-wood);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--home-ink);
+  font: inherit;
+  cursor: pointer;
 }
 
 .signup__terms {
-  margin: 18px 0 10px;
-  color: var(--home-muted);
-  font-size: 12px;
-}
-
-.signup__footer {
-  margin: 16px 0 0;
-  color: var(--home-muted);
-  font-size: 13px;
+  margin-top: -6px;
   text-align: center;
 }
 
-.signup__footer a {
-  color: var(--home-accent);
+.signup-teacher-enter-active,
+.signup-teacher-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
-.btn--block {
-  margin-top: 8px;
+.signup-teacher-enter-from,
+.signup-teacher-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signup-teacher-enter-active,
+  .signup-teacher-leave-active {
+    transition: none;
+  }
 }
 </style>

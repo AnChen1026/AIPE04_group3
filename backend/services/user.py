@@ -6,11 +6,15 @@ from backend.core.security import hash_password, verify_password
 from backend.models.user import User
 from backend.repositories.user import add_user, get_user_by_email
 from backend.repositories.teacher_application import get_application_by_user_id
-from backend.schemas.user import UserRegister, UserResponse, UserUpdate
+from backend.schemas.user import PasswordChange, UserRegister, UserResponse, UserUpdate
 
 
 class EmailAlreadyRegisteredError(ValueError):
     """Email 已經被其他帳號使用。"""
+
+
+class PasswordChangeError(ValueError):
+    """目前密碼不對，或新密碼和舊密碼一樣。"""
 
 
 def register_user(db: Session, register_data: UserRegister) -> User:
@@ -52,6 +56,14 @@ def update_user_profile(db: Session, user: User, profile_data: UserUpdate) -> Us
     user.birthdate = profile_data.birthdate
     user.sex = profile_data.sex
 
+    # 課程頁顯示的老師姓名來自 users.name；老師個人資料（teacher_profiles）的姓名一起更新，兩邊才不會不一樣
+    if user.role == "teacher":
+        from backend.models.teacher import TeacherDB
+
+        profile = db.query(TeacherDB).filter(TeacherDB.user_id == user.id).first()
+        if profile is not None:
+            profile.name = profile_data.name
+
     try:
         db.commit()
     except Exception:
@@ -60,6 +72,20 @@ def update_user_profile(db: Session, user: User, profile_data: UserUpdate) -> Us
 
     db.refresh(user)
     return user
+
+
+def change_password(db: Session, user: User, data: PasswordChange) -> None:
+    """修改自己的密碼。有密碼的帳號要先輸入目前密碼；只用 Google 註冊、還沒有密碼的帳號可以直接設定。"""
+    if user.password_hash is not None and not verify_password(data.current_password or "", user.password_hash):
+        raise PasswordChangeError("目前密碼不正確。")
+    if user.password_hash is not None and verify_password(data.new_password, user.password_hash):
+        raise PasswordChangeError("新密碼不能和目前密碼一樣。")
+    user.password_hash = hash_password(data.new_password)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
@@ -98,5 +124,6 @@ def build_user_response(db: Session, user: User) -> UserResponse:
         is_active=user.is_active,
         auth_provider=user.auth_provider,
         application_status=application_status,
+        has_password=user.password_hash is not None,
         created_at=user.created_at,
     )

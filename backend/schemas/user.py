@@ -58,6 +58,13 @@ class UserUpdate(BaseModel):
     sex: Literal["male", "female"]
 
 
+class PasswordChange(BaseModel):
+    """修改密碼。只用 Google 註冊、還沒有密碼的帳號不用填目前密碼。"""
+
+    current_password: str | None = None
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class UserResponse(BaseModel):
     """可以安全回傳給前端的使用者資料。"""
 
@@ -73,6 +80,8 @@ class UserResponse(BaseModel):
     is_active: bool
     auth_provider: str
     application_status: str | None = None
+    has_password: bool = True
+    """只用 Google 註冊、還沒設定密碼時為 False，修改密碼頁就不用填目前密碼。"""
     created_at: datetime
 
 
@@ -106,3 +115,4 @@ class GoogleUrlResponse(BaseModel):
     """前端拿到這個網址後，導向 Google。"""
 
     url: str
+

@@ -37,7 +37,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `/login`、`/signup` | 所有人 | 登入、學生註冊、老師註冊 |
 | `/forgot-password` | 所有人 | 忘記密碼的版面。後端還沒有重設密碼，送出只會說明目前不能寄信 |
 | `/courses/:id/contact` | 學生 | 從課程詳情「與老師接洽」。訪客先註冊，註冊後自動登入，建立對話並打開聊天 |
-| `/teacher/...` | 老師 | 總覽、工作室、個人資料、課表、學生、課程、作業、聊天 |
+| `/teacher/...` | 老師 | 總覽、工作室、課表、學生、課程、作業、聊天、設定（個人資料、基本資料、修改密碼；舊的 `/teacher/profile` 會導到設定） |
 | `/student/...` | 學生 | 我的課程、聊天、課表、練習、基本資料 |
 | `/admin/...` | 管理員 | 總覽、老師申請審核、老師名單、學生名單 |
 | `/search`、`/courses/:id` | 所有人 | 還沒做，顯示開發中 |
@@ -99,11 +99,15 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/student/StudentChatRoomView.vue` | 學生聊天室。 |
 | `src/views/student/StudentScheduleView.vue` | 學生課表與調課申請。 |
 | `src/views/student/StudentPracticeView.vue` | 學生練習錄音。 |
-| `src/views/student/StudentProfileView.vue` | 學生基本資料。 |
+| `src/views/student/StudentProfileView.vue` | 學生基本資料（用 `AccountProfileForm`）。 |
 | `src/views/teacher/TeacherDashboardView.vue` | 老師資訊總覽。 |
 | `src/views/teacher/TeacherStudioView.vue` | 工作室管理。 |
-| `src/views/teacher/TeacherProfileView.vue` | 老師個人資料。 |
-| `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料。 |
+| `src/views/teacher/TeacherSettingsView.vue` | 老師設定的外框：個人資料／基本資料／修改密碼三個分頁。 |
+| `src/views/teacher/TeacherProfileView.vue` | 設定 → 個人資料：學生看到的老師介紹。 |
+| `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料。姓名唯讀，在基本資料修改。 |
+| `src/views/teacher/TeacherAccountView.vue` | 設定 → 基本資料：姓名、性別、手機、生日（Email 不能改）。 |
+| `src/views/teacher/TeacherPasswordView.vue` | 設定 → 修改密碼。只用 Google 註冊的帳號不用輸入目前密碼。 |
+| `src/components/console/AccountProfileForm.vue` | 學生與老師共用的基本資料表單。 |
 | `src/views/teacher/TeacherScheduleView.vue` | 老師課表。 |
 | `src/views/teacher/TeacherStudentsView.vue` | 已綁定的學生。 |
 | `src/views/teacher/TeacherCoursesView.vue` | 老師的課程列表。 |

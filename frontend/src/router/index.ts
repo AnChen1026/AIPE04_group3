@@ -55,8 +55,21 @@ const router = createRouter({
       children: [
         { path: '', name: 'teacher-home', component: () => import('@/views/teacher/TeacherDashboardView.vue'), meta: { title: '資訊總覽' } },
         { path: 'studio', name: 'teacher-studio', component: () => import('@/views/teacher/TeacherStudioView.vue'), meta: { title: '工作室管理' } },
-        { path: 'profile', name: 'teacher-profile', component: () => import('@/views/teacher/TeacherProfileView.vue'), meta: { title: '個人資料' } },
-        { path: 'profile/edit', name: 'teacher-profile-edit', component: () => import('@/views/teacher/TeacherProfileEditView.vue'), meta: { title: '個人資料維護' } },
+        {
+          // 設定：個人資料、基本資料、修改密碼
+          path: 'settings',
+          component: () => import('@/views/teacher/TeacherSettingsView.vue'),
+          children: [
+            { path: '', name: 'teacher-settings', redirect: '/teacher/settings/profile' },
+            { path: 'profile', name: 'teacher-profile', component: () => import('@/views/teacher/TeacherProfileView.vue'), meta: { title: '個人資料' } },
+            { path: 'profile/edit', name: 'teacher-profile-edit', component: () => import('@/views/teacher/TeacherProfileEditView.vue'), meta: { title: '個人資料維護' } },
+            { path: 'account', name: 'teacher-account', component: () => import('@/views/teacher/TeacherAccountView.vue'), meta: { title: '基本資料' } },
+            { path: 'password', name: 'teacher-password', component: () => import('@/views/teacher/TeacherPasswordView.vue'), meta: { title: '修改密碼' } },
+          ],
+        },
+        // 舊網址導到設定裡的新位置
+        { path: 'profile', redirect: '/teacher/settings/profile' },
+        { path: 'profile/edit', redirect: '/teacher/settings/profile/edit' },
         { path: 'schedule', name: 'teacher-schedule', component: () => import('@/views/teacher/TeacherScheduleView.vue'), meta: { title: '課表' } },
         { path: 'students', name: 'teacher-students', component: () => import('@/views/teacher/TeacherStudentsView.vue'), meta: { title: '學生管理' } },
         { path: 'courses', name: 'teacher-courses', component: () => import('@/views/teacher/TeacherCoursesView.vue'), meta: { title: '課程管理' } },
@@ -119,7 +132,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title}｜琴室` : '琴室｜一對一鋼琴課'
+  document.title = to.meta.title ? `${to.meta.title}｜melo` : 'melo｜一對一鋼琴課'
 })
 
 export default router
