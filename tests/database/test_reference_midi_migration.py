@@ -125,7 +125,8 @@ def test_fresh_database_upgrades_to_single_head(migration_database):
 
     config, engine = migration_database
     command.upgrade(config, "head")
-    assert ScriptDirectory.from_config(config).get_heads() == [REFERENCE_MIDI_REVISION]
+    heads = ScriptDirectory.from_config(config).get_heads()
+    assert len(heads) == 1
     tables = set(inspect(engine).get_table_names())
     assert set(Base.metadata.tables) <= tables
     assert "lesson_preparation_summaries" in tables
@@ -133,5 +134,5 @@ def test_fresh_database_upgrades_to_single_head(migration_database):
     with engine.connect() as connection:
         assert connection.exec_driver_sql(
             "SELECT version_num FROM alembic_version"
-        ).scalar_one() == REFERENCE_MIDI_REVISION
+        ).scalar_one() == heads[0]
     command.upgrade(config, "head")  # 重跑不應重複建立資料表或 metadata。
