@@ -98,6 +98,19 @@ pytest
 
 測試會連到 `.env` 的資料庫，但每個測試結束後整個回滾，不會留下資料。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、課程編輯與參考 MIDI、老師照片與課程圖片、Vue 用的對話與課務 API、練習錄音的評分狀態、課前摘要，以及 Google 驗證導回 Vue。測試不跑真正的音訊辨識，所以跑得很快；真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
 
+## 資料庫開發基準
+
+本次資料庫整合的唯一 Alembic head 是 `010_reference_midis`，包含參考 MIDI metadata 與既有路徑回填。首次建置與拉取新 migration 後都執行 `alembic upgrade head`；不要用 `create_all()`、手動建表或修改已共享的 migration。
+
+其他功能新增表時，先同步 main 並執行 `alembic heads`，新 revision 的 `down_revision` 接在當時唯一 head 後面。首頁推薦的 `011_recommendations` 在另一功能分支，合併後以實際 head 為準；已有 011 的分支不要再產生另一條 011。
+
+- 課程共用 `courses`；課前摘要共用 `lesson_preparation_summaries`。
+- MIDI 上傳由課程 service 同時更新 `courses.reference_midi_path` 與 `reference_midis`；現有下載與評分仍讀舊欄位。
+- `learning_materials` 與 `quizzes` 仍是原型，正式 AI 測驗需另建 migration。
+- 資料字典見 [database/data-dictionary](docs/database/data-dictionary.md)，升級、備份及回滾見 [migration runbook](docs/database/migration-runbook.md)。
+
+完整資料庫驗收必須設定 `TEST_DATABASE_URL`，否則 migration 測試會略過。只使用可清除、名稱以 `_test` 結尾的獨立 PostgreSQL；操作步驟見 runbook。GitHub Actions 的 `Database and backend` 工作流程會在 PostgreSQL 16 上執行空庫升級、migration 測試及完整後端測試。
+
 ## 協作
 
 - 不要直接在 `main` 寫功能。
