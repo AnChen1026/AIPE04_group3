@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Issue #18 正式課程與學習資料 ERD",
+    "locale": "zh-TW",
+    "output": ".archify/erd-database-foundation-20261015-155228/database-foundation.html",
+    "quality_profile": "standard",
+    "repository": {
+      "url": "https://github.com/AnChen1026/AIPE04_group3.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "80d5aff287353e2950182f3133534ca9af8f5f4d"
+    },
+    "views": [
+      {
+        "id": "course_midi",
+        "label": "課程與參考 MIDI",
+        "focus": ["users", "courses", "reference_midis"],
+        "note": "007 保留舊路徑並新增一對一 metadata 表。"
+      },
+      {
+        "id": "lesson_summary",
+        "label": "正式課堂與課前摘要",
+        "focus": ["courses", "lesson_sessions", "lesson_summaries"],
+        "note": "每堂即將上課的正式課堂最多一份課前摘要。"
+      },
+      {
+        "id": "practice_data",
+        "label": "練習資料",
+        "focus": ["courses", "practice_recordings", "practice_feedbacks"],
+        "note": "單次錄音回饋與課前摘要分開保存。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapX": 90,
+    "gapY": 48,
+    "entityW": 318,
+    "rowH": 18
+  },
+  "entities": [
+    {
+      "id": "users",
+      "label": "users",
+      "sublabel": "老師、學生與管理者帳號",
+      "tag": "帳號",
+      "row": 0,
+      "col": 0,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "email", "type": "varchar(255) NOT NULL", "key": "uk"},
+        {"name": "password_hash", "type": "varchar(255) NULL"},
+        {"name": "auth_provider", "type": "varchar(32) NOT NULL"},
+        {"name": "name", "type": "varchar(100) NOT NULL"},
+        {"name": "phone_number", "type": "varchar(50) NULL"},
+        {"name": "birthdate", "type": "date NULL"},
+        {"name": "sex", "type": "varchar(32) NULL"},
+        {"name": "role", "type": "varchar(32) NOT NULL"},
+        {"name": "is_active", "type": "boolean NOT NULL"},
+        {"name": "created_at", "type": "timestamptz NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/user.py", "line": 18, "end_line": 56, "label": "User model"}
+      ]
+    },
+    {
+      "id": "courses",
+      "label": "courses",
+      "sublabel": "正式鋼琴課程",
+      "tag": "課程",
+      "row": 0,
+      "col": 1,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "title", "type": "varchar(200) NOT NULL"},
+        {"name": "level", "type": "varchar(32) NULL"},
+        {"name": "style", "type": "varchar(100) NULL"},
+        {"name": "delivery_mode", "type": "varchar(32) NULL"},
+        {"name": "region", "type": "varchar(100) NULL"},
+        {"name": "price_per_lesson", "type": "integer NULL"},
+        {"name": "time_slots", "type": "varchar(200) NULL"},
+        {"name": "status", "type": "varchar(32) NOT NULL"},
+        {"name": "reference_midi_path", "type": "varchar(500) NULL"},
+        {"name": "created_at", "type": "timestamptz NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 29, "end_line": 51, "label": "Course model"},
+        {"path": "alembic/versions/004_student_learning.py", "line": 20, "end_line": 36, "label": "004 table"}
+      ]
+    },
+    {
+      "id": "reference_midis",
+      "label": "reference_midis",
+      "sublabel": "參考 MIDI metadata",
+      "tag": "課程",
+      "row": 1,
+      "col": 1,
+      "width": 327,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "course_id", "type": "uuid NOT NULL", "key": ["fk", "uk"], "references": "courses.id"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "storage_key", "type": "varchar(500) NOT NULL"},
+        {"name": "original_filename", "type": "varchar(255) NOT NULL"},
+        {"name": "content_sha256", "type": "varchar(64) NULL"},
+        {"name": "file_size_bytes", "type": "bigint NULL"},
+        {"name": "created_at", "type": "timestamptz NOT NULL"},
+        {"name": "updated_at", "type": "timestamptz NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 54, "end_line": 96, "label": "ReferenceMidi model"},
+        {"path": "alembic/versions/007_database_foundation.py", "line": 24, "end_line": 67, "label": "007 table"}
+      ]
+    },
+    {
+      "id": "course_bindings",
+      "label": "course_bindings",
+      "sublabel": "學生的上課資格",
+      "tag": "課程",
+      "row": 2,
+      "col": 1,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "student_id", "type": "uuid NOT NULL", "key": ["fk", "uk"], "references": "users.id"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "course_id", "type": "uuid NOT NULL", "key": ["fk", "uk"], "references": "courses.id"},
+        {"name": "status", "type": "varchar(32) NOT NULL"},
+        {"name": "bound_at", "type": "timestamptz NOT NULL"},
+        {"name": "unbound_at", "type": "timestamptz NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 137, "end_line": 152, "label": "CourseBinding model"},
+        {"path": "alembic/versions/004_student_learning.py", "line": 55, "end_line": 66, "label": "004 table"}
+      ]
+    },
+    {
+      "id": "lesson_sessions",
+      "label": "lesson_sessions",
+      "sublabel": "已排定的正式課堂",
+      "tag": "學習",
+      "row": 0,
+      "col": 2,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "course_id", "type": "uuid NOT NULL", "key": "fk", "references": "courses.id"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "student_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "starts_at", "type": "timestamptz NOT NULL"},
+        {"name": "ends_at", "type": "timestamptz NOT NULL"},
+        {"name": "status", "type": "varchar(32) NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 172, "end_line": 187, "label": "LessonSession model"},
+        {"path": "alembic/versions/004_student_learning.py", "line": 79, "end_line": 90, "label": "004 table"}
+      ]
+    },
+    {
+      "id": "lesson_summaries",
+      "label": "lesson_summaries",
+      "sublabel": "即將上課的課前摘要",
+      "tag": "學習",
+      "row": 1,
+      "col": 2,
+      "width": 328,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "lesson_session_id", "type": "uuid NOT NULL", "key": ["fk", "uk"], "references": "lesson_sessions.id"},
+        {"name": "previous_lesson_session_id", "type": "uuid NULL", "key": "fk", "references": "lesson_sessions.id"},
+        {"name": "course_id", "type": "uuid NOT NULL", "key": "fk", "references": "courses.id"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "student_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "window_started_at", "type": "timestamptz NULL"},
+        {"name": "window_ended_at", "type": "timestamptz NOT NULL"},
+        {"name": "source_recording_count", "type": "integer NOT NULL"},
+        {"name": "summary_text", "type": "text NULL"},
+        {"name": "status", "type": "varchar(32) NOT NULL"},
+        {"name": "generated_at", "type": "timestamptz NULL"},
+        {"name": "created_at", "type": "timestamptz NOT NULL"},
+        {"name": "updated_at", "type": "timestamptz NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 190, "end_line": 283, "label": "LessonSummary model"},
+        {"path": "alembic/versions/007_database_foundation.py", "line": 69, "end_line": 151, "label": "007 table"}
+      ]
+    },
+    {
+      "id": "practice_recordings",
+      "label": "practice_recordings",
+      "sublabel": "學生每次練習錄音",
+      "tag": "學習",
+      "row": 2,
+      "col": 2,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "course_id", "type": "uuid NOT NULL", "key": "fk", "references": "courses.id"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "student_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "file_path", "type": "varchar(500) NOT NULL"},
+        {"name": "duration_seconds", "type": "double precision NULL"},
+        {"name": "status", "type": "varchar(32) NOT NULL"},
+        {"name": "submitted_at", "type": "timestamptz NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 308, "end_line": 326, "label": "PracticeRecording model"},
+        {"path": "alembic/versions/004_student_learning.py", "line": 107, "end_line": 118, "label": "004 table"}
+      ]
+    },
+    {
+      "id": "practice_feedbacks",
+      "label": "practice_feedbacks",
+      "sublabel": "單次錄音分析結果",
+      "tag": "學習",
+      "row": 3,
+      "col": 2,
+      "attributes": [
+        {"name": "id", "type": "uuid NOT NULL", "key": "pk"},
+        {"name": "recording_id", "type": "uuid NOT NULL", "key": ["fk", "uk"], "references": "practice_recordings.id"},
+        {"name": "course_id", "type": "uuid NOT NULL", "key": "fk", "references": "courses.id"},
+        {"name": "teacher_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "student_id", "type": "uuid NOT NULL", "key": "fk", "references": "users.id"},
+        {"name": "pitch_score", "type": "double precision NULL"},
+        {"name": "rhythm_score", "type": "double precision NULL"},
+        {"name": "feedback_text", "type": "text NULL"},
+        {"name": "status", "type": "varchar(32) NOT NULL"}
+      ],
+      "sources": [
+        {"path": "backend/models/student.py", "line": 329, "end_line": 350, "label": "PracticeFeedback model"},
+        {"path": "alembic/versions/004_student_learning.py", "line": 119, "end_line": 132, "label": "004 table"}
+      ]
+    }
+  ],
+  "relationships": [
+    {"id": "courses_teacher", "from": "courses", "to": "users", "label": "由老師建立", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "reference_course", "from": "reference_midis", "to": "courses", "label": "一門課最多一份", "fromCardinality": "one", "fromOptional": true, "toCardinality": "one"},
+    {"id": "reference_teacher", "from": "reference_midis", "to": "users", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "binding_course", "from": "course_bindings", "to": "courses", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "binding_student", "from": "course_bindings", "to": "users", "label": "學生與老師歸屬", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "session_course", "from": "lesson_sessions", "to": "courses", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "session_people", "from": "lesson_sessions", "to": "users", "label": "老師與學生", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "summary_session", "from": "lesson_summaries", "to": "lesson_sessions", "label": "本堂課", "fromCardinality": "one", "fromOptional": true, "toCardinality": "one"},
+    {"id": "summary_previous", "from": "lesson_summaries", "to": "lesson_sessions", "label": "前一堂可空", "fromCardinality": "many", "toCardinality": "one", "toOptional": true, "identifying": false, "variant": "dashed"},
+    {"id": "summary_course", "from": "lesson_summaries", "to": "courses", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "summary_people", "from": "lesson_summaries", "to": "users", "label": "老師與學生", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "recording_course", "from": "practice_recordings", "to": "courses", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "recording_people", "from": "practice_recordings", "to": "users", "label": "老師與學生", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "feedback_recording", "from": "practice_feedbacks", "to": "practice_recordings", "label": "每筆錄音最多一份", "fromCardinality": "one", "fromOptional": true, "toCardinality": "one"},
+    {"id": "feedback_course", "from": "practice_feedbacks", "to": "courses", "fromCardinality": "many", "toCardinality": "one"},
+    {"id": "feedback_people", "from": "practice_feedbacks", "to": "users", "label": "老師與學生", "fromCardinality": "many", "toCardinality": "one"}
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "007 的 expand-contract",
+      "items": [
+        "reference_midis 保存正式 metadata，courses.reference_midi_path 暫時保留供舊程式使用。",
+        "每門課最多一份參考 MIDI；刪除課程會連動刪除該 metadata。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "課前摘要與錄音回饋",
+      "items": [
+        "lesson_summaries 服務即將上課的一堂課；practice_feedbacks 只描述單次錄音。",
+        "第一堂課允許 window_started_at 與 previous_lesson_session_id 為空。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "圖表範圍",
+      "items": [
+        "聚焦 Issue #18 的正式帳號、課程、綁定、課堂、練習、參考 MIDI 與課前摘要。",
+        "接洽訊息、課務申請、綁定碼及舊老師端原型表未畫入此圖。"
+      ]
+    }
+  ]
+}

@@ -47,3 +47,10 @@ db-backups/
 #  阻止前端本地產生的巨大套件與打包成品（避免污染專案）
 frontend/node_modules/
 frontend/dist/
+# 前端測試報告與 TypeScript 建置快取
+frontend/test-results/
+frontend/playwright-report/
+frontend/*.tsbuildinfo
+
+# 本機介面設計工具資料
+.impeccable/
