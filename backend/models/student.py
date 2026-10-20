@@ -95,6 +95,74 @@ class ReferenceMidi(Base):
     )
 
 
+class RecommendationSession(Base):
+    """訪客在首頁找課時的一段對談與已確認條件。"""
+
+    __tablename__ = "recommendation_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "question_count >= 0 AND question_count <= 2",
+            name="ck_recommendation_sessions_question_count",
+        ),
+        CheckConstraint(
+            "status IN ('asking', 'done', 'unsupported')",
+            name="ck_recommendation_sessions_status",
+        ),
+        Index("ix_recommendation_sessions_owner_hash", "owner_hash"),
+        Index("ix_recommendation_sessions_expires_at", "expires_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    messages: Mapped[list[dict[str, str]]] = mapped_column(JSONB, nullable=False, default=list)
+    criteria: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
+    asked_fields: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="asking")
+    question: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RecommendationItem(Base):
+    """一次推薦的單筆結果；course_id 保證它來自正式課程資料。"""
+
+    __tablename__ = "recommendation_items"
+    __table_args__ = (
+        UniqueConstraint("session_id", "course_id", name="uq_recommendation_items_session_course"),
+        UniqueConstraint("session_id", "position", name="uq_recommendation_items_session_position"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "recommendation_sessions.id",
+            ondelete="CASCADE",
+            name="fk_recommendation_items_session_id_recommendation_sessions",
+        ),
+        nullable=False,
+    )
+    course_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "courses.id",
+            ondelete="CASCADE",
+            name="fk_recommendation_items_course_id_courses",
+        ),
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    matched: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    unknown: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class InquiryConversation(Base):
     """一位學生和一門已發布課程的接洽對話。綁定前後是同一段。"""
 

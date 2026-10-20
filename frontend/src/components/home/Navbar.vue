@@ -3,6 +3,8 @@ import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
+defineOptions({ name: 'HomeNavbar' })
+
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()

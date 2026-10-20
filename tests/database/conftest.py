@@ -45,7 +45,8 @@ def migration_database(
     try:
         yield config, engine
     finally:
-        # 降版測試結束後恢復 head，讓同一輪後續 API 測試仍能使用完整 schema。
+        # Migration 測試會刻意升降版本；離開時恢復最新版，避免同一輪 pytest
+        # 後面的 API 測試接到殘缺資料表。
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
             connection.exec_driver_sql("DROP SCHEMA public CASCADE")
             connection.exec_driver_sql("CREATE SCHEMA public")

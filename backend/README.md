@@ -50,7 +50,7 @@ API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/heal
 | `admin.py` | `/api/admin/...` | 審核老師申請、下載證明文件、老師與學生名單 |
 | `public_courses.py` | `/api/courses` | 訪客讀已發布課程，不用登入 |
 | `images.py` | `/api/images/...` | 已發布課程圖片與已核准老師照片，其他一律 404 |
-| `recommendations.py` | `/api/recommendations` | 首頁推薦端口，目前回 501，由負責首頁推薦的組員實作 |
+| `recommendations.py` | `/api/recommendations` | 正式首頁推薦：最多追問兩題，只回傳已發布課程 |
 | `student.py` | `/api/student/...` | 學生：接洽對話、綁定碼、課表、課務申請、練習錄音與回饋 |
 | `chat_ws.py` | `/ws/conversations/{id}`（WebSocket） | 接洽對話即時訊息。先寫資料庫，再推給在線的人 |
 | `teacher_profile.py` | `/teacher/me`、`/teacher/profile`、`/teacher/photo` | 老師個人資料與照片 |

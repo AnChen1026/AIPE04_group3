@@ -19,7 +19,7 @@ alembic history --verbose
 本資料庫整合分支的預期 head（不包含另一功能分支的首頁推薦 011）：
 
 ```text
-010_reference_midis (head)
+011_recommendations (head)
 ```
 
 首頁推薦 `011_recommendations` 合併後，以 `alembic heads` 的實際唯一 head 為準。
@@ -38,7 +38,7 @@ alembic upgrade head
 
 ## 可重現的隔離驗收
 
-先安裝 `requirements.txt`。下面使用獨立、無持久化 volume 的 PostgreSQL 16 容器，不使用開發資料庫：
+先安裝 `backend/requirements.txt`。下面使用獨立、無持久化 volume 的 PostgreSQL 16 容器，不使用開發資料庫：
 
 ```bash
 docker run -d --name aipe04-db-test \
@@ -80,7 +80,7 @@ pytest tests/database -q
 
 測試會清除測試資料庫的 `public` schema。不得把正式、開發共用或含重要資料的 URL 放進 `TEST_DATABASE_URL`；fixture 會拒絕非 PostgreSQL 及名稱不是 `_test` 的資料庫。Migration 測試不建立 API 背景評分交易，並在結束時清空測試 schema、升回 head，避免降版測試影響同一輪後續 API 測試。
 
-## 010 上線前檢查
+## 010 參考 MIDI 上線前檢查
 
 檢查需要回填的課程數：
 

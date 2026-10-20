@@ -10,8 +10,8 @@ AIPE04 Group 3 的專題。老師和學生在同一個網站完成找課、上�
 - 已有老師課程、學生、課表、教材、作業、聊天與測驗等 API 與 Vue 後台。
 - 學生送出練習錄音後，後端會在背景用 `backend/audio_scoring` 和該課的參考 MIDI 比對，產生音高、節奏與文字回饋；老師可以在自己的課程看到錄音與回饋。
 - 老師可以在每堂課前看課前摘要：整理這位學生從上一堂結束到這一堂開始前，在平台上的練習次數與分數變化。
-- 首頁推薦的 API 端口已保留在 `/api/recommendations`（格式見 `backend/routers/recommendations.py`），目前回 501，實作由負責首頁推薦的組員完成。
-- AI 測驗完整流程仍在開發。
+- 首頁右下角已有可操作的找課助理：最多追問兩題，只從資料庫的已發布鋼琴課程推薦，並可前往既有洽詢流程。
+- Vue 正式前端已接上主要找課、登入與課程管理流程；AI 測驗完整流程仍在開發。
 
 使用者介面都在 `frontend/`（Vue），後端只提供 API。後端使用 FastAPI、SQLAlchemy、Alembic 與 PostgreSQL，登入沿用 Session Cookie，不使用 JWT。
 
@@ -37,7 +37,7 @@ Windows PowerShell：
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 macOS／Linux：
@@ -45,7 +45,7 @@ macOS／Linux：
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 ### 2. 啟動 PostgreSQL
@@ -58,16 +58,19 @@ docker compose up -d postgres
 
 ### 3. 建立 `.env`
 
-在專案根目錄新增 `.env`。這個檔案不要 commit。
+把專案根目錄的 `.env.example` 複製成 `.env`。這個檔案不要 commit。
 
 ```text
 DATABASE_URL=postgresql+psycopg://aipe04:aipe04@localhost:5432/aipe04
+TEST_DATABASE_URL=postgresql+psycopg://aipe04:aipe04@localhost:5432/aipe04_test
 SESSION_SECRET_KEY=請換成一串自己產生的隨機文字
 ```
 
 本機要測管理員時，可再加 `ADMIN_EMAIL`、`ADMIN_PASSWORD`。要測 Google 登入時，再加 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`（本機設 `http://localhost:3000/backend/auth/google/callback`，驗證完會回到 Vue）。前端和後端不同網址時（例如部署），再加 `FRONTEND_URL`。沒有 Google 金鑰時，網站仍可用 Email 登入。
 
-### 4. 建立資料表並啟動後端
+首頁找課使用可重現的資料庫比對規則，不需要 Gemini 金鑰也能完整運作；老師必須先建立並發布課程，推薦結果才會出現。
+
+### 4. 建立資料表並啟動網站
 
 ```powershell
 alembic upgrade head
@@ -90,19 +93,19 @@ npm run dev
 
 ## 測試
 
-PostgreSQL 要先啟動，`.env` 要有 `DATABASE_URL`。在專案根目錄執行：
+PostgreSQL 要先啟動，`.env` 要有 `DATABASE_URL` 與名稱以 `_test` 結尾的 `TEST_DATABASE_URL`。第一次也要先在 `frontend` 執行 `npm install`。在專案根目錄執行：
 
 ```bash
-pytest
+python scripts/verify_merge.py
 ```
 
-測試會連到 `.env` 的資料庫，但每個測試結束後整個回滾，不會留下資料。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、課程編輯與參考 MIDI、老師照片與課程圖片、Vue 用的對話與課務 API、練習錄音的評分狀態、課前摘要，以及 Google 驗證導回 Vue。測試不跑真正的音訊辨識，所以跑得很快；真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
+驗證程式只允許使用名稱以 `_test` 結尾的獨立測試資料庫，會執行 Migration、後端測試、Model 差異檢查、Vue 程式檢查、型別檢查與正式版建置。目前涵蓋綁定碼、老師與學生的資料隔離、課務申請、公開課程範圍、首頁推薦、課程編輯與參考 MIDI、老師照片與課程圖片、Vue 用的對話與課務 API、練習錄音的評分狀態、課前摘要，以及 Google 驗證導回 Vue。測試不跑真正的音訊辨識，所以跑得很快；真正的音訊辨識用法見 `backend/audio_scoring/README.md`。
 
 ## 資料庫開發基準
 
-本次資料庫整合的唯一 Alembic head 是 `010_reference_midis`，包含參考 MIDI metadata 與既有路徑回填。首次建置與拉取新 migration 後都執行 `alembic upgrade head`；不要用 `create_all()`、手動建表或修改已共享的 migration。
+目前唯一的 Alembic head 是 `011_recommendations`（接在 `010_reference_midis` 之後，`010` 包含參考 MIDI metadata 與既有路徑回填）。首次建置與拉取新 migration 後都執行 `alembic upgrade head`；不要用 `create_all()`、手動建表或修改已共享的 migration。
 
-其他功能新增表時，先同步 main 並執行 `alembic heads`，新 revision 的 `down_revision` 接在當時唯一 head 後面。首頁推薦的 `011_recommendations` 在另一功能分支，合併後以實際 head 為準；已有 011 的分支不要再產生另一條 011。
+其他功能新增表時，先同步 main 並執行 `alembic heads`，新 revision 的 `down_revision` 接在當時唯一 head 後面，不要再產生另一條 011。
 
 - 課程共用 `courses`；課前摘要共用 `lesson_preparation_summaries`。
 - MIDI 上傳由課程 service 同時更新 `courses.reference_midi_path` 與 `reference_midis`；現有下載與評分仍讀舊欄位。
@@ -127,6 +130,7 @@ pytest
 | 功能規格 | `docs/SRS功能文件.md` |
 | 使用者怎麼操作 | `docs/User_Flow.md` |
 | 分支與 Pull Request | `docs/GitHub團隊協作說明.md` |
+| 專案架構、固定開發流程與自行驗證 | `docs/專案架構與開發驗證手冊.md` |
 | 專案用語 | `GLOSSARY.md` |
 | 老師端後端檔案位置 | `docs/教師端後端模組說明.md` |
 | 系統架構 | `docs/SAD系統架構設計.md` |
@@ -147,7 +151,7 @@ pytest
 1. 請確保您的電腦已安裝並啟動 **Docker Desktop**。
 2. **設定環境變數**：
    - 請複製根目錄下的 `.env.example` 並重新命名為 `.env`。
-   - 打開 `.env` 並填入您本機想設定的資料庫密碼。
+   - 用 Docker 啟動整套時，`.env` 的 `DATABASE_URL` 主機要改成 `postgres`（例如 `postgresql+psycopg://aipe04:aipe04@postgres:5432/aipe04`）；資料庫帳號密碼目前固定寫在 `docker-compose.yml`，都是 `aipe04`。
 
 ## 🎬 一鍵啟動
 
