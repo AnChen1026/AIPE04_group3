@@ -13,7 +13,12 @@ from backend.models.teacher_application import TeacherApplication  # noqa: F401
 from backend.models.auth_identity import AuthIdentity  # noqa: F401
 from backend.models.material import MaterialDB  # noqa: F401
 from backend.models.quiz import QuizDB  # noqa: F401
-from backend.models.student import Course, ReferenceMidi  # noqa: F401
+from backend.models.student import (  # noqa: F401
+    Course,
+    RecommendationItem,
+    RecommendationSession,
+    ReferenceMidi,
+)
 from backend.models.teacher import TeacherDB  # noqa: F401
 
 config = context.config

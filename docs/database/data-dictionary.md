@@ -24,9 +24,41 @@
   → 008 lesson preparation summaries
   → 009 images / optional teacher profile
   → 010 reference MIDI metadata
+  → 011 recommendation sessions / items
 ```
 
-目前只有一個 head：`010_reference_midis`。
+目前只有一個 head：`011_recommendations`。
+
+## `recommendation_sessions`
+
+一筆代表訪客在首頁的一次找課對談。它保存訪客已說的話、已確認條件、追問次數與目前狀態。瀏覽器 Cookie 中的隨機識別值會先做 SHA-256，資料庫只保存雜湊後的 `owner_hash`；同一段對談 24 小時後失效。
+
+| 欄位 | 可空 | 說明 |
+| --- | --- | --- |
+| `id` | 否 | UUID 主鍵，也是前端回答與讀取時使用的 session ID |
+| `owner_hash` | 否 | 瀏覽器擁有者識別值的 SHA-256 |
+| `messages` | 否 | 本次訪客與助理訊息的 JSON 陣列 |
+| `criteria` | 否 | 程度、曲風、方式、地區、預算與時段；未知保持 `null` |
+| `asked_fields` | 否 | 已經追問過的欄位，避免重複詢問 |
+| `question_count` | 否 | 已追問題數，資料庫限制為 0 到 2 |
+| `status` | 否 | `asking`、`done` 或 `unsupported` |
+| `question` | 是 | 目前等待訪客回答的題目 |
+| `result_message` | 否 | 畫面顯示的結果說明 |
+| `expires_at` | 否 | 對談失效時間 |
+
+## `recommendation_items`
+
+一筆代表某次首頁推薦中的一門課。`course_id` 必須指向正式 `courses`，所以系統不能保存虛構課程；同一次推薦中，同一門課及同一顯示順位都不能重複。讀取結果時仍會再次檢查課程為 `published`，老師後來封存的課程不再顯示。
+
+| 欄位 | 可空 | 說明 |
+| --- | --- | --- |
+| `id` | 否 | UUID 主鍵 |
+| `session_id` | 否 | 所屬找課對談；刪除對談時一併刪除 |
+| `course_id` | 否 | 正式課程外鍵；刪除課程時一併刪除 |
+| `position` | 否 | 在本次結果中的順序 |
+| `matched` | 否 | 實際符合的條件名稱 |
+| `unknown` | 否 | 課程未填且訪客也未指定的欄位名稱 |
+| `reason` | 否 | 只由實際命中欄位組成的推薦原因 |
 
 ## `courses` 與參考 MIDI
 
