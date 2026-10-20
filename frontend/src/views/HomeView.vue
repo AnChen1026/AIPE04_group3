@@ -10,7 +10,7 @@ import JoinCta from '@/components/home/JoinCta.vue'
 import Footer from '@/components/home/Footer.vue'
 import CourseDetailDialog from '@/components/home/CourseDetailDialog.vue'
 import { fetchPublishedCourses } from '@/api/courses'
-import type { CourseSummary } from '@/types/course'
+import { toCourseCard } from '@/utils/courseCard'
 import {
   aboutPhotos,
   faqs,
@@ -26,33 +26,6 @@ const notice = ref('')
 const courses = ref<CourseCardData[]>([])
 const courseStatus = ref('正在讀取已發布的課程…')
 const selectedCourse = ref<CourseCardData | null>(null)
-
-function deliveryLabel(mode: string | null): string {
-  if (mode === 'online' || mode === '線上') return '線上'
-  if (mode === 'in_person' || mode === '實體') return '實體'
-  return '未填'
-}
-
-function toCourseCard(course: CourseSummary): CourseCardData {
-  const summary =
-    course.description || [course.region, course.timeSlots].filter((item): item is string => Boolean(item)).join(' · ')
-  return {
-    id: course.id,
-    title: course.title,
-    category: course.style || '鋼琴課',
-    teacherName: course.teacherName || '未填老師',
-    cover: course.imageUrl,
-    level: course.level || '未填',
-    format: deliveryLabel(course.deliveryMode),
-    minutes: course.durationMinutes,
-    price: course.pricePerLesson,
-    summary,
-    region: course.region,
-    timeSlots: course.timeSlots,
-    description: course.description,
-    teacherPhoto: course.teacherPhotoUrl,
-  }
-}
 
 onMounted(async () => {
   try {

@@ -90,9 +90,9 @@ def test_解除綁定後教學功能關閉_對話保留_舊碼不能再用(make_
     assert bind(student_client, conversation_id, code).status_code == 200
     assert bind(student_client, other_conversation_id, other_code).status_code == 200
 
-    unbind = teacher_client.post(f"/teacher/learning/courses/{course.id}/students/{student.id}/unbind")
-    assert unbind.status_code == 303
-    assert "success" in unbind.headers["location"]
+    unbind = teacher_client.post(f"/teacher/courses/{course.id}/students/{student.id}/unbind")
+    assert unbind.status_code == 200
+    assert unbind.json()["status"] == "unbound"
 
     assert student_client.get(f"/api/student/courses/{course.id}/schedule").status_code == 403
     assert student_client.get(f"/api/student/conversations/{conversation_id}/messages").status_code == 200

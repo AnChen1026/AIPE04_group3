@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from app import app
+from backend.main import app
 from backend.models.student import Course
 from backend.services.recommendation import parse_criteria
 

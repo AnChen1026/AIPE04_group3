@@ -97,7 +97,7 @@ Plan
 
 以下檔案修改前須說明理由與影響：
 
-- `app.py`、正式 FastAPI Entry Point、Router 聚合入口。
+- `backend/main.py`、正式 FastAPI Entry Point、Router 聚合入口。
 - `requirements.txt`、`pyproject.toml`、lock file。
 - `package.json` 與 lock file。
 - `Dockerfile`、`docker-compose.yml`／`compose.yml`。

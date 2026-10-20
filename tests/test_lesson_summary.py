@@ -171,7 +171,7 @@ def test_解除綁定或課堂取消後不能看(setup, db):
 
     target.status = "scheduled"
     db.commit()
-    teacher_client.post(f"/teacher/learning/courses/{course.id}/students/{student.id}/unbind")
+    teacher_client.post(f"/teacher/courses/{course.id}/students/{student.id}/unbind")
     assert teacher_client.get(f"/teacher/lessons/{target.id}/summary").status_code == 403
 
 

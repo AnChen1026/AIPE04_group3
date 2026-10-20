@@ -7,6 +7,7 @@ import ImagePicker from '@/components/console/ImagePicker.vue'
 import { fetchTeacherProfile, saveTeacherProfile, uploadTeacherPhoto } from '@/api/teacher'
 import { apiUrl } from '@/api/http'
 import { useLeaveGuard } from '@/composables/useLeaveGuard'
+import { useAuthStore } from '@/stores/auth'
 import type { TeacherProfileInput } from '@/types/api'
 import defaultPhoto from '@/assets/images/女老師3.png'
 
@@ -17,6 +18,7 @@ const CITIES = [
 
 // 只有姓名、性別必填。授課方式、地區、時段等，每門課可以在「課程」裡各自設定。
 const router = useRouter()
+const auth = useAuthStore()
 const form = reactive({
   name: '',
   gender: '',
@@ -49,9 +51,10 @@ const textFields: { key: keyof typeof form; label: string; max: number; placehol
 ]
 
 onMounted(async () => {
-  const profile = await fetchTeacherProfile()
+  const [profile] = await Promise.all([fetchTeacherProfile(), auth.ensureLoaded()])
   Object.assign(form, {
-    name: profile.name,
+    // 姓名以帳號的基本資料為準（課程頁顯示的就是它），在「基本資料」修改
+    name: auth.user?.name ?? profile.name,
     gender: profile.gender === '未填寫' ? '' : profile.gender,
     age: profile.age ?? '',
     seniority: profile.seniority ?? '',
@@ -122,7 +125,7 @@ async function save() {
 
 <template>
   <PageHeader title="個人資料維護" description="只有姓名、性別必填。授課方式、地區、時段可以在每門課裡各自設定。">
-    <RouterLink to="/teacher/profile" class="btn btn--ghost">取消</RouterLink>
+    <RouterLink to="/teacher/settings/profile" class="btn btn--ghost">取消</RouterLink>
     <button type="button" class="btn btn--primary" :disabled="saving" @click="save">{{ saving ? '儲存中…' : '儲存' }}</button>
   </PageHeader>
 
@@ -131,12 +134,12 @@ async function save() {
 
     <div class="form-grid profile__grid">
       <div class="field">
-        <label class="field__label" for="tp-name">姓名<span class="required">*</span></label>
-        <input id="tp-name" v-model="form.name" class="input" maxlength="100" :aria-invalid="!!errors.name" />
-        <p v-if="errors.name" class="error-text">{{ errors.name }}</p>
+        <label class="field__label" for="tp-name">姓名</label>
+        <input id="tp-name" :value="form.name" class="input" readonly />
+        <span class="field__hint">姓名在 <RouterLink to="/teacher/settings/account" class="profile__link">基本資料</RouterLink> 修改，課程頁會一起更新。</span>
       </div>
       <div class="field">
-        <label class="field__label" for="tp-gender">性別<span class="required">*</span></label>
+        <label class="field__label" for="tp-gender">對學生顯示的性別<span class="required">*</span></label>
         <select id="tp-gender" v-model="form.gender" class="select" :aria-invalid="!!errors.gender">
           <option value="" disabled>請選擇</option>
           <option value="女">女</option>
@@ -181,7 +184,7 @@ async function save() {
     <p v-if="serverError" class="error-text" role="alert">{{ serverError }}</p>
   </form>
 
-  <NoticeDialog :open="saved" message="更新成功！" @confirm="router.push('/teacher/profile')" @cancel="saved = false" />
+  <NoticeDialog :open="saved" message="更新成功！" @confirm="router.push('/teacher/settings/profile')" @cancel="saved = false" />
   <NoticeDialog
     :open="guard.asking.value"
     message="資料還沒儲存"
@@ -195,6 +198,12 @@ async function save() {
 </template>
 
 <style scoped>
+.profile__link {
+  color: var(--home-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .required {
   color: #b5553c;
 }

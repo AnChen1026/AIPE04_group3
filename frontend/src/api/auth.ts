@@ -41,6 +41,20 @@ export function registerTeacher(input: TeacherRegisterInput, proof?: File | null
   return request<CurrentUser>('/api/auth/register/teacher', { method: 'POST', body: form })
 }
 
+export interface TeacherApplicationInput {
+  teaching_subjects: string
+  teaching_experience: string
+  bio: string
+}
+
+// Google 註冊的老師補送申請資料，可附證明文件
+export function submitTeacherApplication(input: TeacherApplicationInput, proof?: File | null): Promise<unknown> {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(input)) form.append(key, value)
+  if (proof) form.append('proof_file', proof)
+  return request('/api/auth/teacher-application', { method: 'POST', body: form })
+}
+
 export function fetchGoogleUrl(role: 'student' | 'teacher', intent: 'login' | 'register'): Promise<{ url: string }> {
   return request('/api/auth/google-url', { query: { role, intent } })
 }
@@ -55,4 +69,12 @@ export interface ProfileInput {
 // 學生、老師都能改自己的基本資料；Email 與角色不能在這裡改
 export function updateMe(input: ProfileInput): Promise<CurrentUser> {
   return request<CurrentUser>('/api/auth/me', { method: 'PATCH', body: { ...input } })
+}
+
+// 修改自己的密碼。新密碼至少 8 個字元；還沒有密碼的 Google 帳號不用填目前密碼
+export function changePassword(currentPassword: string | null, newPassword: string): Promise<{ message: string }> {
+  return request('/api/auth/me/password', {
+    method: 'POST',
+    body: { current_password: currentPassword, new_password: newPassword },
+  })
 }

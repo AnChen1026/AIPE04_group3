@@ -2,7 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vue'
+import TeacherApplicationForm from '@/components/console/TeacherApplicationForm.vue'
 import { fetchChangeRequests, fetchTeacherConversations } from '@/api/teacher'
+import { fetchCurrentUser } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -14,15 +16,20 @@ const pending = ref(0)
 const approved = computed(() => auth.user?.is_active === true)
 const status = computed(() => auth.user?.application_status)
 
+// 補填申請後重新讀一次登入資料，畫面換成「審核中」
+async function onApplied() {
+  auth.setUser(await fetchCurrentUser())
+}
+
 const items = computed<NavItem[]>(() => [
   { to: '/teacher', label: '資訊總覽', icon: 'overview', exact: true },
   { to: '/teacher/studio', label: '工作室管理', icon: 'studio' },
-  { to: '/teacher/profile', label: '個人資料', icon: 'profile' },
   { to: '/teacher/schedule', label: '課表', icon: 'schedule', badge: pending.value },
   { to: '/teacher/students', label: '學生', icon: 'students' },
   { to: '/teacher/courses', label: '課程', icon: 'courses' },
   { to: '/teacher/practice', label: '作業', icon: 'practice' },
   { to: '/teacher/chat', label: '聊天', icon: 'chat', badge: unread.value },
+  { to: '/teacher/settings', label: '設定', icon: 'settings' },
 ])
 
 // 換頁時更新選單上的未讀與待處理數字
@@ -39,6 +46,7 @@ watch(() => route.fullPath, refreshBadges, { immediate: true })
 <template>
   <ConsoleShell heading="教師管理後台" :items="items">
     <RouterView v-if="approved" />
+    <TeacherApplicationForm v-else-if="!status" @submitted="onApplied" />
     <div v-else class="card pending">
       <h1>{{ status === 'rejected' ? '老師申請沒有通過' : '老師申請審核中' }}</h1>
       <p v-if="status === 'rejected'">

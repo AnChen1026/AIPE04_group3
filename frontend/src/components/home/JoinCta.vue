@@ -8,11 +8,11 @@ import coverImage from '@/assets/images/封面大圖.png'
     <div v-reveal class="join__card">
       <img :src="coverImage" alt="" aria-hidden="true" loading="lazy" />
       <div class="join__copy">
-        <h2 id="join-title">今天就找一首<em>想彈的曲子</em>開始</h2>
-        <p>學生免費註冊；鋼琴老師可以申請開課，經平台審核後就能發布課程。</p>
+        <h2 id="join-title">從今天開始<br><em>讓生活多一點音樂</em></h2>
+        <p>學生免費註冊；老師可以申請開課，經平台審核後就能發布課程。</p>
         <div class="join__actions">
-          <ArrowButton to="/signup" variant="light">我要找課</ArrowButton>
-          <RouterLink to="/signup" class="join__link">我是老師，想開課 →</RouterLink>
+          <ArrowButton to="/signup" variant="light">尋找課程</ArrowButton>
+          <RouterLink to="/signup" class="join__link">我是老師，想要開課 →</RouterLink>
         </div>
       </div>
     </div>

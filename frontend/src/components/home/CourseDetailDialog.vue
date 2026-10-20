@@ -6,7 +6,7 @@ import type { CourseCardData } from '@/mocks/home'
 import { useAuthStore } from '@/stores/auth'
 import defaultTeacher from '@/assets/images/女老師3.png'
 
-// 首頁點課程卡後的課程詳情。「與老師接洽」：訪客先註冊，學生直接打開聊天。
+// 首頁點課程卡後的課程詳情。「與老師聯繫」：訪客先註冊，學生直接打開聊天。
 const props = defineProps<{ course: CourseCardData | null }>()
 const emit = defineEmits<{ close: [] }>()
 
@@ -14,7 +14,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const isTeacher = computed(() => auth.user?.role === 'teacher' || auth.user?.role === 'admin')
-const contactLabel = computed(() => (auth.user?.role === 'student' ? '與老師接洽' : '註冊並與老師接洽'))
+const contactLabel = computed(() => (auth.user?.role === 'student' ? '與老師聯繫' : '註冊並與老師聯繫'))
 
 function contact() {
   if (!props.course) return
@@ -58,13 +58,10 @@ function contact() {
           </div>
         </dl>
         <p v-if="course.description" class="detail__description">{{ course.description }}</p>
-        <p class="detail__hint">
-          按下「與老師接洽」會開啟和老師的對話。確定上課後，老師會給你一組綁定碼，輸入後就能開始上課。
-        </p>
       </div>
     </template>
     <template #footer>
-      <p v-if="isTeacher" class="detail__teacher-note">請用學生帳號與老師接洽。</p>
+      <p v-if="isTeacher" class="detail__teacher-note">請用學生帳號與老師聯繫。</p>
       <button type="button" class="btn btn--ghost" @click="emit('close')">再看看</button>
       <button type="button" class="btn btn--primary" :disabled="isTeacher" @click="contact">{{ contactLabel }}</button>
     </template>
@@ -131,16 +128,6 @@ function contact() {
   margin: 16px 0 0;
   line-height: 1.8;
   white-space: pre-wrap;
-}
-
-.detail__hint {
-  margin: 16px 0 0;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--home-cream);
-  color: var(--home-accent-dark);
-  font-size: 13px;
-  line-height: 1.7;
 }
 
 .detail__teacher-note {
