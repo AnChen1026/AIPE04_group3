@@ -18,7 +18,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# 放到 /app/backend，和掛載路徑相同。不要複製到 /app 根目錄，否則會有兩份程式。
+COPY . ./backend
 
 EXPOSE 8000
 

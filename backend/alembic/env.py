@@ -1,12 +1,13 @@
 # Alembic 啟動時讀取 DATABASE_URL，並使用現有 SQLAlchemy Model。
 # 不要在這裡寫死帳密。
 
-import os
 import sys
+from pathlib import Path
 
-# 直接強制加入 Docker 內的專案根目錄絕對路徑
-if "/app" not in sys.path:
-    sys.path.insert(0, "/app")
+# backend/alembic/env.py 的上一層再上一層，本機是專案根目錄，Docker 裡是 /app。
+project_root = str(Path(__file__).resolve().parents[2])
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
     
 from logging.config import fileConfig
 

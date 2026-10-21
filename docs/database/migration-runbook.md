@@ -11,9 +11,9 @@
 ## 日常檢查
 
 ```bash
-alembic current
-alembic heads
-alembic history --verbose
+alembic -c backend/alembic.ini current
+alembic -c backend/alembic.ini heads
+alembic -c backend/alembic.ini history --verbose
 ```
 
 本資料庫整合分支的預期 head（不包含另一功能分支的首頁推薦 011）：
@@ -31,7 +31,7 @@ alembic history --verbose
 `.env` 設定本機 PostgreSQL 後執行：
 
 ```bash
-alembic upgrade head
+alembic -c backend/alembic.ini upgrade head
 ```
 
 應用程式不再執行 `Base.metadata.create_all()`；缺少 Migration 時，啟動網站不會替你補表。
@@ -53,9 +53,9 @@ docker exec aipe04-db-test pg_isready -U test_user -d aipe04_test
 export DATABASE_URL=postgresql+psycopg://test_user:test_password@127.0.0.1:55432/aipe04_test
 export TEST_DATABASE_URL="$DATABASE_URL"
 export SESSION_SECRET_KEY=test-only-session-key
-alembic upgrade head
+alembic -c backend/alembic.ini upgrade head
 python -m pytest tests -q
-alembic current
+alembic -c backend/alembic.ini current
 ```
 
 Windows PowerShell 用 `$env:DATABASE_URL = "..."` 設定相同環境變數。這裡的帳密只用於可刪除的測試容器。
@@ -126,7 +126,7 @@ pg_restore --dbname=restore_drill backup-before-migration.dump
 1. 確認應用程式版本與唯一 Migration head。
 2. 建立備份並確認最近一次還原演練有效。
 3. 暫停會與結構變更衝突的背景工作。
-4. 執行 `alembic upgrade head`。
+4. 執行 `alembic -c backend/alembic.ini upgrade head`。
 5. 執行 010 的回填檢查 SQL。
 6. 部署同版本 FastAPI。
 7. 測試登入、課程列表、MIDI 上傳／下載及練習送出。

@@ -28,37 +28,11 @@ AIPE04 Group 3 的專題。老師和學生在同一個網站完成找課、上�
 
 ## 第一次啟動
 
-需要 Python 3.12、Node.js（22.18 以上或 24.12 以上）和 Docker。在專案根目錄操作。
+需要 Docker Desktop。在專案根目錄操作。
 
-### 1. 安裝 Python 套件
+### 1. 建立 `.env`
 
-Windows PowerShell：
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r backend/requirements.txt
-```
-
-macOS／Linux：
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
-```
-
-### 2. 啟動 PostgreSQL
-
-```bash
-docker compose up -d postgres
-```
-
-資料庫帳號、密碼、資料庫名稱都是 `aipe04`，連接埠是 `5432`。
-
-### 3. 建立 `.env`
-
-把專案根目錄的 `.env.example` 複製成 `.env`。這個檔案不要 commit。
+把 `.env.example` 複製成 `.env`。這個檔案不要 commit。
 
 ```text
 DATABASE_URL=postgresql+psycopg://aipe04:aipe04@localhost:5432/aipe04
@@ -66,30 +40,32 @@ TEST_DATABASE_URL=postgresql+psycopg://aipe04:aipe04@localhost:5432/aipe04_test
 SESSION_SECRET_KEY=請換成一串自己產生的隨機文字
 ```
 
-本機要測管理員時，可再加 `ADMIN_EMAIL`、`ADMIN_PASSWORD`。要測 Google 登入時，再加 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`（本機設 `http://localhost:3000/backend/auth/google/callback`，驗證完會回到 Vue）。前端和後端不同網址時（例如部署），再加 `FRONTEND_URL`。沒有 Google 金鑰時，網站仍可用 Email 登入。
+`DATABASE_URL` 維持 `localhost` 即可。用 Docker 啟動時，`docker-compose.yml` 會改連服務名稱 `postgres`。資料庫帳號、密碼、資料庫名稱都是 `aipe04`。
 
-首頁找課使用可重現的資料庫比對規則，不需要 Gemini 金鑰也能完整運作；老師必須先建立並發布課程，推薦結果才會出現。
+本機要測管理員時，可再加 `ADMIN_EMAIL`、`ADMIN_PASSWORD`。要測 Google 登入時，再加 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`。沒有 Google 金鑰時，網站仍可用 Email 登入。
 
-### 4. 建立資料表並啟動網站
+### 2. 啟動
 
 ```powershell
-alembic upgrade head
-python -m backend.main
+docker compose up --build
 ```
 
-後端在 [http://127.0.0.1:8000](http://127.0.0.1:8000)，只有 API（文件在 `/docs`）。後端的檔案分工見 [backend/README.md](backend/README.md)。
+之後映像沒有改過，只要：
 
-### 5. 啟動 Vue 畫面
-
-另開一個終端機：
-
-```bash
-cd frontend
-npm install
-npm run dev
+```powershell
+docker compose up
 ```
 
-打開 [http://localhost:3000](http://localhost:3000)。Vue 會把 `/backend` 開頭的請求轉給後端，詳見 [frontend/README.md](frontend/README.md)。
+容器啟動時會自己執行資料庫升級。
+
+- 網頁：http://localhost
+- 後端 API 文件：http://localhost:8000/docs
+
+停止：
+
+```powershell
+docker compose stop
+```
 
 ## 測試
 
@@ -103,7 +79,7 @@ python scripts/verify_merge.py
 
 ## 資料庫開發基準
 
-目前唯一的 Alembic head 是 `011_recommendations`（接在 `010_reference_midis` 之後，`010` 包含參考 MIDI metadata 與既有路徑回填）。首次建置與拉取新 migration 後都執行 `alembic upgrade head`；不要用 `create_all()`、手動建表或修改已共享的 migration。
+目前唯一的 Alembic head 是 `011_recommendations`（接在 `010_reference_midis` 之後，`010` 包含參考 MIDI metadata 與既有路徑回填）。Docker 啟動時會自動執行資料庫升級。不要用 `create_all()`、手動建表或修改已共享的 migration。
 
 其他功能新增表時，先同步 main 並執行 `alembic heads`，新 revision 的 `down_revision` 接在當時唯一 head 後面，不要再產生另一條 011。
 
@@ -138,44 +114,3 @@ python scripts/verify_merge.py
 | 重要決定與原因 | `docs/adr/` |
 | 後端檔案分工 | `backend/README.md` |
 | 前端頁面與檔案 | `frontend/README.md` |
-
-
-
-
-# 🚀 AIPE04 Group3 專案開發環境指南
-
-本專案採用 **Monorepo 前後端分離架構**，使用 Docker 進行本地開發環境標準化。
-
-## 🛠️ 開發前置準備
-
-1. 請確保您的電腦已安裝並啟動 **Docker Desktop**。
-2. **設定環境變數**：
-   - 請複製根目錄下的 `.env.example` 並重新命名為 `.env`。
-   - 用 Docker 啟動整套時，`.env` 的 `DATABASE_URL` 主機要改成 `postgres`（例如 `postgresql+psycopg://aipe04:aipe04@postgres:5432/aipe04`）；資料庫帳號密碼目前固定寫在 `docker-compose.yml`，都是 `aipe04`。
-
-## 🎬 一鍵啟動
-
-在專案根目錄開啟終端機，執行以下指令：
-
-```bash
-docker-compose up --build
-```
-
-啟動成功後，即可透過瀏覽器造訪：
-* **前端網頁畫面 (Vue/Nginx)**: `http://localhost`
-* **後端 API 說明文件 (FastAPI)**: `http://localhost:8000/docs`
-
-## 💾 維運工具 (資料庫備份與還原)
-
-本專案提供了一鍵資料庫運維指令，請在根目錄執行：
-* **備份目前的資料庫**: `bash db-helper.sh backup`
-* **還原至最新一次備份**: `bash db-helper.sh restore`
-
-## 🗃️ 資料庫版本控制 (Alembic)
-
-當後端工程師修改了 `backend/models/` 底下的 SQLAlchemy 結構時，請執行以下步驟：
-1. **產生遷移腳本 (相當於 Git Commit)**:
-   ```bash
-   docker compose exec backend alembic revision --autogenerate -m "描述您的資料庫修改"
-   ```
-2. 重啟容器時，系統將會**自動執行** `alembic upgrade head` 將實體資料庫更新至最新狀態。

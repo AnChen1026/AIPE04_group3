@@ -7,7 +7,7 @@ FastAPI 後端，只提供 API；網站畫面都在 `frontend/`（Vue），不�
 入口是 `backend/main.py`。在專案根目錄執行：
 
 ```bash
-alembic upgrade head
+alembic -c backend/alembic.ini upgrade head
 python -m backend.main
 ```
 

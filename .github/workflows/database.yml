@@ -38,8 +38,8 @@ jobs:
           cache: pip
       - run: python -m pip install -r backend/requirements.txt
       - name: Upgrade empty database
-        run: alembic upgrade head
+        run: alembic -c backend/alembic.ini upgrade head
       - name: Migration and API regressions
         run: python -m pytest tests -q
       - name: Confirm final database revision
-        run: alembic current
+        run: alembic -c backend/alembic.ini current

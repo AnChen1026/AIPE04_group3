@@ -113,9 +113,9 @@ def main() -> None:
     env.setdefault("SESSION_SECRET_KEY", "local-merge-verification-only")
 
     ensure_test_database(python, env, database_name)
-    run("升級測試資料庫", [str(python), "-m", "alembic", "upgrade", "head"], env)
+    run("升級測試資料庫", [str(python), "-m", "alembic", "-c", "backend/alembic.ini", "upgrade", "head"], env)
     run("後端與 Migration 測試", [str(python), "-m", "pytest", "-q"], env)
-    run("確認 Model 與 Migration 同步", [str(python), "-m", "alembic", "check"], env)
+    run("確認 Model 與 Migration 同步", [str(python), "-m", "alembic", "-c", "backend/alembic.ini", "check"], env)
     run("Vue 程式檢查", [npm, "run", "lint-check"], env, ROOT / "frontend")
     run("Vue 型別檢查", [npm, "run", "type-check"], env, ROOT / "frontend")
     run("建立 Vue 正式版", [npm, "run", "build-only"], env, ROOT / "frontend")

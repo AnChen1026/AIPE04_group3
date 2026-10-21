@@ -40,8 +40,8 @@ def migration_database(
         connection.exec_driver_sql("DROP SCHEMA public CASCADE")
         connection.exec_driver_sql("CREATE SCHEMA public")
 
-    config = Config(str(REPO_ROOT / "alembic.ini"))
-    config.set_main_option("script_location", str(REPO_ROOT / "alembic"))
+    config = Config(str(REPO_ROOT / "backend" / "alembic.ini"))
+    config.set_main_option("script_location", str(REPO_ROOT / "backend" / "alembic"))
     try:
         yield config, engine
     finally:
