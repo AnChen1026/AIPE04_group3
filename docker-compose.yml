@@ -3,13 +3,16 @@ services:
   # 1. 後端fastapi 服務
   backend:
     build:
-      context: ./backend # 告訴 Docker 去 ./backend 資料夾找 Dockerfile
+      context: ./backend # 後端 Dockerfile 與 requirements.txt 位於 backend/
       dockerfile: Dockerfile # 自動讀取新版 Dockerfile 進行現地打包與套件安裝
     container_name: python-dev-box # 固定容器名稱
+    working_dir: /app/backend
     ports:
       - "8000:8000" # 💡 全新加入：將容器內的 8000 通訊埠（FastAPI 預設）映射到本機電腦的 8000 埠
     volumes:
-      - ./backend:/app # 只把 backend 資料夾掛載進去，避免混到前端檔案
+      - ./backend:/app/backend # 保留 backend 套件目錄，讓 Python 能從 /app 匯入
+    environment:
+      PYTHONPATH: /app:/app/backend
     command: sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload" # 先自動升級資料庫結構，再啟動 Uvicorn 服務
     depends_on:
       postgres:

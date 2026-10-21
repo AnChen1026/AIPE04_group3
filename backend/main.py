@@ -1,29 +1,37 @@
 from fastapi import FastAPI
 import uvicorn
+import sys
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend.core.config import get_session_secret_key
-from backend.core.database import SessionLocal
-from backend.routers.admin import router as admin_router
-from backend.routers.health import router as health_router
-from backend.routers.images import router as images_router
-from backend.routers.public_courses import router as public_courses_router
-from backend.routers.recommendations import router as recommendations_router
-from backend.routers.auth import router as auth_router
-from backend.routers.student import router as student_router
-from backend.routers.chat_ws import router as chat_ws_router
-from backend.routers.teacher_chat import router as teacher_chat_router
-from backend.routers.teacher_courses import router as teacher_courses_router
-from backend.routers.teacher_inquiries import router as teacher_inquiries_router
-from backend.routers.teacher_lessons import router as teacher_lessons_router
-from backend.routers.teacher_materials import router as teacher_materials_router
-from backend.routers.teacher_practice import router as teacher_practice_router
-from backend.routers.teacher_profile import router as teacher_profile_router
-from backend.routers.teacher_quizzes import router as teacher_quizzes_router
-from backend.routers.teacher_students import router as teacher_students_router
-from backend.services.admin import seed_admin_if_needed
-from backend.services import teacher_sync  # 註冊老師資料同步，讓老師登入時補上 teacher_profiles
+# Ensure the project root is importable when this module is started from the
+# backend directory, so imports such as ``backend.core.config`` resolve.
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from core.config import get_session_secret_key
+from core.database import SessionLocal
+from routers.admin import router as admin_router
+from routers.health import router as health_router
+from routers.images import router as images_router
+from routers.public_courses import router as public_courses_router
+from routers.recommendations import router as recommendations_router
+from routers.auth import router as auth_router
+from routers.student import router as student_router
+from routers.chat_ws import router as chat_ws_router
+from routers.teacher_chat import router as teacher_chat_router
+from routers.teacher_courses import router as teacher_courses_router
+from routers.teacher_inquiries import router as teacher_inquiries_router
+from routers.teacher_lessons import router as teacher_lessons_router
+from routers.teacher_materials import router as teacher_materials_router
+from routers.teacher_practice import router as teacher_practice_router
+from routers.teacher_profile import router as teacher_profile_router
+from routers.teacher_quizzes import router as teacher_quizzes_router
+from routers.teacher_students import router as teacher_students_router
+from services.admin import seed_admin_if_needed
+from services import teacher_sync  # 註冊老師資料同步，讓老師登入時補上 teacher_profiles
 
 app = FastAPI()
 
