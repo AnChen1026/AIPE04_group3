@@ -1,27 +1,34 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vue'
-import { fetchApplications } from '@/api/admin'
+import { fetchApplications, fetchPasswordResets } from '@/api/admin'
 
 const route = useRoute()
 const pending = ref(0)
+const resets = ref(0)
 
 const items = computed<NavItem[]>(() => [
   { to: '/admin', label: '資訊總覽', icon: 'overview', exact: true },
   { to: '/admin/applications', label: '老師申請', icon: 'clipboard', badge: pending.value },
   { to: '/admin/teachers', label: '老師', icon: 'students' },
   { to: '/admin/students', label: '學生', icon: 'users' },
+  { to: '/admin/password-resets', label: '重設密碼', icon: 'key', badge: resets.value },
 ])
 
-watch(
-  () => route.fullPath,
-  async () => {
-    const applications = await fetchApplications().catch(() => [])
-    pending.value = applications.filter((item) => item.status === 'pending').length
-  },
-  { immediate: true },
-)
+async function refreshBadges() {
+  const [applications, resetRequests] = await Promise.all([
+    fetchApplications().catch(() => []),
+    fetchPasswordResets().catch(() => []),
+  ])
+  pending.value = applications.filter((item) => item.status === 'pending').length
+  resets.value = resetRequests.filter((item) => item.status === 'pending').length
+}
+
+// 換頁時，以及頁面處理完申請時（admin:refresh-badges 事件）更新選單上的數字
+watch(() => route.fullPath, refreshBadges, { immediate: true })
+onMounted(() => window.addEventListener('admin:refresh-badges', refreshBadges))
+onBeforeUnmount(() => window.removeEventListener('admin:refresh-badges', refreshBadges))
 </script>
 
 <template>

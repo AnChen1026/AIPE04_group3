@@ -4,6 +4,7 @@
 from backend.models.auth_identity import AuthIdentity
 from backend.models.base import Base
 from backend.models.material import MaterialDB
+from backend.models.password_reset import PasswordResetRequest
 from backend.models.quiz import QuizDB
 from backend.models.teacher_application import TeacherApplication
 from backend.models.teacher import TeacherDB
@@ -13,6 +14,7 @@ __all__ = [
     "AuthIdentity",
     "Base",
     "MaterialDB",
+    "PasswordResetRequest",
     "QuizDB",
     "TeacherApplication",
     "TeacherDB",

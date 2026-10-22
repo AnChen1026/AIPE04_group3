@@ -46,8 +46,8 @@ API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/heal
 
 | 檔案 | 網址 | 做什麼 |
 | --- | --- | --- |
-| `auth.py` | `/api/auth/...`、`/auth/google/callback` | 註冊、登入、登出、目前登入者、修改基本資料（老師的姓名會同步到老師個人資料）、修改密碼、Google 登入、Google 老師補送申請 |
-| `admin.py` | `/api/admin/...` | 審核老師申請、下載證明文件、老師與學生名單 |
+| `auth.py` | `/api/auth/...`、`/auth/google/callback` | 註冊、登入、登出、目前登入者、修改基本資料（老師的姓名會同步到老師個人資料）、修改密碼、Google 登入、Google 老師補送申請、忘記密碼送出申請 |
+| `admin.py` | `/api/admin/...` | 審核老師申請、下載證明文件、老師與學生名單、處理忘記密碼申請（重設成臨時密碼） |
 | `public_courses.py` | `/api/courses` | 訪客讀已發布課程，不用登入 |
 | `images.py` | `/api/images/...` | 已發布課程圖片與已核准老師照片，其他一律 404 |
 | `recommendations.py` | `/api/recommendations` | 首頁推薦端口，目前回 501，由負責首頁推薦的組員實作 |

@@ -2,42 +2,65 @@
 import { ref } from 'vue'
 import AuthCard from '@/components/auth/AuthCard.vue'
 import AuthField from '@/components/auth/AuthField.vue'
-import NoticeDialog from '@/components/console/NoticeDialog.vue'
+import { requestPasswordReset } from '@/api/auth'
+import { ApiError } from '@/api/http'
 
-// 後端這一輪沒有做「寄送重設連結」（PRD：改密碼、Email 認證留到之後），
-// 先保留設計稿的版面，送出時誠實說明目前的處理方式。
+// 忘記密碼（地端版本）：還沒有寄信，送出後由管理員在後台重設成臨時密碼，再另外通知使用者。
 const email = ref('')
 const error = ref('')
-const notice = ref(false)
+const submitting = ref(false)
+const sentMessage = ref('')
 
-function submit() {
+async function submit() {
   error.value = ''
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) {
     error.value = '請輸入註冊時的電子郵件。'
     return
   }
-  notice.value = true
+  submitting.value = true
+  try {
+    sentMessage.value = (await requestPasswordReset(email.value.trim())).message
+  } catch (problem) {
+    error.value = problem instanceof ApiError ? problem.message : '送出失敗，請稍後再試。'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
 <template>
-  <AuthCard eyebrow="RESET" title="忘記密碼？" subtitle="輸入註冊時的電子郵件，我們會協助你重設密碼。">
-    <form class="auth-form" novalidate @submit.prevent="submit">
+  <AuthCard
+    eyebrow="RESET"
+    title="忘記密碼？"
+    :subtitle="sentMessage ? undefined : '輸入註冊時的電子郵件，管理員會協助你重設密碼。'"
+  >
+    <div v-if="sentMessage" class="auth-form" role="status">
+      <p class="forgot__sent">{{ sentMessage }}</p>
+      <p class="auth-note">管理員會給你一組臨時密碼。拿到後用它登入，就能繼續使用。</p>
+      <RouterLink :to="{ name: 'login' }" class="auth-button">回到登入</RouterLink>
+    </div>
+
+    <form v-else class="auth-form" novalidate @submit.prevent="submit">
       <AuthField id="forgot-email" v-model="email" label="電子郵件" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" />
       <p v-if="error" class="auth-alert" role="alert">{{ error }}</p>
-      <button type="submit" class="auth-button">寄送重設連結</button>
+      <button type="submit" class="auth-button" :disabled="submitting">
+        {{ submitting ? '送出中…' : '送出重設申請' }}
+      </button>
       <p class="auth-switch">
         想起密碼了？<RouterLink :to="{ name: 'login' }" class="auth-link">立即登入</RouterLink>
       </p>
     </form>
-
-    <NoticeDialog
-      :open="notice"
-      message="目前還不能線上重設密碼"
-      detail="這項功能還在準備中。請聯絡平台管理員，確認身分後協助重設。"
-      confirm-text="知道了"
-      @confirm="notice = false"
-      @cancel="notice = false"
-    />
   </AuthCard>
 </template>
+
+<style scoped>
+.forgot__sent {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--home-cream);
+  color: var(--home-ink);
+  font-size: 14.5px;
+  line-height: 1.8;
+}
+</style>

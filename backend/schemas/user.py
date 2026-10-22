@@ -116,3 +116,37 @@ class GoogleUrlResponse(BaseModel):
 
     url: str
 
+
+class PasswordResetSubmit(BaseModel):
+    """忘記密碼：使用者輸入註冊時的 Email。"""
+
+    email: EmailStr
+
+
+class PasswordResetUser(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    name: str
+    role: str
+    auth_provider: str
+
+
+class PasswordResetRequestResponse(BaseModel):
+    """管理員看到的重設申請。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: str
+    created_at: datetime
+    handled_at: datetime | None
+    user: PasswordResetUser
+
+
+class PasswordResetDone(BaseModel):
+    """重設完成：臨時密碼只在這一次回給管理員，之後查不到。"""
+
+    request: PasswordResetRequestResponse
+    temporary_password: str

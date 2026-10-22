@@ -91,6 +91,7 @@ const router = createRouter({
         { path: 'applications', name: 'admin-applications', component: () => import('@/views/admin/AdminApplicationsView.vue'), meta: { title: '老師申請' } },
         { path: 'teachers', name: 'admin-teachers', component: () => import('@/views/admin/AdminPeopleView.vue'), meta: { title: '老師' } },
         { path: 'students', name: 'admin-students', component: () => import('@/views/admin/AdminPeopleView.vue'), meta: { title: '學生' } },
+        { path: 'password-resets', name: 'admin-password-resets', component: () => import('@/views/admin/AdminPasswordResetsView.vue'), meta: { title: '重設密碼' } },
       ],
     },
 

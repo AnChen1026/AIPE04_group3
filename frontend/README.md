@@ -35,11 +35,11 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `/` | 所有人 | 首頁。熱門課程一排 4 門（平板 2 門、手機 1 門），右側箭頭換下一組，可依程度篩選；精選老師、學習流程、常見問題是頁面文案 |
 | `/courses` | 所有人 | 全部課程。一次列出所有已發布課程，可用關鍵字、風格、程度、上課方式、地區、每堂價格篩選並排序；條件記在網址上 |
 | `/login`、`/signup` | 所有人 | 登入、學生註冊、老師註冊 |
-| `/forgot-password` | 所有人 | 忘記密碼的版面。後端還沒有重設密碼，送出只會說明目前不能寄信 |
+| `/forgot-password` | 所有人 | 忘記密碼（地端版本）：送出 Email 後由管理員在後台重設成臨時密碼，不寄信 |
 | `/courses/:id/contact` | 學生 | 從課程詳情「與老師接洽」。訪客先註冊，註冊後自動登入，建立對話並打開聊天 |
 | `/teacher/...` | 老師 | 總覽、工作室、課表、學生、課程、作業、聊天、設定（個人資料、基本資料、修改密碼；舊的 `/teacher/profile` 會導到設定） |
 | `/student/...` | 學生 | 我的課程、聊天、課表、練習、基本資料 |
-| `/admin/...` | 管理員 | 總覽、老師申請審核、老師名單、學生名單 |
+| `/admin/...` | 管理員 | 總覽、老師申請審核、老師名單、學生名單、重設密碼 |
 | `/search`、`/courses/:id` | 所有人 | 還沒做，顯示開發中 |
 
 老師、學生、管理員頁面會先確認已登入，而且角色要對。沒登入會去登入頁；角色不對會回自己的首頁。老師帳號要管理員核准後才能使用後台；用 Google 註冊、還沒有申請資料的老師，會先在老師後台補填申請。
@@ -93,7 +93,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/CoursesView.vue` | 全部課程與篩選。 |
 | `src/views/auth/LoginView.vue` | 登入。Google 驗證失敗導回時，顯示網址上的 `error`。 |
 | `src/views/auth/SignupView.vue` | 註冊。可選學生或老師。 |
-| `src/views/auth/ForgotPasswordView.vue` | 忘記密碼版面。尚未呼叫後端。 |
+| `src/views/auth/ForgotPasswordView.vue` | 忘記密碼：送出重設申請給管理員。 |
 | `src/views/student/ContactTeacherView.vue` | 聯繫老師，成功後進入該堂課的聊天。 |
 | `src/views/student/StudentDashboardView.vue` | 學生的課程與對話。 |
 | `src/views/student/StudentChatRoomView.vue` | 學生聊天室。 |
@@ -118,6 +118,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/admin/AdminDashboardView.vue` | 管理員資訊總覽。 |
 | `src/views/admin/AdminApplicationsView.vue` | 核准或駁回老師申請。 |
 | `src/views/admin/AdminPeopleView.vue` | 老師名單和學生名單共用這一頁。 |
+| `src/views/admin/AdminPasswordResetsView.vue` | 處理忘記密碼申請：重設成臨時密碼（只顯示一次）或略過。 |
 | `src/views/ComingSoonView.vue` | 搜尋、課程詳情和找不到的網址共用這一頁。 |
 | `src/layouts/TeacherLayout.vue` | 老師後台的側邊選單。沒有申請資料時顯示補填表單，審核中或駁回時只顯示狀態。 |
 | `src/layouts/StudentLayout.vue` | 學生專區的側邊選單。 |

@@ -19,6 +19,7 @@ from backend.repositories.teacher_application import get_application_by_user_id
 from backend.schemas.user import (
     GoogleUrlResponse,
     PasswordChange,
+    PasswordResetSubmit,
     TeacherApplicationForm,
     TeacherApplicationResponse,
     TeacherRegister,
@@ -42,6 +43,7 @@ from backend.services.teacher import (
     register_teacher,
     submit_teacher_application,
 )
+from backend.services.password_reset import submit_reset_request
 from backend.services.user import (
     PasswordChangeError,
     change_password,
@@ -313,3 +315,9 @@ def api_google_url(
     return GoogleUrlResponse(url=build_google_auth_url(state))
 
 
+
+@router.post("/api/auth/password-reset-requests", status_code=202)
+def api_request_password_reset(data: PasswordResetSubmit, db: Session = Depends(get_db)) -> dict[str, str]:
+    """忘記密碼：建立一筆給管理員處理的申請。不管 Email 有沒有註冊都回同一句話。"""
+    submit_reset_request(db, str(data.email))
+    return {"message": "已收到申請。如果這個 Email 有註冊，管理員會協助重設密碼並另外通知你。"}

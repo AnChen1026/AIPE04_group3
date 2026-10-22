@@ -71,6 +71,11 @@ export function updateMe(input: ProfileInput): Promise<CurrentUser> {
   return request<CurrentUser>('/api/auth/me', { method: 'PATCH', body: { ...input } })
 }
 
+// 忘記密碼（地端版本）：送出後由管理員在後台重設成臨時密碼。不管 Email 有沒有註冊都回同一句話
+export function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return request('/api/auth/password-reset-requests', { method: 'POST', body: { email } })
+}
+
 // 修改自己的密碼。新密碼至少 8 個字元；還沒有密碼的 Google 帳號不用填目前密碼
 export function changePassword(currentPassword: string | null, newPassword: string): Promise<{ message: string }> {
   return request('/api/auth/me/password', {
