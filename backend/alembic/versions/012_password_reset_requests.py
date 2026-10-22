@@ -1,7 +1,7 @@
 """password reset requests handled by admins
 
-Revision ID: 010_password_resets
-Revises: 009_images_profile
+Revision ID: 012_password_resets
+Revises: 011_recommendations
 Create Date: 2026-10-19
 
 忘記密碼先做地端版本：使用者送出 Email，管理員在後台替他重設成臨時密碼。
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 
-revision: str = "010_password_resets"
-down_revision: Union[str, Sequence[str], None] = "009_images_profile"
+revision: str = "012_password_resets"
+down_revision: Union[str, Sequence[str], None] = "011_recommendations"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -9,26 +9,28 @@
 ## 1. 核心規則
 
 1. 不直接在 `main` 寫程式。
-2. 只在自己的功能分支修改自己負責的模組。
-3. 不要動到別人的程式碼與未提交內容。
-4. `.env`、API Key、Password、Token、真實個資與錄音不可 Push。
-5. 功能完成後開 Pull Request，由組長或指定 Reviewer 合併。
+2. `main` 是唯一長期正式主線；每次新功能都從最新 `main` 建立新分支。
+3. 只在自己的功能分支修改自己負責的模組。
+4. 不要動到別人的程式碼與未提交內容。
+5. `.env`、API Key、Password、Token、真實個資與錄音不可 Push。
+6. 功能完成後開 Pull Request，由組長或指定 Reviewer 合併。
+
+完整架構、資料來源、開發步驟與驗收標準以 `docs/專案架構與開發驗證手冊.md` 為準。舊 `feature/AICourseFinder` 只作研究參考，未來正式搜尋與 RAG 不在該分支繼續開發。
 
 ## 2. 分支
 
-以 2026-10-15 分工、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 為準。
+以 2026-10-19 分工（Ken 離開小隊，前端由禹銨接手）、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 為準。
 
 | 負責人 | 負責範圍 | 建議分支 |
 | --- | --- | --- |
 | 姿彣 | UI/UX | 依該次介面工作指定 |
-| Ken | 前端 | 依該次前端工作指定 |
-| 禹銨 | 後端與語音 | `feature/login`、`feature/backend`、`feature/ai-practice` |
+| 禹銨 | 後端、Vue 前端與語音 | `feature/backend`、`feature/frontend`、`feature/ai-practice` |
 | 宇鈞 | AI 測驗協作與 Review | 依該次工作指定 |
 | 雄 | DevOps | 依該次部署工作指定 |
 | Ollie | 資料庫與 AI | `feature/database`、`feature/ai-support` |
 | 永富 | AI 測驗流程 | `feature/ai-quiz` |
 
-接洽對話的畫面由姿彣與 Ken 負責，API 由禹銨負責。不要把 `feature/messaging` 當成已指定的負責人分支。AI 測驗由永富依 [Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 實作，宇鈞依 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 協助並 Review。
+接洽對話的畫面由姿彣設計、禹銨以 Vue 實作，API 也由禹銨負責。不要把 `feature/messaging` 當成已指定的負責人分支。AI 測驗由永富依 [Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 實作，宇鈞依 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 協助並 Review。
 
 ## 3. 第一次加入
 

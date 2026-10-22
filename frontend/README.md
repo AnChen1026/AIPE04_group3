@@ -144,7 +144,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/components/console/PageHeader.vue` | 後台頁面標題。 |
 | `src/components/console/ConsoleIcon.vue` | 側邊選單圖示。 |
 | `src/components/console/TeacherApplicationForm.vue` | Google 註冊的老師補填教學科目、經歷、自我介紹與證明文件。 |
-| `src/components/common/AiAssistButton.vue` | 右下角「AI 找課」。視窗還是提示文字，尚未推薦課程。 |
+| `src/components/common/AiAssistButton.vue` | 右下角「AI 找課」。已接正式推薦 API，最多追問兩題並顯示已發布課程。 |
 | `src/composables/useConversation.ts` | 聊天：先用 API 讀舊訊息，再用 WebSocket 收新訊息。 |
 | `src/composables/useBoundCourses.ts` | 學生已綁定的課程。課表和練習用網址上的 `?course=` 記住目前選的課。 |
 | `src/composables/useLeaveGuard.ts` | 表單還沒存就離開時，先問要不要放棄。 |
@@ -173,4 +173,4 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 
 ## 設計稿
 
-Figma `p6y0aWMsKEwy4ApzcWAuxF`。首頁、全部課程、登入註冊、老師後台、學生專區、管理員後台已有畫面。獨立課程詳情頁與 AI 找課推薦尚未完成（AI 找課由負責首頁推薦的組員實作）。
+Figma `p6y0aWMsKEwy4ApzcWAuxF`。首頁、全部課程、登入註冊、老師後台、學生專區、管理員後台已有畫面。獨立課程詳情頁尚未完成；AI 找課推薦已接正式 FastAPI 與資料庫。

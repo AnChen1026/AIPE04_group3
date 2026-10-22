@@ -1,10 +1,17 @@
 """老師管理課程與參考 MIDI（SRS CAT-02、PRA-01、FILE-01）。"""
 
+import hashlib
 from pathlib import Path
 
+import pytest
+from sqlalchemy import func, select
+
+from backend.models.student import ReferenceMidi
+from backend.services import course as course_service
 from tests.conftest import bind, issue_code, start_conversation
 
 SAMPLE_MIDI = Path(__file__).resolve().parents[1] / "backend" / "audio_scoring" / "midi_test_data" / "test1.mid"
+SAMPLE_MIDI_2 = Path(__file__).resolve().parents[1] / "backend" / "audio_scoring" / "midi_test_data" / "test2.mid"
 
 
 def upload_midi(client, course_id, content: bytes, filename: str = "song.mid"):
@@ -58,7 +65,7 @@ def test_不能修改別人的課程或上傳別人的MIDI(make_user, make_cours
     assert stranger.delete(f"/courses/{course.id}").status_code == 403
 
 
-def test_參考MIDI只收真的MIDI(make_user, make_course, login):
+def test_參考MIDI只收真的MIDI並同步metadata(db, make_user, make_course, login):
     teacher = make_user("teacher")
     course = make_course(teacher)
     client = login(teacher)
@@ -66,12 +73,61 @@ def test_參考MIDI只收真的MIDI(make_user, make_course, login):
     assert upload_midi(client, course.id, b"not a midi file").status_code == 400
     assert upload_midi(client, course.id, SAMPLE_MIDI.read_bytes(), "song.txt").status_code == 400
     assert upload_midi(client, course.id, b"").status_code == 400
+    assert db.scalar(
+        select(func.count()).select_from(ReferenceMidi).where(ReferenceMidi.course_id == course.id)
+    ) == 0
 
-    response = upload_midi(client, course.id, SAMPLE_MIDI.read_bytes())
+    midi_bytes = SAMPLE_MIDI.read_bytes()
+    response = upload_midi(client, course.id, midi_bytes)
     assert response.status_code == 200, response.text
     assert response.json()["has_reference_midi"] is True
     assert "reference_midi_path" not in response.json()
-    assert client.get(f"/courses/{course.id}/reference-midi").content == SAMPLE_MIDI.read_bytes()
+    db.expire_all()
+    reference = db.scalar(select(ReferenceMidi).where(ReferenceMidi.course_id == course.id))
+    assert reference is not None
+    assert reference.teacher_id == teacher.id
+    assert reference.storage_key == db.get(type(course), course.id).reference_midi_path
+    assert reference.original_filename == "song.mid"
+    assert reference.content_sha256 == hashlib.sha256(midi_bytes).hexdigest()
+    assert reference.file_size_bytes == len(midi_bytes)
+    assert client.get(f"/courses/{course.id}/reference-midi").content == midi_bytes
+
+    replacement_bytes = SAMPLE_MIDI_2.read_bytes()
+    original_reference_id = reference.id
+    replacement = upload_midi(client, course.id, replacement_bytes, "replacement.midi")
+    assert replacement.status_code == 200, replacement.text
+    db.expire_all()
+    replaced_reference = db.scalar(select(ReferenceMidi).where(ReferenceMidi.course_id == course.id))
+    assert db.scalar(
+        select(func.count()).select_from(ReferenceMidi).where(ReferenceMidi.course_id == course.id)
+    ) == 1
+    assert replaced_reference is not None
+    assert replaced_reference.id == original_reference_id
+    assert replaced_reference.original_filename == "replacement.midi"
+    assert replaced_reference.content_sha256 == hashlib.sha256(replacement_bytes).hexdigest()
+    assert replaced_reference.file_size_bytes == len(replacement_bytes)
+    assert client.get(f"/courses/{course.id}/reference-midi").content == replacement_bytes
+
+
+def test_參考MIDI資料庫提交失敗會清掉新檔案(db, make_user, make_course, monkeypatch, tmp_path):
+    teacher = make_user("teacher")
+    course = make_course(teacher)
+    monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "midi")
+
+    def fail_commit():
+        raise RuntimeError("forced commit failure")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="forced commit failure"):
+        course_service.save_reference_midi(
+            db,
+            teacher.id,
+            course.id,
+            "song.mid",
+            SAMPLE_MIDI.read_bytes(),
+        )
+
+    assert list((tmp_path / "midi").rglob("*.mid")) == []
 
 
 def test_參考MIDI只有綁定學生能下載(make_user, make_course, login):
@@ -89,3 +145,32 @@ def test_參考MIDI只有綁定學生能下載(make_user, make_course, login):
     response = student_client.get(f"/api/student/courses/{course.id}/reference-midi")
     assert response.status_code == 200
     assert response.content == SAMPLE_MIDI.read_bytes()
+
+
+@pytest.mark.parametrize("failure_point", ["query", "commit"])
+def test_metadata寫入失敗會清掉新檔且保留舊MIDI(db, make_user, make_course, monkeypatch, tmp_path, failure_point):
+    teacher = make_user("teacher")
+    course = make_course(teacher)
+    midi_dir = tmp_path / "midi"
+    monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", midi_dir)
+    course_service.save_reference_midi(db, teacher.id, course.id, "original.mid", SAMPLE_MIDI.read_bytes())
+    old_path = course.reference_midi_path
+    old_files = set(midi_dir.rglob("*.mid"))
+    teacher_id, course_id = teacher.id, course.id
+
+    def fail_query(*args, **kwargs):
+        raise RuntimeError("forced metadata query failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(db, failure_point, fail_query)
+        with pytest.raises(RuntimeError, match="forced metadata query failure"):
+            course_service.save_reference_midi(
+                db, teacher_id, course_id, "replacement.mid", SAMPLE_MIDI_2.read_bytes()
+            )
+
+    assert set(midi_dir.rglob("*.mid")) == old_files
+    db.expire_all()
+    assert db.get(type(course), course_id).reference_midi_path == old_path
+    reference = db.scalar(select(ReferenceMidi).where(ReferenceMidi.course_id == course_id))
+    assert reference.storage_key == old_path
+    assert reference.original_filename == "original.mid"

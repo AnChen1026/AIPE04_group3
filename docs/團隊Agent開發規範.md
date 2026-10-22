@@ -43,13 +43,12 @@
 
 ## 4. 目前已知分工與分支
 
-以 2026-10-15 分工、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 為準。正式畫面使用 Vue，後端使用 FastAPI。登入使用 Session Cookie。Google 登入程式已在，金鑰本輪不要求。
+以 2026-10-19 分工（Ken 離開小隊，前端由禹銨接手）、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 為準。正式畫面使用 Vue，後端使用 FastAPI。登入使用 Session Cookie。Google 登入程式已在，金鑰本輪不要求。
 
 | 負責人 | 負責範圍 | 建議分支 |
 | --- | --- | --- |
 | 姿彣 | UI/UX | 依該次介面工作指定 |
-| Ken | 前端 | 依該次前端工作指定 |
-| 禹銨 | 後端與語音 | `feature/login`、`feature/backend`、`feature/ai-practice` |
+| 禹銨 | 後端、Vue 前端與語音 | `feature/backend`、`feature/frontend`、`feature/ai-practice` |
 | 宇鈞 | AI 測驗協作與 Review | 依該次工作指定 |
 | 雄 | DevOps | 依該次部署工作指定 |
 | Ollie | 資料庫與 AI | `feature/database`、`feature/ai-support` |
