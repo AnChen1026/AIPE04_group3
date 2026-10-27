@@ -3,8 +3,16 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import FeedbackView from '@/components/console/FeedbackView.vue'
+import ScoreCompare from '@/components/console/ScoreCompare.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { deleteAssignment, fetchAssignments, fetchCourseRecordings, teacherAssignmentMidiUrl, teacherMaterialUrl } from '@/api/teacher'
+import {
+  deleteAssignment,
+  fetchAssignments,
+  fetchCourseRecordings,
+  teacherAssignmentMidiUrl,
+  teacherMaterialUrl,
+  teacherScoreSheetUrl,
+} from '@/api/teacher'
 import { apiUrl } from '@/api/http'
 import type { Assignment, TeacherRecording } from '@/types/api'
 import { ASSIGNMENT_KIND_LABELS, dueText, fileSizeText, formatDateTime } from '@/utils/format'
@@ -17,6 +25,8 @@ const assignment = ref<Assignment | null>(null)
 const recordings = ref<TeacherRecording[]>([])
 const error = ref('')
 const confirming = ref(false)
+// 正在看哪一筆的對照樂譜
+const openSheet = ref('')
 let timer = 0
 
 const submitted = computed(() => recordings.value.length > 0)
@@ -82,7 +92,12 @@ onBeforeUnmount(() => window.clearTimeout(timer))
       <p v-if="assignment.description" class="files__note">{{ assignment.description }}</p>
       <ul class="files__list">
         <li v-if="assignment.has_midi">
-          <span>參考 MIDI：{{ assignment.midi_filename }}</span>
+          <span>
+            參考 MIDI：{{ assignment.midi_filename }}
+            <small v-if="assignment.practice_bpm || assignment.midi_bpm" class="muted">
+              （{{ assignment.practice_bpm ? `練習速度 ${assignment.practice_bpm}` : `原曲 ${Math.round(assignment.midi_bpm!)}` }} BPM）
+            </small>
+          </span>
           <a :href="teacherAssignmentMidiUrl(assignment.id)" class="btn btn--ghost btn--small">下載</a>
         </li>
         <li v-for="item in assignment.materials" :key="item.id">
@@ -97,9 +112,22 @@ onBeforeUnmount(() => window.clearTimeout(timer))
       <h2 class="card__title">繳交紀錄</h2>
       <p v-if="recordings.length === 0" class="muted">學生還沒有繳交。</p>
       <article v-for="item in recordings" :key="item.id" class="recording">
-        <strong>{{ formatDateTime(item.submitted_at) }}</strong>
+        <div class="recording__head">
+          <strong>{{ formatDateTime(item.submitted_at) }}</strong>
+          <span v-if="item.metronome_bpm" class="badge badge--soft">節拍器 {{ Math.round(item.metronome_bpm) }} BPM</span>
+          <button
+            v-if="item.feedback?.has_score_sheet"
+            type="button"
+            class="btn btn--ghost btn--small"
+            :aria-expanded="openSheet === item.id"
+            @click="openSheet = openSheet === item.id ? '' : item.id"
+          >
+            {{ openSheet === item.id ? '收起對照譜' : '看對照譜' }}
+          </button>
+        </div>
         <audio class="recording__audio" controls preload="none" :src="apiUrl(`/teacher/recordings/${item.id}/audio`)"></audio>
         <FeedbackView :recording="item" />
+        <ScoreCompare v-if="openSheet === item.id" :url="teacherScoreSheetUrl(item.id)" />
       </article>
     </section>
   </template>
@@ -155,6 +183,13 @@ onBeforeUnmount(() => window.clearTimeout(timer))
   margin-top: 18px;
   padding-top: 18px;
   border-top: 1px solid var(--home-line);
+}
+
+.recording__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .recording__audio {

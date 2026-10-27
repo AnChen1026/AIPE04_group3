@@ -8,7 +8,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +38,10 @@ class Assignment(Base):
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     midi_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # 參考 MIDI 本身的速度；學生的節拍器沒有老師指定時，預設用這個
+    midi_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 老師指定的練習速度（可以比原曲慢），學生開節拍器時預設用這個
+    practice_bpm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 

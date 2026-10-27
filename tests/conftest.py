@@ -66,7 +66,8 @@ def no_llm(monkeypatch):
     """測試不呼叫真的 Gemini。需要時在測試裡再換成假的回覆。"""
     import backend.services.llm as llm
 
-    monkeypatch.setattr(llm, "generate_text", lambda system_instruction, content: None)
+    monkeypatch.setattr(llm, "generate_text", lambda system_instruction, content, *args, **kwargs: None)
+    monkeypatch.setattr(llm, "generate_text_with_reason", lambda *args, **kwargs: (None, "測試中不呼叫 LLM"))
 
 
 @pytest.fixture(autouse=True)

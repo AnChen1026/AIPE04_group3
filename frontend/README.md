@@ -145,8 +145,9 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/components/auth/RolePicker.vue` | 選擇學生或老師。 |
 | `src/components/console/ConsoleShell.vue` | 老師、學生、管理員後台共用的側邊選單外框。 |
 | `src/components/console/ChatPanel.vue` | 聊天內容。老師和學生共用。 |
-| `src/components/console/AudioRecorder.vue` | 練習錄音。沒有麥克風時可改選音檔。 |
+| `src/components/console/AudioRecorder.vue` | 練習錄音。沒有麥克風時可改選音檔。有給速度時附節拍器，開著錄音會帶節拍器速度。 |
 | `src/components/console/DayStrip.vue` | 課表上方的星期一～日選擇列。 |
+| `src/components/console/ScoreCompare.vue` | 練習回饋的上下對照樂譜（答案一行、學生一行），用 OpenSheetMusicDisplay 顯示後端產生的 MusicXML。 |
 | `src/components/console/SupportChat.vue` | 平台管理員對話的聊天畫面（每 5 秒更新）。 |
 | `src/components/console/CalendarPager.vue` | 課表右上方：切換日／週／月、上一段／下一段、今天。 |
 | `src/components/console/WeekTimetable.vue` | 週課表格子：左邊時間、上面星期，課堂畫成色塊。 |
@@ -162,6 +163,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/components/console/ConsoleIcon.vue` | 側邊選單圖示。 |
 | `src/components/console/TeacherApplicationForm.vue` | Google 註冊的老師補填教學科目、經歷、自我介紹與證明文件。 |
 | `src/components/common/AiAssistButton.vue` | 右下角「AI 找課」。已接正式推薦 API，最多追問兩題並顯示已發布課程。 |
+| `src/composables/useMetronome.ts` | 錄音頁的節拍器（Web Audio 排程，每小節第一拍較高）。 |
 | `src/composables/useConversation.ts` | 聊天：先用 API 讀舊訊息，再用 WebSocket 收新訊息。 |
 | `src/composables/useBoundCourses.ts` | 學生已綁定的課程。課表和練習用網址上的 `?course=` 記住目前選的課。 |
 | `src/composables/useLeaveGuard.ts` | 表單還沒存就離開時，先問要不要放棄。 |

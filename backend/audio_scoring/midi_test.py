@@ -18,16 +18,19 @@
   1. 把標準答案 MIDI 放到 backend/audio_scoring/midi_test_data/
   2. 把測試音檔放到 backend/audio_scoring/audio_test_data/
   3. 先安裝套件：pip install -r requirements.txt
-  4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY=你的key
+  4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY（或設定 PRACTICE_FEEDBACK_LLM_PROVIDER=openai 與 OPENAI_API_KEY）
   5. 在專案根目錄執行：python backend/audio_scoring/midi_test.py
 '''
 
 from pathlib import Path  # 處理檔案路徑，避免自己拼字串
 import argparse  # 讀取指令列參數，例如 --midi、--audio
+import json  # 把交給 LLM 的內容轉成 JSON 字串
 import os  # 設定環境變數，例如 numba 快取目錄、Gemini API key
+import shutil  # 找 ffmpeg 在哪裡
+import subprocess  # 瀏覽器錄的 webm／m4a 先用 ffmpeg 轉成 wav
 import sys  # 結束程式時回傳成功或失敗代碼
 import tempfile  # 取得系統暫存資料夾
-import time  # 計算整支程式執行秒數；Gemini 忙碌時也用來稍等再重試
+import time  # 計算整支程式執行秒數
 
 import librosa  # 讀取音檔、轉單聲道、去掉靜音；後面也用來做 DTW
 import numpy  # 建立 DTW 需要的成本矩陣
@@ -35,8 +38,6 @@ import pretty_midi  # 讀取與解析 MIDI 檔
 import soundfile  # 把處理後的音波寫回 wav 檔
 from basic_pitch import FilenameSuffix, build_icassp_2022_model_path  # 選 ONNX 模型，避開 TensorFlow
 from basic_pitch.inference import predict  # 把音檔轉成 MIDI / 音符
-from google import genai  # 步驟 13：呼叫 Gemini 寫回饋
-from google.genai import types  # 設定 Gemini 的系統提示與溫度
 from pydantic import BaseModel  # 步驟 12：把評分結果整理成固定格式
 
 # librosa / numba 需要可寫入的快取目錄，否則轉 MIDI 可能失敗
@@ -65,7 +66,7 @@ PROCESS_SAMPLE_RATE = 22050
 
 # 檢查副檔名時使用
 MIDI_SUFFIXES = {".mid", ".midi"}
-AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
+AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".webm"}
 
 # 步驟 8、11：音高最多 70 分，必須 MIDI number 完全相同
 PITCH_SCORE_MAX = 70
@@ -85,10 +86,23 @@ DTW_DIFFERENT_PITCH_COST = 100.0
 # 標準 MIDI 沒有 Tempo 時的預設速度
 DEFAULT_TEMPO_BPM = 120.0
 
-# 步驟 13：測試回饋使用 Gemini 免費額度較夠的模型
-GEMINI_MODEL = "gemini-3.8-flash"
-GEMINI_RETRY_TIMES = 3
-GEMINI_RETRY_WAIT_SECONDS = 3
+# 步驟 5：過濾 Basic Pitch 把泛音、殘響當成音符的假音（見開發紀錄 2026-09-29）
+# 只保留標準答案音域上下一個八度內的音
+PITCH_RANGE_MARGIN = 12
+# 同時有一顆比較大聲的音在響，而且剛好高出這些半音數（八度、十二度、兩個八度…），就當成泛音
+OVERTONE_INTERVALS = {12, 19, 24, 28, 31, 36}
+OVERTONE_MAX_AMPLITUDE_RATIO = 0.6
+# 很小聲又很短、旁邊有大聲的音在響：多半是殘響或鍵盤雜音
+GHOST_MAX_AMPLITUDE = 0.4
+GHOST_MAX_SECONDS = 0.15
+GHOST_MAX_AMPLITUDE_RATIO = 0.5
+# 判斷「同時在響」時，允許這顆音比較早一點點出現
+SOUNDING_EARLY_SECONDS = 0.05
+
+# 步驟 9：找出「突然變快／變慢」的段落。連續幾個間隔都比整體速度快或慢超過這個倍數，就寫進回饋
+TEMPO_CHANGE_FACTOR = 1.35
+TEMPO_CHANGE_MIN_INTERVALS = 3
+
 
 
 # ======================================================
@@ -104,6 +118,15 @@ class ErrorNote(BaseModel):
     reason: str
 
 
+class TempoChange(BaseModel):
+    """一段突然變快或變慢的地方。factor 是比整體速度快（或慢）幾倍。"""
+
+    start_measure: int
+    end_measure: int
+    direction: str  # "faster" 或 "slower"
+    factor: float
+
+
 class MeasureSummary(BaseModel):
     """一個小節的摘要，用來指出問題位置。"""
 
@@ -115,6 +138,8 @@ class MeasureSummary(BaseModel):
     extra_notes: int
     pitch_text: str
     rhythm_text: str
+    # 這小節有間隔沒拿到滿分
+    rhythm_issue: bool = False
 
 
 class ScoreReport(BaseModel):
@@ -132,7 +157,18 @@ class ScoreReport(BaseModel):
     extra_notes: int
     pitch_score: float
     rhythm_score: float
+    # 滿分：音高 70、節奏 30。LLM 要知道 30 分是節奏滿分，不是低分
+    pitch_score_max: int = PITCH_SCORE_MAX
+    rhythm_score_max: int = RHYTHM_SCORE_MAX
     tempo_ratio: float
+    # 節奏用哪個速度當標準："metronome"＝學生開的節拍器，"student"＝學生自己的整體速度
+    tempo_source: str = "student"
+    metronome_bpm: float | None = None
+    # 學生這次整體大約彈幾 BPM（依音和音的間隔推算）
+    played_bpm: float | None = None
+    tempo_changes: list[TempoChange] = []
+    # 程式整理好的「這次真正的問題」，LLM 回饋只能提到這裡面的事；空的代表全對
+    problems: list[str] = []
     raw_total: float
     final_score: int
     measures: list[MeasureSummary]
@@ -183,11 +219,7 @@ def preprocess_audio(audio_path, output_path):
     """讀取測試音檔，做基本前處理，並存成新的 wav。"""
     # sr=PROCESS_SAMPLE_RATE：統一取樣率
     # mono=True：如果是左右聲道，合成一條聲音
-    waveform, sample_rate = librosa.load(
-        str(audio_path),
-        sr=PROCESS_SAMPLE_RATE,
-        mono=True,
-    )
+    waveform, sample_rate = load_audio(audio_path)
     original_seconds = len(waveform) / sample_rate
 
     # 去掉開頭和結尾比較安靜的部分
@@ -214,6 +246,28 @@ def preprocess_audio(audio_path, output_path):
         "original_seconds": round(original_seconds, 4),
         "trimmed_seconds": round(trimmed_seconds, 4),
     }
+
+
+def load_audio(audio_path):
+    """讀音檔並轉成單聲道、統一取樣率。
+
+    librosa 1.0 只認 wav、mp3、flac、ogg 這類格式；瀏覽器錄的 webm、手機的 m4a 先用 ffmpeg 轉成 wav 再讀。
+    """
+    try:
+        return librosa.load(str(audio_path), sr=PROCESS_SAMPLE_RATE, mono=True)
+    except Exception:
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            raise
+    with tempfile.TemporaryDirectory(prefix="aipe04_decode_") as work_dir:
+        wav_path = Path(work_dir) / "decoded.wav"
+        subprocess.run(
+            [ffmpeg, "-loglevel", "error", "-y", "-i", str(audio_path), "-ac", "1", "-ar", str(PROCESS_SAMPLE_RATE), str(wav_path)],
+            check=True,
+            capture_output=True,
+            timeout=120,
+        )
+        return librosa.load(str(wav_path), sr=PROCESS_SAMPLE_RATE, mono=True)
 
 
 # ======================================================
@@ -247,13 +301,18 @@ def note_events_to_dicts(note_events):
 # ======================================================
 # 步驟 5：用 Basic Pitch 把「前處理後的音檔」轉成 MIDI 並存檔
 # ======================================================
-def convert_audio_to_midi(audio_path, output_midi_path):
-    """把音檔轉成 MIDI，並回傳模型辨識到的音符。"""
-    onnx_model_path = build_icassp_2022_model_path(FilenameSuffix.onnx)
-    model_output, midi_data, note_events = predict(str(audio_path), onnx_model_path)
+def convert_audio_to_midi(audio_path, output_midi_path, reference_pitch_range=None):
+    """把音檔轉成 MIDI，濾掉泛音等假音後存檔，並回傳留下來的音符。
 
-    output_midi_path.parent.mkdir(parents=True, exist_ok=True)
-    midi_data.write(str(output_midi_path))
+    reference_pitch_range 是標準答案的 (最低音, 最高音)，有給才會限制音域。
+    """
+    # 一定要指定 ONNX 模型：basic-pitch 預設是 TensorFlow 版，在 Python 3.12 裝不起來
+    onnx_model_path = build_icassp_2022_model_path(FilenameSuffix.onnx)
+    model_output, _midi_data, note_events = predict(str(audio_path), onnx_model_path)
+
+    raw_notes = note_events_to_dicts(note_events)
+    notes = remove_false_notes(raw_notes, reference_pitch_range)
+    write_notes_to_midi(notes, output_midi_path)
 
     model_output_keys = []
     if isinstance(model_output, dict):
@@ -263,9 +322,62 @@ def convert_audio_to_midi(audio_path, output_midi_path):
         "source_audio": str(audio_path),
         "output_midi": str(output_midi_path),
         "model_output_keys": model_output_keys,
-        "note_count": len(note_events),
-        "notes": note_events_to_dicts(note_events),
+        "raw_note_count": len(raw_notes),
+        "note_count": len(notes),
+        "notes": notes,
     }
+
+
+def remove_false_notes(notes, reference_pitch_range=None):
+    """拿掉模型多抓的假音：音域外的音、泛音、很小聲又很短的殘響。真的多彈的音音量夠大，會留下來。"""
+    kept = []
+    for note in notes:
+        if reference_pitch_range is not None:
+            lowest, highest = reference_pitch_range
+            if note["pitch"] < lowest - PITCH_RANGE_MARGIN or note["pitch"] > highest + PITCH_RANGE_MARGIN:
+                continue
+
+        louder_notes = [
+            other
+            for other in notes
+            if other is not note
+            and other["start"] <= note["start"] + SOUNDING_EARLY_SECONDS
+            and note["start"] < other["end"]
+            and other["amplitude"] > note["amplitude"]
+        ]
+        is_overtone = any(
+            note["pitch"] - other["pitch"] in OVERTONE_INTERVALS
+            and note["amplitude"] / other["amplitude"] < OVERTONE_MAX_AMPLITUDE_RATIO
+            for other in louder_notes
+        )
+        is_ghost = (
+            note["amplitude"] < GHOST_MAX_AMPLITUDE
+            and note["duration"] < GHOST_MAX_SECONDS
+            and any(note["amplitude"] / other["amplitude"] < GHOST_MAX_AMPLITUDE_RATIO for other in louder_notes)
+        )
+        if not is_overtone and not is_ghost:
+            kept.append(note)
+    return kept
+
+
+def write_notes_to_midi(notes, output_midi_path):
+    """把音符列表存成單一鋼琴軌的 MIDI。"""
+    midi_data = pretty_midi.PrettyMIDI()
+    piano = pretty_midi.Instrument(program=0)
+    for note in notes:
+        velocity = max(1, min(127, int(round(note.get("amplitude", 0.6) * 127))))
+        piano.notes.append(pretty_midi.Note(velocity=velocity, pitch=note["pitch"], start=note["start"], end=note["end"]))
+    midi_data.instruments.append(piano)
+    output_midi_path.parent.mkdir(parents=True, exist_ok=True)
+    midi_data.write(str(output_midi_path))
+
+
+def pitch_range_of(notes):
+    """標準答案的最低音與最高音；沒有音符時回傳 None（不限制音域）。"""
+    if not notes:
+        return None
+    pitches = [note["pitch"] for note in notes]
+    return (min(pitches), max(pitches))
 
 
 # ======================================================
@@ -548,8 +660,11 @@ def score_one_ioi(standard_ioi, student_ioi, tempo_ratio):
 # ======================================================
 # 步驟 8、9、11：用整首標準音符算總分，並順便做每小節摘要
 # ======================================================
-def score_performance(standard_midi, student_midi, alignment):
-    """依規格計算音高 70、節奏 30，以及每小節紀錄。"""
+def score_performance(standard_midi, student_midi, alignment, metronome_bpm=None):
+    """依規格計算音高 70、節奏 30，以及每小節紀錄。
+
+    有開節拍器時，節奏照節拍器速度比；沒開時，照學生自己的整體速度（中位數）按比例比。
+    """
     standard_notes = standard_midi["notes"]
     student_notes = student_midi["notes"]
     standard_to_student = alignment["standard_to_student"]
@@ -574,7 +689,14 @@ def score_performance(standard_midi, student_midi, alignment):
     else:
         pitch_score = correct_pitch_count / standard_count * PITCH_SCORE_MAX
 
-    tempo_ratio = estimate_tempo_ratio(standard_notes, standard_to_student, student_notes)
+    played_ratio = estimate_tempo_ratio(standard_notes, standard_to_student, student_notes)
+    if metronome_bpm:
+        # 標準音之間的秒數是照 MIDI 速度算的；換成節拍器速度後，每個間隔應該是原本的 MIDI 速度 / 節拍器速度 倍
+        tempo_ratio = standard_midi["tempo_bpm"] / metronome_bpm
+        tempo_source = "metronome"
+    else:
+        tempo_ratio = played_ratio
+        tempo_source = "student"
 
     ioi_weights = []
     ioi_details = []
@@ -634,6 +756,11 @@ def score_performance(standard_midi, student_midi, alignment):
         "pitch_score": round(pitch_score, 2),
         "rhythm_score": round(rhythm_score, 2),
         "tempo_ratio": round(tempo_ratio, 4),
+        "tempo_source": tempo_source,
+        "metronome_bpm": metronome_bpm,
+        "played_bpm": round(standard_midi["tempo_bpm"] / played_ratio, 1) if played_ratio > 0 else None,
+        "tempo_changes": find_tempo_changes(standard_midi, ioi_details, tempo_ratio),
+        "ioi_details": ioi_details,
         "ioi_count": ioi_count,
         "raw_total": round(raw_total, 2),
         "final_score": final_score,
@@ -647,6 +774,44 @@ def score_performance(standard_midi, student_midi, alignment):
             tempo_ratio,
         ),
     }
+
+
+def find_tempo_changes(standard_midi, ioi_details, tempo_ratio):
+    """找出連續好幾個間隔都明顯比整體速度快或慢的段落，例如前面 65 BPM、中間突然 120 BPM。
+
+    這些間隔在節奏分數裡本來就拿不到分；這裡只是把位置找出來，寫進回饋讓學生知道。
+    """
+    changes = []
+    run = []
+    run_direction = None
+
+    def close_run():
+        if len(run) >= TEMPO_CHANGE_MIN_INTERVALS:
+            local = get_median([item["local"] for item in run])
+            factor = 1 / local if run_direction == "faster" else local
+            start = get_standard_note_location(standard_midi, run[0]["from_standard_index"])["measure_number"]
+            end = get_standard_note_location(standard_midi, run[-1]["to_standard_index"])["measure_number"]
+            changes.append(
+                TempoChange(start_measure=start, end_measure=end, direction=run_direction, factor=round(factor, 1))
+            )
+
+    for detail in ioi_details:
+        direction = None
+        if detail["student_ioi"] and detail["standard_ioi"] > 0 and tempo_ratio > 0:
+            # 1 代表和整體速度一樣，0.5 代表這一段快了一倍
+            local = detail["student_ioi"] / detail["standard_ioi"] / tempo_ratio
+            if local < 1 / TEMPO_CHANGE_FACTOR:
+                direction = "faster"
+            elif local > TEMPO_CHANGE_FACTOR:
+                direction = "slower"
+        if direction is not None and direction == run_direction:
+            run.append({**detail, "local": local})
+            continue
+        close_run()
+        run = [{**detail, "local": local}] if direction else []
+        run_direction = direction
+    close_run()
+    return changes
 
 
 # ======================================================
@@ -744,7 +909,8 @@ def build_measure_summaries(
         item = measure_map[measure_number]
         ioi_count = item["ioi_count"]
         if ioi_count == 0:
-            rhythm_text = "0 / 0"
+            # 這小節沒有可以比的間隔（例如只有最後一顆音），不是節奏不好
+            rhythm_text = "沒有可比的間隔"
         else:
             rhythm_text = str(item["ioi_weight_sum"]) + " / " + str(ioi_count)
 
@@ -758,6 +924,7 @@ def build_measure_summaries(
                 "extra_notes": item["extra_notes"],
                 "pitch_text": str(item["correct_pitch_count"]) + " / " + str(item["standard_note_count"]),
                 "rhythm_text": rhythm_text,
+                "rhythm_issue": ioi_count > 0 and item["ioi_weight_sum"] < ioi_count,
             }
         )
         number_index = number_index + 1
@@ -932,128 +1099,106 @@ def build_score_report(midi_path, audio_path, standard_midi, student_midi, score
         pitch_score=score_result["pitch_score"],
         rhythm_score=score_result["rhythm_score"],
         tempo_ratio=score_result["tempo_ratio"],
+        tempo_source=score_result["tempo_source"],
+        metronome_bpm=score_result["metronome_bpm"],
+        played_bpm=score_result["played_bpm"],
+        tempo_changes=score_result["tempo_changes"],
         raw_total=score_result["raw_total"],
         final_score=score_result["final_score"],
         measures=score_result["measures"],
         error_notes=score_result["error_notes"],
     )
+    report.problems = list_problems(report)
     return report
 
 
-# ======================================================
-# 從環境變數或專案根目錄 .env 讀取指定名稱的 key
-# ======================================================
-def read_env_value(name):
-    """先看系統環境變數，再看 .env 檔。找不到就回傳 None。"""
-    value = os.environ.get(name)
-    if value:
-        return value.strip()
+def join_measures(numbers):
+    """[3, 6, 7] → 「第 3、6、7 小節」。"""
+    return "第 " + "、".join(str(number) for number in numbers) + " 小節"
 
-    env_path = BASE_DIR.parents[1] / ".env"  # 專案根目錄
-    if env_path.exists() is False:
-        return None
 
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        text = line.strip()
-        if text.startswith("#") or ("=" not in text):
-            continue
-        key_name, key_value = text.split("=", 1)
-        if key_name.strip() == name:
-            cleaned = key_value.strip().strip('"').strip("'")
-            if cleaned:
-                return cleaned
-    return None
+def list_problems(report):
+    """把評分結果整理成幾句話，給 LLM 當成「只能講這些」的清單。"""
+    problems = []
+    missing = [item.measure_number for item in report.measures if item.missing_notes]
+    if missing:
+        problems.append(join_measures(missing[:5]) + "有漏掉或彈錯的音")
+    if report.extra_notes:
+        problems.append(f"有 {report.extra_notes} 個多彈的音（不扣分）")
+    rhythm = [item.measure_number for item in report.measures if item.rhythm_issue]
+    if rhythm:
+        problems.append(join_measures(rhythm[:5]) + "節奏跟答案不一樣")
+    for change in report.tempo_changes:
+        speed = "變快" if change.direction == "faster" else "變慢"
+        where = join_measures(range(change.start_measure, change.end_measure + 1)) if change.end_measure - change.start_measure < 4 else f"第 {change.start_measure}～{change.end_measure} 小節"
+        problems.append(f"{where}突然{speed}約 {change.factor} 倍")
+    return problems
 
 
 # ======================================================
-# 步驟 13：把結構化結果交給 Gemini，產生給學生看的文字回饋
+# 步驟 13：把結構化結果交給 LLM，產生給學生看的文字回饋
+# 透過 backend/services/llm.py 呼叫：有等待上限、會重試一次、失敗會記下原因，
+# 也可以在 .env 用 PRACTICE_FEEDBACK_LLM_PROVIDER 切換 Gemini 或 OpenAI
 # ======================================================
+FEEDBACK_SYSTEM_PROMPT = """你是一位溫柔、簡潔、清楚的鋼琴老師。請根據這次練習的評分，用繁體中文給學生 2～4 句回饋。
+
+你會拿到：
+- 音高分數、節奏分數：寫「（滿分）」的就是完全正確。音高滿分 70、節奏滿分 30，30 分是節奏滿分，不是低分。
+- problems：程式整理好的「這次真正的問題」。
+- 節拍器（可能沒有）：有開節拍器時，節奏是照節拍器的速度評分。
+
+規則：
+1. 第一句先具體肯定這次做得好的地方。
+2. 問題只能從 problems 裡挑，最多挑 1～2 個最明顯的，用概括的方式說（例如「第 5、7 小節有幾個音要再確認」）。
+3. problems 是空的，代表音高和節奏都對：只稱讚和鼓勵，不可以說任何地方要改進、不穩或得分低。
+4. 有「突然變快／變慢」的問題時優先提醒，請學生那裡保持跟前後一樣的速度。
+5. 有多彈的音時只要簡單提醒「有幾個地方多彈了，可以再注意一下」，不要猜原因。
+6. 不要編造沒有給你的小節、音符、錯誤或進步，也不要提到「上次」。
+7. 最後一句給一個簡單、實際的練習建議或鼓勵。
+8. 像老師直接對學生說話，不要像系統報告；只輸出回饋本身，不要標題、條列或 JSON。
+
+語氣示範（內容一定要照這次的 problems，不要照抄）：
+有問題時：「這次整體彈得很不錯！第 5、7 小節還有幾個音需要再確認一下，可以看著樂譜慢慢練一次。繼續保持！」
+problems 是空的時：「這次音準和節奏都很穩，整首彈得很完整，做得很好！下次可以試著加一點強弱變化。」"""
+
+
+def load_llm_module():
+    """在專案根目錄外直接執行這支檔案時，先把專案根目錄加進 sys.path 才找得到 backend 套件。"""
+    try:
+        from backend.services import llm
+    except ImportError:
+        sys.path.insert(0, str(BASE_DIR.parents[1]))
+        from backend.services import llm
+    return llm
+
+
+def score_text(score, maximum):
+    text = f"{score:g} / {maximum}"
+    return text + "（滿分）" if score >= maximum else text
+
+
+def feedback_input(score_report):
+    """交給 LLM 的精簡內容。完整報告數字太多，小模型容易看錯（例如把節奏 30 分當成低分），只給它需要的。"""
+    data = {
+        "音高分數": score_text(score_report.pitch_score, score_report.pitch_score_max),
+        "節奏分數": score_text(score_report.rhythm_score, score_report.rhythm_score_max),
+        "彈對的音": f"{score_report.correct_pitch_count} / {score_report.standard_note_count}",
+        "problems": score_report.problems,
+    }
+    if score_report.tempo_source == "metronome" and score_report.metronome_bpm:
+        data["節拍器"] = f"有開，{score_report.metronome_bpm:g} BPM，節奏照節拍器速度評分"
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
 def generate_feedback(score_report):
-    """回傳 (回饋文字, 錯誤訊息)。成功時錯誤訊息是 None。"""
-    api_key = read_env_value("GEMINI_API_KEY")
-    if api_key is None:
-        return None, "沒有設定 GEMINI_API_KEY，請在專案根目錄 .env 貼上你的 key。"
-
-    teacher_prompt = (
-        """你是一位溫柔、簡潔、清楚的鋼琴老師。
-
-        請根據「本次練習評分 JSON」以及「上次練習紀錄（如果有）」，
-        用繁體中文給學生簡短的鋼琴練習回饋。
-
-        回饋規則：
-
-        1. 回饋只需要 3～4 句，不要逐一列出所有錯誤。
-
-        2. 第一句先簡單肯定學生這次做得好的地方。
-
-        3. 從本次練習中挑選最多 1～2 個最值得改善的問題即可。
-        優先挑選：
-        - 錯誤數量較多的小節
-        - 重複出現的問題
-        - 對整體演奏影響較大的問題
-
-        4. 不需要逐一說明「第幾小節第幾個音」。
-        可以用概括方式，例如：
-        「第 5、7、9 小節有幾個錯音，可以確認樂譜後再試一次。」
-        或：
-        「這次節奏有些不穩，幾個地方稍微偏快，可以搭配節拍器練習。」
-
-        5. 漏音、多彈、錯音、節奏問題不需要全部回饋。
-        只有當該問題較明顯時才需要提到。
-
-        6. 如果有多彈的音，只需要簡單寫：
-        「有幾個地方出現多彈的音，彈奏時可以再注意一下。」
-        不要猜測是誤觸、麥克風、辨識錯誤或其他原因。
-
-        7. 如果有提供「上次練習紀錄」，請先比較本次與上次的結果。
-        - 有明顯進步時，要優先指出進步的地方。
-        - 如果某個問題持續出現，可以簡單提醒學生繼續加強。
-        - 不需要列出詳細數字差異，除非差異很有意義。
-
-        8. 如果沒有上次練習紀錄，就只根據本次結果回饋，不要提到「上次」。
-
-        9. 不要編造 JSON 中不存在的小節、音符、錯誤或進步。
-
-        10. 語氣要像老師直接對學生說話，簡單、自然、鼓勵，不要像系統分析報告。
-
-        11. 最後一句給一個簡單、實際的練習建議或鼓勵。
-
-        理想回覆風格：
-
-        「這次整體彈得很不錯！第 5、7、9 小節還有幾個音需要再確認一下，可以看著樂譜慢慢練一次。另外這次節奏偶爾有點偏快，建議跟著節拍器再練一遍。繼續保持，你已經進步很多了！」
-
-        只輸出給學生看的回饋，不要輸出分析過程、JSON、標題或條列。"""
+    """回傳 (回饋文字, 失敗原因)。成功時失敗原因是 None。"""
+    llm = load_llm_module()
+    return llm.generate_text_with_reason(
+        FEEDBACK_SYSTEM_PROMPT,
+        feedback_input(score_report),
+        feature=llm.FEATURE_PRACTICE_FEEDBACK,
+        temperature=0.4,
     )
-
-    client = genai.Client(api_key=api_key)
-    last_error = None
-    try_count = 1
-
-    while try_count <= GEMINI_RETRY_TIMES:
-        try:
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=score_report.model_dump_json(indent=2),
-                config=types.GenerateContentConfig(
-                    system_instruction=teacher_prompt,
-                    temperature=0.4,
-                ),
-            )
-            feedback_text = response.text
-            if feedback_text:
-                return feedback_text.strip(), None
-            return None, "Gemini 有回應，但沒有文字內容。"
-        except Exception as error:
-            last_error = str(error)
-            busy_now = ("503" in last_error) or ("UNAVAILABLE" in last_error) or ("high demand" in last_error)
-            if busy_now and try_count < GEMINI_RETRY_TIMES:
-                print("Gemini 目前忙碌，" + str(GEMINI_RETRY_WAIT_SECONDS) + " 秒後重試第 " + str(try_count + 1) + " 次...")
-                time.sleep(GEMINI_RETRY_WAIT_SECONDS)
-                try_count = try_count + 1
-            else:
-                return None, "呼叫 Gemini 失敗：" + last_error
-
-    return None, "呼叫 Gemini 失敗：" + str(last_error)
 
 
 # ======================================================
@@ -1129,10 +1274,10 @@ def main():
     processed_audio_path = PROCESSED_DIR / (args.audio.stem + "_processed.wav")
     preprocess_audio(args.audio, processed_audio_path)
 
-    converted_midi_path = CONVERTED_DIR / (args.audio.stem + "_converted.mid")
-    convert_audio_to_midi(processed_audio_path, converted_midi_path)
-
     standard_midi = read_midi_notes(args.midi, "標準答案")
+    converted_midi_path = CONVERTED_DIR / (args.audio.stem + "_converted.mid")
+    convert_audio_to_midi(processed_audio_path, converted_midi_path, pitch_range_of(standard_midi["notes"]))
+
     student_midi = read_midi_notes(converted_midi_path, "學生演奏（由音檔轉出）")
 
     alignment = align_notes_with_dtw(standard_midi["notes"], student_midi["notes"])

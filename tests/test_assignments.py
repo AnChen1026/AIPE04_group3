@@ -16,7 +16,7 @@ FAKE_AUDIO = ("practice.wav", b"RIFF-fake-audio", "audio/wav")
 def scoring(monkeypatch):
     seen = {}
 
-    def fake_score(midi_path, audio_path):
+    def fake_score(midi_path, audio_path, metronome_bpm=None):
         seen["midi"] = Path(midi_path)
         return scorer.ScoringResult(pitch_score=80.0, rhythm_score=70.0, feedback_text="很好。")
 
@@ -122,3 +122,50 @@ def test_老師刪除作業(setup):
     body = create(teacher_client, course, student).json()
     assert teacher_client.delete(f"/teacher/assignments/{body['id']}").status_code == 204
     assert student_client.get("/api/student/assignments").json() == []
+
+
+def test_練習速度與節拍器速度會記下來_評分照節拍器(setup, scoring, monkeypatch, analysis_session):
+    _, student, course, teacher_client, student_client = setup
+    seen = {}
+
+    def fake_score(midi_path, audio_path, metronome_bpm=None):
+        seen["bpm"] = metronome_bpm
+        return scorer.ScoringResult(
+            pitch_score=70.0, rhythm_score=30.0, feedback_text="很好。", score_sheet_xml="<score-partwise/>"
+        )
+
+    monkeypatch.setattr(scorer, "score_recording", fake_score)
+    body = create(teacher_client, course, student, practice_bpm="80").json()
+    assert body["practice_bpm"] == 80
+    assert body["midi_bpm"] and body["midi_bpm"] > 0
+
+    assert create(teacher_client, course, student, practice_bpm="500").status_code == 400
+
+    sent = student_client.post(
+        f"/api/student/assignments/{body['id']}/recordings", files={"audio": FAKE_AUDIO}, data={"metronome_bpm": "76"}
+    )
+    assert sent.status_code == 200, sent.text
+    assert sent.json()["metronome_bpm"] == 76
+    assert seen["bpm"] == 76
+
+    recording = student_client.get(f"/api/student/assignments/{body['id']}/recordings").json()[0]
+    assert recording["feedback"]["has_score_sheet"] is True
+    sheet = student_client.get(f"/api/student/recordings/{recording['id']}/score-sheet")
+    assert sheet.status_code == 200
+    assert b"score-partwise" in sheet.content
+    assert teacher_client.get(f"/teacher/recordings/{recording['id']}/score-sheet").status_code == 200
+
+    bad = student_client.post(
+        f"/api/student/assignments/{body['id']}/recordings", files={"audio": FAKE_AUDIO}, data={"metronome_bpm": "5"}
+    )
+    assert bad.status_code == 400
+
+
+def test_別人的對照樂譜看不到(setup, scoring, analysis_session, make_user, login):
+    _, student, course, teacher_client, student_client = setup
+    body = create(teacher_client, course, student).json()
+    recording = student_client.post(f"/api/student/assignments/{body['id']}/recordings", files={"audio": FAKE_AUDIO}).json()
+    # 假的評分沒有產生樂譜
+    assert student_client.get(f"/api/student/recordings/{recording['id']}/score-sheet").status_code == 404
+    assert login(make_user("student")).get(f"/api/student/recordings/{recording['id']}/score-sheet").status_code == 404
+    assert login(make_user("teacher")).get(f"/teacher/recordings/{recording['id']}/score-sheet").status_code == 404

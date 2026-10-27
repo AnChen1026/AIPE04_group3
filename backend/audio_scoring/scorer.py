@@ -4,9 +4,12 @@
 音訊套件很重，所以等到真的要評分時才載入，網站啟動不受影響。
 """
 
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ScoringFailed(Exception):
@@ -18,9 +21,14 @@ class ScoringResult:
     pitch_score: float
     rhythm_score: float
     feedback_text: str
+    # 答案與學生上下對照的樂譜；產生失敗時是 None，不影響分數
+    score_sheet_xml: str | None = None
 
 
-def score_recording(midi_path: str | Path, audio_path: str | Path) -> ScoringResult:
+def score_recording(
+    midi_path: str | Path, audio_path: str | Path, metronome_bpm: float | None = None
+) -> ScoringResult:
+    """metronome_bpm：學生錄音時有開節拍器就給速度，節奏照它比；沒開就照學生自己的整體速度。"""
     from backend.audio_scoring import midi_test
 
     midi_path = Path(midi_path)
@@ -35,8 +43,10 @@ def score_recording(midi_path: str | Path, audio_path: str | Path) -> ScoringRes
             processed_path = Path(work_dir) / "processed.wav"
             converted_path = Path(work_dir) / "converted.mid"
             midi_test.preprocess_audio(audio_path, processed_path)
-            midi_test.convert_audio_to_midi(processed_path, converted_path)
             standard_midi = midi_test.read_midi_notes(midi_path, "標準答案")
+            midi_test.convert_audio_to_midi(
+                processed_path, converted_path, midi_test.pitch_range_of(standard_midi["notes"])
+            )
             student_midi = midi_test.read_midi_notes(converted_path, "學生演奏")
     except Exception as error:
         raise ScoringFailed("讀不到這段錄音的內容，可能是格式不支援或檔案損壞。") from error
@@ -48,18 +58,31 @@ def score_recording(midi_path: str | Path, audio_path: str | Path) -> ScoringRes
         raise ScoringFailed("這段錄音聽不出彈奏的音。")
 
     alignment = midi_test.align_notes_with_dtw(standard_midi["notes"], student_midi["notes"])
-    score_result = midi_test.score_performance(standard_midi, student_midi, alignment)
+    score_result = midi_test.score_performance(standard_midi, student_midi, alignment, metronome_bpm)
     report = midi_test.build_score_report(midi_path, audio_path, standard_midi, student_midi, score_result)
 
-    feedback_text, _ = midi_test.generate_feedback(report)
+    feedback_text, reason = midi_test.generate_feedback(report)
     if not feedback_text:
+        # 原因（沒有金鑰、逾時、服務忙碌…）寫進後端紀錄，學生改看依分數寫的簡短說明
+        logger.warning("練習回饋改用規則產生的文字：%s", reason)
         feedback_text = _plain_feedback(report, midi_test.PITCH_SCORE_MAX, midi_test.RHYTHM_SCORE_MAX)
 
     return ScoringResult(
         pitch_score=report.pitch_score,
         rhythm_score=report.rhythm_score,
         feedback_text=feedback_text,
+        score_sheet_xml=_score_sheet(standard_midi, student_midi, alignment, score_result),
     )
+
+
+def _score_sheet(standard_midi, student_midi, alignment, score_result) -> str | None:
+    try:
+        from backend.audio_scoring.score_sheet import build_comparison_musicxml
+
+        return build_comparison_musicxml(standard_midi, student_midi, alignment, score_result)
+    except Exception:
+        logger.exception("對照樂譜產生失敗")
+        return None
 
 
 def _plain_feedback(report, pitch_max: int, rhythm_max: int) -> str:
@@ -69,6 +92,13 @@ def _plain_feedback(report, pitch_max: int, rhythm_max: int) -> str:
         f"漏掉 {report.missing_notes} 個，多彈 {report.extra_notes} 個。",
         f"音高 {report.pitch_score} / {pitch_max} 分，節奏 {report.rhythm_score} / {rhythm_max} 分。",
     ]
+    for change in report.tempo_changes:
+        where = f"第 {change.start_measure} 小節" if change.start_measure == change.end_measure else f"第 {change.start_measure}～{change.end_measure} 小節"
+        speed = "變快" if change.direction == "faster" else "變慢"
+        lines.append(f"{where}突然{speed}約 {change.factor} 倍，那裡要保持跟前後一樣的速度。")
+        break
+    if report.tempo_source == "metronome" and report.metronome_bpm:
+        lines.append(f"這次有開節拍器（{round(report.metronome_bpm)} BPM），節奏是照節拍器的速度算的。")
     problem_measures = [
         summary.measure_number
         for summary in report.measures
