@@ -2,12 +2,12 @@
 
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from backend.models.assignment import Assignment
@@ -17,6 +17,7 @@ from backend.models.student import (
     ConversationMessage,
     Course,
     CourseBinding,
+    CourseJoinCode,
     InquiryConversation,
     LessonSession,
     PracticeFeedback,
@@ -209,13 +210,21 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
     if course is None or course.status == "archived":
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這門課已經停止開放，不能綁定。")
 
-    binding = StudentRepository.get_binding(db, student.id, conversation.course_id)
     now = datetime.now(timezone.utc)
+    binding = _bind_student(db, student, course, now)
+    binding_code.used_at = now
+    _commit(db)
+    db.refresh(binding)
+    return binding
+
+
+def _bind_student(db: Session, student: User, course: Course, now: datetime) -> CourseBinding:
+    binding = StudentRepository.get_binding(db, student.id, course.id)
     if binding is None:
         binding = CourseBinding(
             student_id=student.id,
-            teacher_id=conversation.teacher_id,
-            course_id=conversation.course_id,
+            teacher_id=course.teacher_id,
+            course_id=course.id,
             status="bound",
             bound_at=now,
         )
@@ -224,21 +233,77 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
         binding.status = "bound"
         binding.bound_at = now
         binding.unbound_at = None
-    binding_code.used_at = now
-    _commit(db)
-    db.refresh(binding)
     return binding
 
 
 def redeem_code_only(db: Session, student: User, code: str) -> InquiryConversation:
     """學生只輸入綁定碼：找到老師發給他的那段對話，再照一般規則綁定。"""
     binding_code = StudentRepository.get_binding_code(db, code.strip().upper())
-    if binding_code is None or binding_code.student_id != student.id:
+    if binding_code is None:
+        return redeem_course_join_code(db, student, code)
+    if binding_code.student_id != student.id:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
     conversation = StudentRepository.get_conversation(db, binding_code.conversation_id)
     if conversation is None:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
     redeem_binding_code(db, student, conversation, binding_code.code)
+    return conversation
+
+
+JOIN_CODE_HOURS = (1, 24, 72, 168)
+# 去掉 0/O、1/I 這類容易看錯的字
+JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def active_course_join_code(db: Session, teacher_id: uuid.UUID, course_id: uuid.UUID) -> CourseJoinCode | None:
+    join_code = db.scalar(
+        select(CourseJoinCode).where(CourseJoinCode.course_id == course_id, CourseJoinCode.teacher_id == teacher_id)
+    )
+    if join_code is None or join_code.expires_at <= datetime.now(timezone.utc):
+        return None
+    return join_code
+
+
+def issue_course_join_code(db: Session, course: Course, hours: int) -> CourseJoinCode:
+    """替一門課產生限時綁定碼。同一門課只留最新一組，舊碼立刻失效。"""
+    if hours not in JOIN_CODE_HOURS:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "有效時間只能選 1、24、72 或 168 小時。")
+    if course.status != "published":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "課程發布後才能產生綁定碼。")
+    db.execute(delete(CourseJoinCode).where(CourseJoinCode.course_id == course.id))
+    while True:
+        code = "".join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(8))
+        taken = db.scalar(select(CourseJoinCode.id).where(CourseJoinCode.code == code)) or db.scalar(
+            select(BindingCode.id).where(BindingCode.code == code)
+        )
+        if not taken:
+            break
+    join_code = CourseJoinCode(
+        code=code,
+        course_id=course.id,
+        teacher_id=course.teacher_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=hours),
+    )
+    db.add(join_code)
+    _commit(db)
+    db.refresh(join_code)
+    return join_code
+
+
+def revoke_course_join_code(db: Session, course: Course) -> None:
+    db.execute(delete(CourseJoinCode).where(CourseJoinCode.course_id == course.id))
+    _commit(db)
+
+
+def redeem_course_join_code(db: Session, student: User, code: str) -> InquiryConversation:
+    """課程限時碼：期限內可以重複使用。加入後也開一段和老師的對話，方便之後聯絡。"""
+    join_code = db.scalar(select(CourseJoinCode).where(CourseJoinCode.code == code.strip().upper()))
+    if join_code is None or join_code.expires_at <= datetime.now(timezone.utc):
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
+    conversation = start_conversation(db, student, join_code.course_id)
+    course = StudentRepository.get_course(db, join_code.course_id)
+    _bind_student(db, student, course, datetime.now(timezone.utc))
+    _commit(db)
     return conversation
 
 
