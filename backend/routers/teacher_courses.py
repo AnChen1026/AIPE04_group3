@@ -2,6 +2,7 @@ from uuid import UUID as UUIDType
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -20,7 +21,12 @@ from backend.services.course import (
     update_course,
 )
 from backend.services.images import MAX_IMAGE_BYTES
-from backend.services.student import StudentBusinessError
+from backend.services.student import (
+    StudentBusinessError,
+    active_course_join_code,
+    issue_course_join_code,
+    revoke_course_join_code,
+)
 
 router = APIRouter()
 
@@ -136,3 +142,56 @@ def upload_course_image(
         return save_course_image(db, teacher.user_id, course_id, image.file.read(MAX_IMAGE_BYTES + 1))
     except StudentBusinessError as error:
         _raise(error)
+
+
+class JoinCodeIn(BaseModel):
+    hours: int = 24
+
+
+def _join_code_out(join_code) -> dict | None:
+    if join_code is None:
+        return None
+    return {"code": join_code.code, "expires_at": join_code.expires_at.isoformat()}
+
+
+@router.get("/teacher/courses/{course_id}/join-code")
+def get_join_code(
+    course_id: UUIDType,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """這門課目前還有效的限時綁定碼，沒有就回 null。"""
+    try:
+        course = get_own_course(db, teacher.user_id, course_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    return _join_code_out(active_course_join_code(db, teacher.user_id, course.id))
+
+
+@router.post("/teacher/courses/{course_id}/join-code")
+def create_join_code(
+    course_id: UUIDType,
+    data: JoinCodeIn,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """產生新的限時綁定碼，舊的立刻失效。期限內拿到碼的學生都能加入這門課。"""
+    try:
+        course = get_own_course(db, teacher.user_id, course_id)
+        return _join_code_out(issue_course_join_code(db, course, data.hours))
+    except StudentBusinessError as error:
+        _raise(error)
+
+
+@router.delete("/teacher/courses/{course_id}/join-code")
+def delete_join_code(
+    course_id: UUIDType,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    try:
+        course = get_own_course(db, teacher.user_id, course_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    revoke_course_join_code(db, course)
+    return {"message": "綁定碼已停用"}

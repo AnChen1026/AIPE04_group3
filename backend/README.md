@@ -54,7 +54,7 @@ API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/heal
 | `student.py` | `/api/student/...` | 學生：接洽對話、綁定碼、課表、課務申請、練習錄音與回饋 |
 | `chat_ws.py` | `/ws/conversations/{id}`（WebSocket） | 接洽對話即時訊息。先寫資料庫，再推給在線的人 |
 | `teacher_profile.py` | `/teacher/me`、`/teacher/profile`、`/teacher/photo` | 老師個人資料與照片 |
-| `teacher_courses.py` | `/courses/...`、`/teacher/courses` | 老師的課程：新增、修改、封存、課程圖片、參考 MIDI |
+| `teacher_courses.py` | `/courses/...`、`/teacher/courses` | 老師的課程：新增、修改、封存、課程圖片、參考 MIDI、限時綁定碼（`/teacher/courses/{id}/join-code`） |
 | `teacher_students.py` | `/teacher/students`、`/teacher/courses/{id}/students/{id}/unbind` | 已綁定的學生、解除綁定 |
 | `teacher_chat.py` | `/teacher/conversations/...` | 老師的接洽對話：列表、讀寫訊息、發綁定碼 |
 | `teacher_inquiries.py` | `/teacher/inquiries` | 洽詢中的學生 |
