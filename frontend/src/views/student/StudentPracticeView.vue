@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import CoursePicker from '@/components/console/CoursePicker.vue'
 import AudioRecorder from '@/components/console/AudioRecorder.vue'
@@ -10,6 +11,7 @@ import { useBoundCourses } from '@/composables/useBoundCourses'
 import type { Recording } from '@/types/api'
 import { formatDateTime } from '@/utils/format'
 
+const route = useRoute()
 const courses = useBoundCourses()
 const recordings = ref<Recording[]>([])
 const recorder = ref<InstanceType<typeof AudioRecorder> | null>(null)
@@ -59,18 +61,24 @@ watch(
 onMounted(async () => {
   await courses.load()
   await load()
+  // 從作業頁的「查看詳情」進來（#history）時，捲到繳交紀錄
+  if (route.hash) {
+    await nextTick()
+    document.querySelector(route.hash)?.scrollIntoView({ behavior: 'smooth' })
+  }
 })
 
 onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="練習" description="照老師指定的曲子錄一段，系統會分開看音高和節奏，並給這一次的文字回饋。">
+  <PageHeader title="演奏作業" description="照老師指定的曲子錄一段，系統會分開看音高和節奏，並給這一次的文字回饋。">
     <CoursePicker v-model="courses.courseId.value" :courses="courses.bound.value" />
+    <RouterLink to="/student/homework" class="btn btn--ghost">返回</RouterLink>
   </PageHeader>
 
   <div v-if="courses.loaded.value && courses.bound.value.length === 0" class="card empty">
-    還沒有進入任何課程。輸入老師給的綁定碼後，就能在這裡錄音練習。
+    還沒有進入任何課程。在「老師」頁輸入老師給的綁定碼後，就能在這裡錄音交作業。
   </div>
 
   <template v-else-if="courses.courseId.value">
@@ -86,8 +94,8 @@ onBeforeUnmount(() => window.clearTimeout(timer))
       <p v-if="error" class="error-text" role="alert">{{ error }}</p>
     </section>
 
-    <section class="card">
-      <h2 class="card__title">練習紀錄</h2>
+    <section id="history" class="card">
+      <h2 class="card__title">繳交紀錄</h2>
       <p v-if="recordings.length === 0" class="muted">還沒有送出過練習。</p>
       <article v-for="item in recordings" :key="item.id" class="practice__item">
         <header>

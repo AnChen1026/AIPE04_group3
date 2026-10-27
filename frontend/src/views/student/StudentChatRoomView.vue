@@ -57,7 +57,7 @@ onMounted(async () => {
 
 <template>
   <PageHeader title="聊天">
-    <RouterLink to="/student" class="btn btn--ghost">返回</RouterLink>
+    <RouterLink to="/student/chat" class="btn btn--ghost">返回</RouterLink>
   </PageHeader>
 
   <ChatPanel
@@ -74,7 +74,7 @@ onMounted(async () => {
       <div v-if="conversation?.bound" class="chat-actions">
         <span class="badge badge--accent">上課中</span>
         <RouterLink :to="{ path: '/student/schedule', query: { course: conversation.course_id } }" class="btn btn--ghost btn--small">課表</RouterLink>
-        <RouterLink :to="{ path: '/student/practice', query: { course: conversation.course_id } }" class="btn btn--primary btn--small">去練習</RouterLink>
+        <RouterLink :to="{ path: '/student/homework/practice', query: { course: conversation.course_id } }" class="btn btn--primary btn--small">交作業</RouterLink>
       </div>
       <form v-else class="chat-actions" @submit.prevent="bind">
         <label class="muted" for="bind-code">老師給你綁定碼了嗎？</label>

@@ -1,0 +1,154 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import PageHeader from '@/components/console/PageHeader.vue'
+import { fetchMyConversations } from '@/api/student'
+import type { Conversation } from '@/types/api'
+import { formatShort } from '@/utils/format'
+
+const conversations = ref<Conversation[]>([])
+const keyword = ref('')
+const error = ref('')
+let timer = 0
+
+const shown = computed(() => {
+  const text = keyword.value.trim().toLowerCase()
+  if (!text) return conversations.value
+  return conversations.value.filter((item) =>
+    [item.teacher_name ?? '', item.course_title ?? ''].some((value) => value.toLowerCase().includes(text)),
+  )
+})
+
+async function load() {
+  try {
+    conversations.value = await fetchMyConversations()
+    error.value = ''
+  } catch (problem) {
+    error.value = problem instanceof Error ? problem.message : '讀不到聊天列表。'
+  }
+  timer = window.setTimeout(load, 15000)
+}
+
+onMounted(load)
+onBeforeUnmount(() => window.clearTimeout(timer))
+</script>
+
+<template>
+  <PageHeader title="聊天記錄" description="在課程按「聯繫老師」後，和老師的對話都在這裡。">
+    <label class="search-input">
+      <span class="visually-hidden">搜尋老師</span>
+      <input v-model="keyword" class="input" type="search" placeholder="搜尋老師" />
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+      </svg>
+    </label>
+    <RouterLink :to="{ path: '/', hash: '#courses' }" class="btn btn--primary">新增</RouterLink>
+  </PageHeader>
+  <p v-if="error" class="error-text">{{ error }}</p>
+
+  <p class="muted list__caption">近期聊天紀錄</p>
+  <div v-if="shown.length === 0" class="card empty">
+    {{ conversations.length === 0 ? '還沒有和老師聊過。按右上角「新增」到首頁找課程、聯繫老師。' : '找不到符合的老師。' }}
+  </div>
+  <RouterLink
+    v-for="item in shown"
+    :key="item.id"
+    :to="`/student/chat/${item.id}`"
+    class="card conversation"
+    :class="{ 'conversation--unread': item.unread_count > 0 }"
+  >
+    <span class="conversation__avatar" aria-hidden="true">{{ (item.teacher_name ?? '師').slice(0, 1) }}</span>
+    <div class="conversation__main">
+      <div class="conversation__title">
+        <strong>老師：{{ item.teacher_name }}</strong>
+        <span class="badge" :class="item.bound ? 'badge--accent' : 'badge--muted'">{{ item.bound ? '上課中' : '洽詢中' }}</span>
+      </div>
+      <p class="muted">{{ item.course_title }}{{ item.course_level ? `・${item.course_level}` : '' }}</p>
+      <p v-if="item.last_message" class="conversation__last">{{ item.last_message }}</p>
+    </div>
+    <div class="conversation__side">
+      <span class="muted">{{ formatShort(item.last_message_at) }}</span>
+      <span v-if="item.unread_count" class="conversation__unread">未讀訊息 {{ item.unread_count }} 則</span>
+    </div>
+  </RouterLink>
+</template>
+
+<style scoped>
+.search-input {
+  width: min(220px, 100%);
+}
+
+.list__caption {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.conversation {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 22px;
+  transition: border-color 0.2s ease;
+}
+
+.conversation:hover {
+  border-color: var(--home-wood);
+}
+
+.conversation + .conversation {
+  margin-top: 12px;
+}
+
+.conversation--unread {
+  background: var(--home-cream);
+}
+
+.conversation__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--home-wood);
+  color: var(--home-accent-dark);
+  font-family: var(--font-serif);
+  font-size: 18px;
+}
+
+.conversation__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation__main p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.conversation__last {
+  overflow: hidden;
+  color: var(--home-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.conversation__unread {
+  color: var(--home-accent-dark);
+  font-size: 14px;
+  font-weight: 500;
+}
+</style>

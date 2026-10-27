@@ -95,3 +95,9 @@ export function addDays(value: Date, days: number): Date {
 export function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString()
 }
+
+// 卡片三色輪流：同一門課固定同一色（依 keys 裡的順序）
+export function toneClass(key: string, keys: string[]): string {
+  const index = Math.max(keys.indexOf(key), 0) % 3
+  return index ? `tone-card--${index}` : ''
+}

@@ -101,11 +101,28 @@ const router = createRouter({
       component: () => import('@/layouts/StudentLayout.vue'),
       meta: { layout: 'console', role: 'student' },
       children: [
-        { path: '', name: 'student-home', component: () => import('@/views/student/StudentDashboardView.vue'), meta: { title: '我的課程' } },
-        { path: 'chat/:id', name: 'student-chat-room', component: () => import('@/views/student/StudentChatRoomView.vue'), meta: { title: '聊天' } },
+        { path: '', name: 'student-home', component: () => import('@/views/student/StudentOverviewView.vue'), meta: { title: '資訊總覽' } },
         { path: 'schedule', name: 'student-schedule', component: () => import('@/views/student/StudentScheduleView.vue'), meta: { title: '課表' } },
-        { path: 'practice', name: 'student-practice', component: () => import('@/views/student/StudentPracticeView.vue'), meta: { title: '練習' } },
-        { path: 'profile', name: 'student-profile', component: () => import('@/views/student/StudentProfileView.vue'), meta: { title: '基本資料' } },
+        { path: 'teachers', name: 'student-teachers', component: () => import('@/views/student/StudentTeachersView.vue'), meta: { title: '老師' } },
+        { path: 'courses', name: 'student-courses', component: () => import('@/views/student/StudentCoursesView.vue'), meta: { title: '課程資訊' } },
+        { path: 'homework', name: 'student-homework', component: () => import('@/views/student/StudentHomeworkView.vue'), meta: { title: '作業' } },
+        { path: 'homework/practice', name: 'student-practice', component: () => import('@/views/student/StudentPracticeView.vue'), meta: { title: '演奏作業' } },
+        { path: 'homework/analysis', name: 'student-analysis', component: () => import('@/views/student/StudentAnalysisView.vue'), meta: { title: '作業分析' } },
+        { path: 'chat', name: 'student-chat', component: () => import('@/views/student/StudentChatListView.vue'), meta: { title: '聊天記錄' } },
+        { path: 'chat/:id', name: 'student-chat-room', component: () => import('@/views/student/StudentChatRoomView.vue'), meta: { title: '聊天' } },
+        {
+          path: 'settings',
+          component: () => import('@/views/student/StudentSettingsView.vue'),
+          children: [
+            { path: '', name: 'student-settings', redirect: '/student/settings/profile' },
+            { path: 'profile', name: 'student-profile', component: () => import('@/views/student/StudentProfileView.vue'), meta: { title: '個人資料維護' } },
+            // 修改密碼只用到登入帳號的 API，和老師共用同一頁
+            { path: 'password', name: 'student-password', component: () => import('@/views/teacher/TeacherPasswordView.vue'), meta: { title: '修改密碼' } },
+          ],
+        },
+        // 舊網址：練習改到作業底下、基本資料改到設定底下
+        { path: 'practice', redirect: (to) => ({ path: '/student/homework/practice', query: to.query }) },
+        { path: 'profile', redirect: '/student/settings/profile' },
       ],
     },
 

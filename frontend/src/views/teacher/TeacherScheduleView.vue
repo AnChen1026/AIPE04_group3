@@ -3,16 +3,17 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import WeekPicker from '@/components/console/WeekPicker.vue'
-import WeekTimetable, { type TimetableItem } from '@/components/console/WeekTimetable.vue'
+import DayStrip from '@/components/console/DayStrip.vue'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import { decideChangeRequest, fetchChangeRequests, fetchLessonSummary, fetchMyLessons } from '@/api/teacher'
 import type { LessonSummary, TeacherChangeRequest, TeacherLesson } from '@/types/api'
-import { CHANGE_TYPE_LABELS, formatDateTime, formatRange, startOfWeek } from '@/utils/format'
+import { CHANGE_TYPE_LABELS, addDays, formatDateTime, formatRange, formatTime, sameDay, startOfWeek, toneClass } from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
 
 const weekStart = ref(startOfWeek(new Date()))
+const selectedDay = ref(new Date())
 const lessons = ref<TeacherLesson[]>([])
 const requests = ref<TeacherChangeRequest[]>([])
 const error = ref('')
@@ -24,17 +25,34 @@ const summary = ref<LessonSummary | null>(null)
 const summaryLoading = ref(false)
 const summaryError = ref('')
 
-const items = computed<TimetableItem[]>(() =>
-  lessons.value.map((lesson) => ({
-    id: lesson.id,
-    starts_at: lesson.starts_at,
-    ends_at: lesson.ends_at,
-    title: lesson.course_title,
-    subtitle: lesson.student_name,
-    colorKey: lesson.course_id,
-    cancelled: lesson.status === 'cancelled',
-  })),
+// 設計稿：上方選一天，下面列出那天的課
+const weekLessonDates = computed(() =>
+  lessons.value
+    .map((lesson) => new Date(lesson.starts_at))
+    .filter((date) => date >= weekStart.value && date < addDays(weekStart.value, 7)),
 )
+const dayLessons = computed(() =>
+  lessons.value
+    .filter((lesson) => sameDay(new Date(lesson.starts_at), selectedDay.value))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+)
+const courseKeys = computed(() => [...new Set(lessons.value.map((lesson) => lesson.course_id))])
+
+// 「共 N 堂課，已上 M 堂」：同一位學生同一門課、沒取消的課
+function progress(lesson: TeacherLesson) {
+  const same = lessons.value.filter(
+    (item) => item.course_id === lesson.course_id && item.student_id === lesson.student_id && item.status === 'scheduled',
+  )
+  const done = same.filter((item) => new Date(item.ends_at) < new Date()).length
+  return `共 ${same.length} 堂課，已上 ${done} 堂`
+}
+
+// 換週時，選這週的今天；不是本週就選星期一
+watch(weekStart, (start) => {
+  if (selectedDay.value >= start && selectedDay.value < addDays(start, 7)) return
+  const today = new Date()
+  selectedDay.value = today >= start && today < addDays(start, 7) ? today : start
+})
 
 async function load() {
   error.value = ''
@@ -50,6 +68,7 @@ async function openLesson(id: string) {
   if (!lesson) return
   selected.value = lesson
   weekStart.value = startOfWeek(new Date(lesson.starts_at))
+  selectedDay.value = new Date(lesson.starts_at)
   summary.value = null
   summaryError.value = ''
   if (lesson.status !== 'scheduled') return
@@ -109,7 +128,32 @@ watch(
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
-  <WeekTimetable :week-start="weekStart" :items="items" @select="openLesson" />
+  <DayStrip v-model="selectedDay" :week-start="weekStart" :marked="weekLessonDates" />
+
+  <div v-if="dayLessons.length === 0" class="card empty">這天沒有排課。</div>
+  <article
+    v-for="lesson in dayLessons"
+    :key="lesson.id"
+    class="tone-card lesson-card"
+    :class="toneClass(lesson.course_id, courseKeys)"
+  >
+    <div class="tone-card__cell lesson-card__time">
+      <p class="tone-card__title">{{ formatTime(lesson.starts_at) }} - {{ formatTime(lesson.ends_at) }}</p>
+      <RouterLink :to="{ name: 'teacher-practice', query: { course: lesson.course_id } }" class="tone-card__line lesson-card__link">
+        查看作業分析
+      </RouterLink>
+    </div>
+    <div class="tone-card__cell">
+      <p class="tone-card__title">{{ lesson.course_title }}　{{ lesson.student_name }}</p>
+      <button v-if="lesson.status === 'scheduled'" type="button" class="tone-card__line lesson-card__link" @click="openLesson(lesson.id)">
+        進度：看課前摘要
+      </button>
+    </div>
+    <div class="tone-card__cell">
+      <p class="tone-card__line">{{ progress(lesson) }}</p>
+    </div>
+    <span class="tone-btn lesson-card__status">{{ lesson.status === 'cancelled' ? '已取消' : '已確認' }}</span>
+  </article>
 
   <section class="card requests">
     <h2 class="card__title">待確認的課務申請</h2>
@@ -178,6 +222,39 @@ watch(
 </template>
 
 <style scoped>
+.lesson-card {
+  position: relative;
+  grid-template-columns: 170px minmax(0, 1.4fr) minmax(0, 1fr);
+  padding-right: 110px;
+}
+
+.lesson-card__time {
+  text-align: center;
+}
+
+.lesson-card__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lesson-card__link:hover {
+  text-decoration: underline;
+}
+
+.lesson-card__status {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  min-height: 26px;
+  padding: 0 10px;
+  font-size: 13px;
+  cursor: default;
+}
+
 .requests {
   margin-top: 18px;
 }
@@ -276,6 +353,21 @@ watch(
   margin: 8px 0 0;
   color: var(--home-muted);
   font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .lesson-card {
+    padding-right: 20px;
+  }
+
+  .lesson-card__time {
+    text-align: left;
+  }
+
+  .lesson-card__status {
+    position: static;
+    justify-self: start;
+  }
 }
 
 @media (max-width: 640px) {
