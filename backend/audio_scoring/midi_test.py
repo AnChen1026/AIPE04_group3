@@ -24,6 +24,7 @@
 
 from pathlib import Path  # 處理檔案路徑，避免自己拼字串
 import argparse  # 讀取指令列參數，例如 --midi、--audio
+import json  # 把交給 LLM 的內容轉成 JSON 字串
 import os  # 設定環境變數，例如 numba 快取目錄、Gemini API key
 import shutil  # 找 ffmpeg 在哪裡
 import subprocess  # 瀏覽器錄的 webm／m4a 先用 ffmpeg 轉成 wav
@@ -137,6 +138,8 @@ class MeasureSummary(BaseModel):
     extra_notes: int
     pitch_text: str
     rhythm_text: str
+    # 這小節有間隔沒拿到滿分
+    rhythm_issue: bool = False
 
 
 class ScoreReport(BaseModel):
@@ -154,6 +157,9 @@ class ScoreReport(BaseModel):
     extra_notes: int
     pitch_score: float
     rhythm_score: float
+    # 滿分：音高 70、節奏 30。LLM 要知道 30 分是節奏滿分，不是低分
+    pitch_score_max: int = PITCH_SCORE_MAX
+    rhythm_score_max: int = RHYTHM_SCORE_MAX
     tempo_ratio: float
     # 節奏用哪個速度當標準："metronome"＝學生開的節拍器，"student"＝學生自己的整體速度
     tempo_source: str = "student"
@@ -161,6 +167,8 @@ class ScoreReport(BaseModel):
     # 學生這次整體大約彈幾 BPM（依音和音的間隔推算）
     played_bpm: float | None = None
     tempo_changes: list[TempoChange] = []
+    # 程式整理好的「這次真正的問題」，LLM 回饋只能提到這裡面的事；空的代表全對
+    problems: list[str] = []
     raw_total: float
     final_score: int
     measures: list[MeasureSummary]
@@ -901,7 +909,8 @@ def build_measure_summaries(
         item = measure_map[measure_number]
         ioi_count = item["ioi_count"]
         if ioi_count == 0:
-            rhythm_text = "0 / 0"
+            # 這小節沒有可以比的間隔（例如只有最後一顆音），不是節奏不好
+            rhythm_text = "沒有可比的間隔"
         else:
             rhythm_text = str(item["ioi_weight_sum"]) + " / " + str(ioi_count)
 
@@ -915,6 +924,7 @@ def build_measure_summaries(
                 "extra_notes": item["extra_notes"],
                 "pitch_text": str(item["correct_pitch_count"]) + " / " + str(item["standard_note_count"]),
                 "rhythm_text": rhythm_text,
+                "rhythm_issue": ioi_count > 0 and item["ioi_weight_sum"] < ioi_count,
             }
         )
         number_index = number_index + 1
@@ -1098,7 +1108,31 @@ def build_score_report(midi_path, audio_path, standard_midi, student_midi, score
         measures=score_result["measures"],
         error_notes=score_result["error_notes"],
     )
+    report.problems = list_problems(report)
     return report
+
+
+def join_measures(numbers):
+    """[3, 6, 7] → 「第 3、6、7 小節」。"""
+    return "第 " + "、".join(str(number) for number in numbers) + " 小節"
+
+
+def list_problems(report):
+    """把評分結果整理成幾句話，給 LLM 當成「只能講這些」的清單。"""
+    problems = []
+    missing = [item.measure_number for item in report.measures if item.missing_notes]
+    if missing:
+        problems.append(join_measures(missing[:5]) + "有漏掉或彈錯的音")
+    if report.extra_notes:
+        problems.append(f"有 {report.extra_notes} 個多彈的音（不扣分）")
+    rhythm = [item.measure_number for item in report.measures if item.rhythm_issue]
+    if rhythm:
+        problems.append(join_measures(rhythm[:5]) + "節奏跟答案不一樣")
+    for change in report.tempo_changes:
+        speed = "變快" if change.direction == "faster" else "變慢"
+        where = join_measures(range(change.start_measure, change.end_measure + 1)) if change.end_measure - change.start_measure < 4 else f"第 {change.start_measure}～{change.end_measure} 小節"
+        problems.append(f"{where}突然{speed}約 {change.factor} 倍")
+    return problems
 
 
 # ======================================================
@@ -1106,58 +1140,26 @@ def build_score_report(midi_path, audio_path, standard_midi, student_midi, score
 # 透過 backend/services/llm.py 呼叫：有等待上限、會重試一次、失敗會記下原因，
 # 也可以在 .env 用 PRACTICE_FEEDBACK_LLM_PROVIDER 切換 Gemini 或 OpenAI
 # ======================================================
-FEEDBACK_SYSTEM_PROMPT = """你是一位溫柔、簡潔、清楚的鋼琴老師。
+FEEDBACK_SYSTEM_PROMPT = """你是一位溫柔、簡潔、清楚的鋼琴老師。請根據這次練習的評分，用繁體中文給學生 2～4 句回饋。
 
-        請根據「本次練習評分 JSON」以及「上次練習紀錄（如果有）」，
-        用繁體中文給學生簡短的鋼琴練習回饋。
+你會拿到：
+- 音高分數、節奏分數：寫「（滿分）」的就是完全正確。音高滿分 70、節奏滿分 30，30 分是節奏滿分，不是低分。
+- problems：程式整理好的「這次真正的問題」。
+- 節拍器（可能沒有）：有開節拍器時，節奏是照節拍器的速度評分。
 
-        回饋規則：
+規則：
+1. 第一句先具體肯定這次做得好的地方。
+2. 問題只能從 problems 裡挑，最多挑 1～2 個最明顯的，用概括的方式說（例如「第 5、7 小節有幾個音要再確認」）。
+3. problems 是空的，代表音高和節奏都對：只稱讚和鼓勵，不可以說任何地方要改進、不穩或得分低。
+4. 有「突然變快／變慢」的問題時優先提醒，請學生那裡保持跟前後一樣的速度。
+5. 有多彈的音時只要簡單提醒「有幾個地方多彈了，可以再注意一下」，不要猜原因。
+6. 不要編造沒有給你的小節、音符、錯誤或進步，也不要提到「上次」。
+7. 最後一句給一個簡單、實際的練習建議或鼓勵。
+8. 像老師直接對學生說話，不要像系統報告；只輸出回饋本身，不要標題、條列或 JSON。
 
-        1. 回饋只需要 3～4 句，不要逐一列出所有錯誤。
-
-        2. 第一句先簡單肯定學生這次做得好的地方。
-
-        3. 從本次練習中挑選最多 1～2 個最值得改善的問題即可。
-        優先挑選：
-        - 錯誤數量較多的小節
-        - 重複出現的問題
-        - 對整體演奏影響較大的問題
-
-        4. 不需要逐一說明「第幾小節第幾個音」。
-        可以用概括方式，例如：
-        「第 5、7、9 小節有幾個錯音，可以確認樂譜後再試一次。」
-        或：
-        「這次節奏有些不穩，幾個地方稍微偏快，可以搭配節拍器練習。」
-
-        5. 漏音、多彈、錯音、節奏問題不需要全部回饋。
-        只有當該問題較明顯時才需要提到。
-
-        5-1. tempo_changes 有資料時，代表那幾小節突然變快或變慢（factor 是幾倍），
-        請挑最明顯的一段提醒，例如「第 5～6 小節突然變快很多，那裡可以放慢、保持跟前面一樣的速度」。
-        tempo_source 是 "metronome" 時，代表學生有開節拍器，節奏是照節拍器速度（metronome_bpm）比的。
-
-        6. 如果有多彈的音，只需要簡單寫：
-        「有幾個地方出現多彈的音，彈奏時可以再注意一下。」
-        不要猜測是誤觸、麥克風、辨識錯誤或其他原因。
-
-        7. 如果有提供「上次練習紀錄」，請先比較本次與上次的結果。
-        - 有明顯進步時，要優先指出進步的地方。
-        - 如果某個問題持續出現，可以簡單提醒學生繼續加強。
-        - 不需要列出詳細數字差異，除非差異很有意義。
-
-        8. 如果沒有上次練習紀錄，就只根據本次結果回饋，不要提到「上次」。
-
-        9. 不要編造 JSON 中不存在的小節、音符、錯誤或進步。
-
-        10. 語氣要像老師直接對學生說話，簡單、自然、鼓勵，不要像系統分析報告。
-
-        11. 最後一句給一個簡單、實際的練習建議或鼓勵。
-
-        理想回覆風格：
-
-        「這次整體彈得很不錯！第 5、7、9 小節還有幾個音需要再確認一下，可以看著樂譜慢慢練一次。另外這次節奏偶爾有點偏快，建議跟著節拍器再練一遍。繼續保持，你已經進步很多了！」
-
-        只輸出給學生看的回饋，不要輸出分析過程、JSON、標題或條列。"""
+語氣示範（內容一定要照這次的 problems，不要照抄）：
+有問題時：「這次整體彈得很不錯！第 5、7 小節還有幾個音需要再確認一下，可以看著樂譜慢慢練一次。繼續保持！」
+problems 是空的時：「這次音準和節奏都很穩，整首彈得很完整，做得很好！下次可以試著加一點強弱變化。」"""
 
 
 def load_llm_module():
@@ -1170,12 +1172,30 @@ def load_llm_module():
     return llm
 
 
+def score_text(score, maximum):
+    text = f"{score:g} / {maximum}"
+    return text + "（滿分）" if score >= maximum else text
+
+
+def feedback_input(score_report):
+    """交給 LLM 的精簡內容。完整報告數字太多，小模型容易看錯（例如把節奏 30 分當成低分），只給它需要的。"""
+    data = {
+        "音高分數": score_text(score_report.pitch_score, score_report.pitch_score_max),
+        "節奏分數": score_text(score_report.rhythm_score, score_report.rhythm_score_max),
+        "彈對的音": f"{score_report.correct_pitch_count} / {score_report.standard_note_count}",
+        "problems": score_report.problems,
+    }
+    if score_report.tempo_source == "metronome" and score_report.metronome_bpm:
+        data["節拍器"] = f"有開，{score_report.metronome_bpm:g} BPM，節奏照節拍器速度評分"
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
 def generate_feedback(score_report):
     """回傳 (回饋文字, 失敗原因)。成功時失敗原因是 None。"""
     llm = load_llm_module()
     return llm.generate_text_with_reason(
         FEEDBACK_SYSTEM_PROMPT,
-        score_report.model_dump_json(indent=2),
+        feedback_input(score_report),
         feature=llm.FEATURE_PRACTICE_FEEDBACK,
         temperature=0.4,
     )

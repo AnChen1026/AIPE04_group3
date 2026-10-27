@@ -140,3 +140,30 @@ def test_對照樂譜上下兩行_顏色標出彈錯多彈與節奏_不會出現
     # 答案都是四分音符，學生的譜也只對齊到四分音符（跟答案一樣細）
     assert "<type>16th</type>" not in xml
     assert "<type>eighth</type>" not in xml
+
+
+def test_交給LLM的內容_全對時沒有問題_滿分寫清楚():
+    standard = _scale()
+    standard_midi, student_midi, alignment, result = _score(standard, _scale())
+    report = midi_test.build_score_report("a.mid", "b.wav", standard_midi, student_midi, result)
+    assert report.problems == []
+    data = midi_test.json.loads(midi_test.feedback_input(report))
+    assert data["節奏分數"] == "30 / 30（滿分）"
+    assert data["problems"] == []
+
+
+def test_交給LLM的內容_列出真正的問題():
+    standard = _scale(count=24)
+    slow = BPM / 65
+    student, time = [], 0.0
+    for index, item in enumerate(standard):
+        if index == 2:
+            time += BEAT * slow
+            continue  # 漏彈第 3 顆
+        student.append(_note(item["pitch"], time, duration=0.3))
+        time += BEAT * (1.0 if 8 <= index < 16 else slow)
+    standard_midi, student_midi, alignment, result = _score(standard, student)
+    report = midi_test.build_score_report("a.mid", "b.wav", standard_midi, student_midi, result)
+    assert report.problems[0] == "第 1 小節有漏掉或彈錯的音"
+    assert any("突然變快" in item for item in report.problems)
+    assert "滿分" not in midi_test.feedback_input(report).split("節奏分數")[1].split("\n")[0]
