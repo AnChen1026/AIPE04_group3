@@ -8,6 +8,8 @@ import type {
   CourseJoinCode,
   LessonSummary,
   Message,
+  Studio,
+  StudioInput,
   TeacherChangeRequest,
   TeacherLesson,
   TeacherProfile,
@@ -25,6 +27,10 @@ export function uploadTeacherPhoto(file: File) {
   form.append('photo', file)
   return request<TeacherProfile>('/teacher/photo', { method: 'POST', body: form })
 }
+
+// ---------- 工作室：審核通過後老師自己填寫，編號由系統產生
+export const fetchStudio = () => request<Studio | null>('/teacher/studio')
+export const saveStudio = (input: StudioInput) => request<Studio>('/teacher/studio', { method: 'PUT', body: { ...input } })
 
 // ---------- 課程
 export const fetchMyCourses = () => request<Course[]>('/teacher/courses')

@@ -10,11 +10,7 @@ import { useLeaveGuard } from '@/composables/useLeaveGuard'
 import { useAuthStore } from '@/stores/auth'
 import type { TeacherProfileInput } from '@/types/api'
 import defaultPhoto from '@/assets/images/女老師3.png'
-
-const CITIES = [
-  '台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '台中市', '彰化縣', '南投縣',
-  '雲林縣', '嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣',
-]
+import { TAIWAN_CITIES } from '@/utils/format'
 
 // 只有姓名、性別必填。授課方式、地區、時段等，每門課可以在「課程」裡各自設定。
 const router = useRouter()
@@ -162,8 +158,8 @@ async function save() {
         <label class="field__label" for="tp-city">主要教學城市（選填）</label>
         <select id="tp-city" v-model="form.teaching_city" class="select">
           <option value="">不指定</option>
-          <option v-if="form.teaching_city && !CITIES.includes(form.teaching_city)" :value="form.teaching_city">{{ form.teaching_city }}</option>
-          <option v-for="city in CITIES" :key="city" :value="city">{{ city }}</option>
+          <option v-if="form.teaching_city && !TAIWAN_CITIES.includes(form.teaching_city)" :value="form.teaching_city">{{ form.teaching_city }}</option>
+          <option v-for="city in TAIWAN_CITIES" :key="city" :value="city">{{ city }}</option>
         </select>
       </div>
       <div class="field">
