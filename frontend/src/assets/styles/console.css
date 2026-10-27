@@ -358,3 +358,108 @@
     border-left: 0;
   }
 }
+
+/* 聊天左欄的對話項目（老師、學生、管理員共用） */
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--home-line);
+  border-radius: 16px;
+  background: var(--home-paper);
+  color: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.chat-item + .chat-item {
+  margin-top: 8px;
+}
+
+.chat-item:hover {
+  border-color: var(--home-wood);
+}
+
+.chat-item--unread {
+  background: var(--home-cream);
+}
+
+.chat-item--active {
+  border-color: var(--home-accent);
+  background: var(--home-cream);
+}
+
+.chat-item--pinned {
+  margin-bottom: 16px;
+  border-color: var(--home-wood);
+}
+
+.chat-item__avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--home-wood);
+  color: var(--home-accent-dark);
+  font-family: var(--font-serif);
+  font-size: 16px;
+}
+
+.chat-item__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-item__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+}
+
+.chat-item__title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-item__title time {
+  margin-left: auto;
+  flex: none;
+  color: var(--home-muted);
+  font-size: 12px;
+}
+
+.chat-item__line {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--home-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-item__line--last {
+  color: var(--home-ink);
+}
+
+.chat-item__unread {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--home-accent);
+  color: #fff;
+  font-size: 12px;
+}
+
+.chat-list__caption {
+  margin: 0 0 8px;
+  color: var(--home-muted);
+  font-size: 13px;
+}

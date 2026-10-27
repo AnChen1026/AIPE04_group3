@@ -17,7 +17,7 @@ export interface NavItem {
 const props = defineProps<{
   heading: string
   items: NavItem[]
-  // 有給的話，選單最上方顯示「👋 姓名＋身分」，點了回資訊總覽；各頁按鈕也改放到上方標題列
+  // 有給的話，選單最上方顯示「姓名＋身分」，點了回資訊總覽；各頁按鈕也改放到上方標題列
   homeTo?: string
   roleLabel?: string
 }>()
@@ -78,7 +78,6 @@ async function logout() {
             :class="{ 'shell__greeting--active': route.path === homeTo }"
             :aria-current="route.path === homeTo ? 'page' : undefined"
           >
-            <span aria-hidden="true">👋</span>
             <strong>{{ auth.user?.name }}</strong><small>{{ roleLabel }}</small>
           </RouterLink>
           <RouterLink

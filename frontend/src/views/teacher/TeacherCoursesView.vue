@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
-import { fetchMyCourses } from '@/api/teacher'
-import type { Course } from '@/types/api'
+import CourseJoinCodes from '@/components/console/CourseJoinCodes.vue'
+import { fetchMyCourses, fetchTeacherConversations } from '@/api/teacher'
+import type { Conversation, Course } from '@/types/api'
 import { apiUrl } from '@/api/http'
 import { imageForCourse } from '@/assets/courseImages'
 import { COURSE_STATUS_LABELS, deliveryText, priceText } from '@/utils/format'
 
 const courses = ref<Course[]>([])
+// 還在洽詢、沒綁定的對話，課程卡上可以直接發一人一碼
+const inquiries = ref<Conversation[]>([])
 const keyword = ref('')
 const status = ref<'all' | Course['status']>('all')
 const error = ref('')
@@ -32,9 +35,13 @@ function statusClass(value: Course['status']) {
   return value === 'published' ? 'badge--accent' : value === 'draft' ? 'badge--warn' : 'badge--muted'
 }
 
+async function loadInquiries() {
+  inquiries.value = (await fetchTeacherConversations().catch(() => [])).filter((item) => !item.bound)
+}
+
 onMounted(async () => {
   try {
-    courses.value = await fetchMyCourses()
+    ;[courses.value] = await Promise.all([fetchMyCourses(), loadInquiries()])
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到課程。'
   }
@@ -93,6 +100,13 @@ onMounted(async () => {
       <RouterLink :to="{ name: 'teacher-assignment-new', query: { course: course.id } }" class="muted course__assign">替這門課的學生發作業</RouterLink>
       <span class="badge" :class="statusClass(course.status)">{{ COURSE_STATUS_LABELS[course.status] }}</span>
     </footer>
+    <CourseJoinCodes
+      v-if="course.status === 'published'"
+      :course="course"
+      :inquiries="inquiries.filter((item) => item.course_id === course.id)"
+      @changed="loadInquiries"
+    />
+    <p v-else-if="course.status === 'draft'" class="muted course__hint">發布後就能在這裡產生綁定碼。</p>
     </div>
   </article>
 </template>
@@ -163,6 +177,11 @@ onMounted(async () => {
   content: '・';
   margin-right: 6px;
   color: var(--home-wood);
+}
+
+.course__hint {
+  margin: 10px 0 0;
+  font-size: 13px;
 }
 
 .course__foot {

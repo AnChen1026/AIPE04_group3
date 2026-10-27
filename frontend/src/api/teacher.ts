@@ -5,6 +5,7 @@ import type {
   Conversation,
   Course,
   CourseInput,
+  CourseJoinCode,
   LessonSummary,
   Message,
   TeacherChangeRequest,
@@ -37,6 +38,12 @@ export function uploadCourseImage(id: string, file: File) {
   form.append('image', file)
   return request<Course>(`/courses/${id}/image`, { method: 'POST', body: form })
 }
+
+// 課程的限時綁定碼：期限內拿到碼的學生都能加入，一門課同時只有一組
+export const fetchJoinCode = (courseId: string) => request<CourseJoinCode | null>(`/teacher/courses/${courseId}/join-code`)
+export const createJoinCode = (courseId: string, hours: number) =>
+  request<CourseJoinCode>(`/teacher/courses/${courseId}/join-code`, { method: 'POST', body: { hours } })
+export const deleteJoinCode = (courseId: string) => request(`/teacher/courses/${courseId}/join-code`, { method: 'DELETE' })
 
 
 // ---------- 學生
