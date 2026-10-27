@@ -164,6 +164,10 @@ def approve_teacher_application(
         raise
 
     db.refresh(application)
+    # 以審核的管理員身分送出「審核通過＋使用須知」
+    from backend.services.support import send_welcome
+
+    send_welcome(db, application.user, admin)
     return application
 
 

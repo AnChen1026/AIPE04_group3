@@ -46,6 +46,10 @@ def register_user(db: Session, register_data: UserRegister) -> User:
         raise
 
     db.refresh(user)
+    # 管理員對話裡的第一則：歡迎與使用須知
+    from backend.services.support import send_welcome
+
+    send_welcome(db, user)
     return user
 
 

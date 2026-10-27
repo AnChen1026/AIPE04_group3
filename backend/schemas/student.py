@@ -138,6 +138,8 @@ class FeedbackResponse(BaseModel):
 class RecordingResponse(BaseModel):
     id: uuid.UUID
     course_id: uuid.UUID
+    # 繳交的是哪一份作業；直接照課程參考曲練習的是空的
+    assignment_id: uuid.UUID | None = None
     status: str
     submitted_at: datetime
     feedback: FeedbackResponse | None = None
@@ -167,3 +169,34 @@ class LessonSummaryResponse(BaseModel):
     stats: dict
     source_recording_ids: list[str]
     generated_at: datetime
+
+
+class AssignmentMaterialResponse(BaseModel):
+    id: uuid.UUID
+    filename: str
+    content_type: str | None = None
+    file_size_bytes: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AssignmentResponse(BaseModel):
+    """一份作業。老師和學生看到的一樣；檔案另外用下載網址拿。"""
+
+    id: uuid.UUID
+    course_id: uuid.UUID
+    course_title: str
+    student_id: uuid.UUID
+    student_name: str
+    kind: str
+    title: str
+    description: str | None = None
+    due_at: datetime | None = None
+    has_midi: bool
+    midi_filename: str | None = None
+    materials: list[AssignmentMaterialResponse]
+    submission_count: int
+    last_submitted_at: datetime | None = None
+    created_at: datetime
