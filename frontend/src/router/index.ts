@@ -78,9 +78,18 @@ const router = createRouter({
         { path: 'practice', name: 'teacher-practice', component: () => import('@/views/teacher/TeacherPracticeView.vue'), meta: { title: '作業狀態' } },
         { path: 'practice/new', name: 'teacher-assignment-new', component: () => import('@/views/teacher/TeacherAssignmentFormView.vue'), meta: { title: '作業管理' } },
         { path: 'practice/:id', name: 'teacher-assignment', component: () => import('@/views/teacher/TeacherAssignmentDetailView.vue'), meta: { title: '學生作業詳情' } },
-        { path: 'chat', name: 'teacher-chat', component: () => import('@/views/teacher/TeacherChatListView.vue'), meta: { title: '聊天管理' } },
-        { path: 'support', name: 'teacher-support', component: () => import('@/views/teacher/TeacherSupportView.vue'), meta: { title: '平台管理員' } },
-        { path: 'chat/:id', name: 'teacher-chat-room', component: () => import('@/views/teacher/TeacherChatRoomView.vue'), meta: { title: '聊天內容' } },
+        // 聊天是左右兩欄：列表是外層，選到的對話是子路由，換人不用返回
+        {
+          path: 'chat',
+          name: 'teacher-chat',
+          component: () => import('@/views/teacher/TeacherChatListView.vue'),
+          meta: { title: '聊天管理' },
+          children: [
+            { path: 'admin', name: 'teacher-support', component: () => import('@/views/teacher/TeacherSupportView.vue'), meta: { title: '平台管理員' } },
+            { path: ':id', name: 'teacher-chat-room', component: () => import('@/views/teacher/TeacherChatRoomView.vue'), meta: { title: '聊天內容' } },
+          ],
+        },
+        { path: 'support', redirect: '/teacher/chat/admin' },
       ],
     },
 
@@ -94,8 +103,13 @@ const router = createRouter({
         { path: 'applications', name: 'admin-applications', component: () => import('@/views/admin/AdminApplicationsView.vue'), meta: { title: '老師申請' } },
         { path: 'teachers', name: 'admin-teachers', component: () => import('@/views/admin/AdminPeopleView.vue'), meta: { title: '老師' } },
         { path: 'students', name: 'admin-students', component: () => import('@/views/admin/AdminPeopleView.vue'), meta: { title: '學生' } },
-        { path: 'chat', name: 'admin-chat', component: () => import('@/views/admin/AdminChatListView.vue'), meta: { title: '聊天' } },
-        { path: 'chat/:id', name: 'admin-chat-room', component: () => import('@/views/admin/AdminChatRoomView.vue'), meta: { title: '聊天內容' } },
+        {
+          path: 'chat',
+          name: 'admin-chat',
+          component: () => import('@/views/admin/AdminChatListView.vue'),
+          meta: { title: '聊天' },
+          children: [{ path: ':id', name: 'admin-chat-room', component: () => import('@/views/admin/AdminChatRoomView.vue'), meta: { title: '聊天內容' } }],
+        },
         { path: 'password-resets', name: 'admin-password-resets', component: () => import('@/views/admin/AdminPasswordResetsView.vue'), meta: { title: '重設密碼' } },
       ],
     },
@@ -113,9 +127,17 @@ const router = createRouter({
         { path: 'homework', name: 'student-homework', component: () => import('@/views/student/StudentHomeworkView.vue'), meta: { title: '作業' } },
         { path: 'homework/analysis', name: 'student-analysis', component: () => import('@/views/student/StudentAnalysisView.vue'), meta: { title: '作業分析' } },
         { path: 'homework/:id', name: 'student-assignment', component: () => import('@/views/student/StudentAssignmentView.vue'), meta: { title: '作業' } },
-        { path: 'chat', name: 'student-chat', component: () => import('@/views/student/StudentChatListView.vue'), meta: { title: '聊天記錄' } },
-        { path: 'support', name: 'student-support', component: () => import('@/views/student/StudentSupportView.vue'), meta: { title: '平台管理員' } },
-        { path: 'chat/:id', name: 'student-chat-room', component: () => import('@/views/student/StudentChatRoomView.vue'), meta: { title: '聊天' } },
+        {
+          path: 'chat',
+          name: 'student-chat',
+          component: () => import('@/views/student/StudentChatListView.vue'),
+          meta: { title: '聊天記錄' },
+          children: [
+            { path: 'admin', name: 'student-support', component: () => import('@/views/student/StudentSupportView.vue'), meta: { title: '平台管理員' } },
+            { path: ':id', name: 'student-chat-room', component: () => import('@/views/student/StudentChatRoomView.vue'), meta: { title: '聊天' } },
+          ],
+        },
+        { path: 'support', redirect: '/student/chat/admin' },
         {
           path: 'settings',
           component: () => import('@/views/student/StudentSettingsView.vue'),

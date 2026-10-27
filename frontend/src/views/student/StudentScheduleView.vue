@@ -2,8 +2,11 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import WeekPicker from '@/components/console/WeekPicker.vue'
+import CalendarPager, { type CalendarMode } from '@/components/console/CalendarPager.vue'
 import DayStrip from '@/components/console/DayStrip.vue'
+import WeekTimetable from '@/components/console/WeekTimetable.vue'
+import MonthCalendar from '@/components/console/MonthCalendar.vue'
+import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import { createChangeRequest, fetchMyChangeRequests, fetchStudentSchedule } from '@/api/student'
@@ -22,14 +25,16 @@ import {
   toneClass,
 } from '@/utils/format'
 
-// 設計稿的學生課表：上方選一週、一天，下面列出那天所有已綁定課程的課；待老師確認的約課也一起列出
+// 學生課表：所有已綁定課程的課，待老師確認的約課也一起畫上去。右上方切換日／週／月；
+// 「日」是設計稿的樣子，列出那天的課，可以在那裡調課、請假
 const route = useRoute()
 const courses = useBoundCourses()
 const lessons = ref<(Lesson & { course: Conversation })[]>([])
 const requests = ref<(ChangeRequest & { course: Conversation })[]>([])
 const error = ref('')
-const weekStart = ref(startOfWeek(new Date()))
-const selectedDay = ref(new Date())
+const mode = ref<CalendarMode>('week')
+const anchor = ref(new Date())
+const weekStart = computed(() => startOfWeek(anchor.value))
 
 const pendingFor = (lessonId: string) =>
   requests.value.find((item) => item.session_id === lessonId && item.status === 'pending')
@@ -46,7 +51,7 @@ interface DayCard {
 
 const STATUS_TEXT: Record<DayCard['status'], string> = { confirmed: '已確認', cancelled: '已取消', pending: '待確認' }
 
-const dayCards = computed<DayCard[]>(() => {
+const allCards = computed<DayCard[]>(() => {
   const list: DayCard[] = lessons.value.map((lesson) => ({
     key: lesson.id,
     starts_at: lesson.starts_at,
@@ -67,9 +72,23 @@ const dayCards = computed<DayCard[]>(() => {
     })
   }
   return list
-    .filter((card) => sameDay(new Date(card.starts_at), selectedDay.value))
-    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
 })
+const dayCards = computed(() =>
+  allCards.value
+    .filter((card) => sameDay(new Date(card.starts_at), anchor.value))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+)
+const items = computed<TimetableItem[]>(() =>
+  allCards.value.map((card) => ({
+    id: card.key,
+    starts_at: card.starts_at,
+    ends_at: card.ends_at,
+    title: card.course.course_title ?? '課程',
+    subtitle: card.status === 'pending' ? '待老師確認' : `${card.course.teacher_name}老師`,
+    colorKey: card.course.course_id,
+    cancelled: card.status === 'cancelled',
+  })),
+)
 
 const weekDates = computed(() =>
   lessons.value
@@ -88,12 +107,15 @@ function canChange(card: DayCard) {
   return card.lesson !== null && card.status === 'confirmed' && new Date(card.lesson.starts_at) > new Date()
 }
 
-// 換週時，選這週的今天；不是本週就選星期一
-function pickWeek(start: Date) {
-  weekStart.value = start
-  if (selectedDay.value >= start && selectedDay.value < addDays(start, 7)) return
-  const today = new Date()
-  selectedDay.value = today >= start && today < addDays(start, 7) ? today : start
+// 週課表、月曆上點一堂課或日期：換到那天的「日」，在那裡調課、請假
+function showDay(date: Date) {
+  anchor.value = date
+  mode.value = 'day'
+}
+
+function showCard(key: string) {
+  const card = allCards.value.find((item) => item.key === key)
+  if (card) showDay(new Date(card.starts_at))
 }
 
 // 申請表單：約課（新的一堂）、請假、調課
@@ -179,7 +201,7 @@ onMounted(async () => {
 
 <template>
   <PageHeader title="課表" description="請假、調課或約新的一堂課，要等老師同意後課表才會改。">
-    <WeekPicker :model-value="weekStart" @update:model-value="pickWeek" />
+    <CalendarPager v-model="anchor" v-model:mode="mode" />
     <button v-if="courses.bound.value.length" type="button" class="btn btn--primary" @click="openForm('booking')">新增申請</button>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
@@ -189,7 +211,10 @@ onMounted(async () => {
   </div>
 
   <template v-else>
-    <DayStrip v-model="selectedDay" :week-start="weekStart" :marked="weekDates" />
+    <WeekTimetable v-if="mode === 'week'" :week-start="weekStart" :items="items" @select="showCard" />
+    <MonthCalendar v-else-if="mode === 'month'" :month="anchor" :items="items" @select="showCard" @day="showDay" />
+    <template v-else>
+    <DayStrip v-model="anchor" :week-start="weekStart" :marked="weekDates" />
 
     <div v-if="dayCards.length === 0" class="card empty">這天沒有課，可以按「新增申請」向老師提出時間。</div>
     <article
@@ -216,6 +241,7 @@ onMounted(async () => {
         <p class="tone-card__line">{{ progress(card.course) }}</p>
       </div>
     </article>
+    </template>
 
     <section class="card requests-card">
       <h2 class="card__title">申請紀錄</h2>

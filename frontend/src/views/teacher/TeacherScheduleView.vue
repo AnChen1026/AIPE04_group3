@@ -2,8 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import WeekPicker from '@/components/console/WeekPicker.vue'
+import CalendarPager, { type CalendarMode } from '@/components/console/CalendarPager.vue'
 import DayStrip from '@/components/console/DayStrip.vue'
+import WeekTimetable from '@/components/console/WeekTimetable.vue'
+import MonthCalendar from '@/components/console/MonthCalendar.vue'
+import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import { decideChangeRequest, fetchChangeRequests, fetchLessonSummary, fetchMyLessons } from '@/api/teacher'
 import type { LessonSummary, TeacherChangeRequest, TeacherLesson } from '@/types/api'
@@ -12,8 +15,10 @@ import { CHANGE_TYPE_LABELS, addDays, formatDateTime, formatRange, formatTime, s
 const route = useRoute()
 const router = useRouter()
 
-const weekStart = ref(startOfWeek(new Date()))
-const selectedDay = ref(new Date())
+// 右上方切換日／週／月；anchor 是目前看的那一天（週、月就看它所在的那週、那個月）
+const mode = ref<CalendarMode>('week')
+const anchor = ref(new Date())
+const weekStart = computed(() => startOfWeek(anchor.value))
 const lessons = ref<TeacherLesson[]>([])
 const requests = ref<TeacherChangeRequest[]>([])
 const error = ref('')
@@ -25,7 +30,19 @@ const summary = ref<LessonSummary | null>(null)
 const summaryLoading = ref(false)
 const summaryError = ref('')
 
-// 設計稿：上方選一天，下面列出那天的課
+const items = computed<TimetableItem[]>(() =>
+  lessons.value.map((lesson) => ({
+    id: lesson.id,
+    starts_at: lesson.starts_at,
+    ends_at: lesson.ends_at,
+    title: lesson.course_title,
+    subtitle: lesson.student_name,
+    colorKey: lesson.course_id,
+    cancelled: lesson.status === 'cancelled',
+  })),
+)
+
+// 「日」：設計稿的上方選一天，下面列出那天的課
 const weekLessonDates = computed(() =>
   lessons.value
     .map((lesson) => new Date(lesson.starts_at))
@@ -33,7 +50,7 @@ const weekLessonDates = computed(() =>
 )
 const dayLessons = computed(() =>
   lessons.value
-    .filter((lesson) => sameDay(new Date(lesson.starts_at), selectedDay.value))
+    .filter((lesson) => sameDay(new Date(lesson.starts_at), anchor.value))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
 )
 const courseKeys = computed(() => [...new Set(lessons.value.map((lesson) => lesson.course_id))])
@@ -47,12 +64,11 @@ function progress(lesson: TeacherLesson) {
   return `共 ${same.length} 堂課，已上 ${done} 堂`
 }
 
-// 換週時，選這週的今天；不是本週就選星期一
-watch(weekStart, (start) => {
-  if (selectedDay.value >= start && selectedDay.value < addDays(start, 7)) return
-  const today = new Date()
-  selectedDay.value = today >= start && today < addDays(start, 7) ? today : start
-})
+// 月曆上點日期：換到那天的「日」
+function showDay(date: Date) {
+  anchor.value = date
+  mode.value = 'day'
+}
 
 async function load() {
   error.value = ''
@@ -67,8 +83,7 @@ async function openLesson(id: string) {
   const lesson = lessons.value.find((item) => item.id === id)
   if (!lesson) return
   selected.value = lesson
-  weekStart.value = startOfWeek(new Date(lesson.starts_at))
-  selectedDay.value = new Date(lesson.starts_at)
+  anchor.value = new Date(lesson.starts_at)
   summary.value = null
   summaryError.value = ''
   if (lesson.status !== 'scheduled') return
@@ -124,11 +139,14 @@ watch(
 
 <template>
   <PageHeader title="課表" description="點一堂課可以看課前摘要。學生的約課、請假、調課要在這裡確認後才會改動課表。">
-    <WeekPicker v-model="weekStart" />
+    <CalendarPager v-model="anchor" v-model:mode="mode" />
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
-  <DayStrip v-model="selectedDay" :week-start="weekStart" :marked="weekLessonDates" />
+  <WeekTimetable v-if="mode === 'week'" :week-start="weekStart" :items="items" @select="openLesson" />
+  <MonthCalendar v-else-if="mode === 'month'" :month="anchor" :items="items" @select="openLesson" @day="showDay" />
+  <template v-else>
+  <DayStrip v-model="anchor" :week-start="weekStart" :marked="weekLessonDates" />
 
   <div v-if="dayLessons.length === 0" class="card empty">這天沒有排課。</div>
   <article
@@ -154,6 +172,7 @@ watch(
     </div>
     <span class="tone-btn lesson-card__status">{{ lesson.status === 'cancelled' ? '已取消' : '已確認' }}</span>
   </article>
+  </template>
 
   <section class="card requests">
     <h2 class="card__title">待確認的課務申請</h2>

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import PageHeader from '@/components/console/PageHeader.vue'
 import SupportChat from '@/components/console/SupportChat.vue'
 import { fetchSupportMessages, sendSupportMessage } from '@/api/support'
 
@@ -7,8 +6,5 @@ import { fetchSupportMessages, sendSupportMessage } from '@/api/support'
 </script>
 
 <template>
-  <PageHeader title="聊天內容">
-    <RouterLink to="/student/chat" class="btn btn--ghost">返回</RouterLink>
-  </PageHeader>
   <SupportChat title="平台管理員" subtitle="通知與使用協助" :load="fetchSupportMessages" :send="sendSupportMessage" />
 </template>

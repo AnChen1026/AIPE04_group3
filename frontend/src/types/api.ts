@@ -201,3 +201,8 @@ export interface SupportConversation {
   last_message: string | null
   last_message_at: string | null
 }
+
+export interface CourseJoinCode {
+  code: string
+  expires_at: string
+}

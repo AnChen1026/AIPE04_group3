@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import PageHeader from '@/components/console/PageHeader.vue'
 import SupportChat from '@/components/console/SupportChat.vue'
 import { fetchAdminConversation, fetchAdminMessages, sendAdminMessage } from '@/api/support'
 import type { SupportConversation } from '@/types/api'
@@ -19,9 +18,6 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="聊天內容">
-    <RouterLink to="/admin/chat" class="btn btn--ghost">返回</RouterLink>
-  </PageHeader>
   <SupportChat
     v-if="conversation"
     :title="conversation.user_name"

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import PageHeader from '@/components/console/PageHeader.vue'
 import ChatPanel from '@/components/console/ChatPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import { fetchTeacherConversation, fetchTeacherMessages, issueBindingCode, sendTeacherMessage } from '@/api/teacher'
@@ -51,9 +50,6 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="聊天內容">
-    <RouterLink to="/teacher/chat" class="btn btn--ghost">返回</RouterLink>
-  </PageHeader>
 
   <ChatPanel
     :title="`學生：${conversation?.student_name ?? ''}`"

@@ -102,9 +102,9 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/student/StudentAssignmentView.vue` | 一份作業：下載參考 MIDI 與教材、錄音繳交、看每次回饋。 |
 | `src/views/student/StudentSupportView.vue` | 和平台管理員的對話。 |
 | `src/views/student/StudentAnalysisView.vue` | 作業分析入口：演奏作業；題庫作業尚未開放。 |
-| `src/views/student/StudentChatListView.vue` | 學生的聊天記錄列表。 |
-| `src/views/student/StudentChatRoomView.vue` | 學生聊天室。 |
-| `src/views/student/StudentScheduleView.vue` | 學生課表（選週、選日）與約課／請假／調課申請。 |
+| `src/views/student/StudentChatListView.vue` | 學生的聊天頁：左邊對話列表，右邊是選到的對話（子路由），換人不用返回。 |
+| `src/views/student/StudentChatRoomView.vue` | 學生聊天室（聊天頁右欄）。 |
+| `src/views/student/StudentScheduleView.vue` | 學生課表（日／週／月切換）與約課／請假／調課申請。 |
 | `src/views/student/StudentSettingsView.vue` | 學生設定：個人資料維護、修改密碼兩個分頁。 |
 | `src/views/student/StudentProfileView.vue` | 學生個人資料（用 `AccountProfileForm`）。 |
 | `src/views/teacher/TeacherDashboardView.vue` | 老師資訊總覽。 |
@@ -115,20 +115,20 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/teacher/TeacherAccountView.vue` | 設定 → 基本資料：姓名、性別、手機、生日（Email 不能改）。 |
 | `src/views/teacher/TeacherPasswordView.vue` | 設定 → 修改密碼。只用 Google 註冊的帳號不用輸入目前密碼。 |
 | `src/components/console/AccountProfileForm.vue` | 學生與老師共用的基本資料表單。 |
-| `src/views/teacher/TeacherScheduleView.vue` | 老師課表（選週、選日）與課務申請。 |
+| `src/views/teacher/TeacherScheduleView.vue` | 老師課表（日／週／月切換）與課務申請。 |
 | `src/views/teacher/TeacherStudentsView.vue` | 各課程學生人數與已綁定的學生。 |
-| `src/views/teacher/TeacherCoursesView.vue` | 老師的課程列表。 |
+| `src/views/teacher/TeacherCoursesView.vue` | 老師的課程列表，每門已發布的課可以產生限時綁定碼、替洽詢中的學生發碼。 |
 | `src/views/teacher/TeacherCourseFormView.vue` | 新增或修改課程，可上傳圖片和 MIDI。 |
 | `src/views/teacher/TeacherPracticeView.vue` | 作業狀態：發出的每份作業有沒有繳交。 |
 | `src/views/teacher/TeacherAssignmentFormView.vue` | 作業上傳：選課程、學生、期限，附參考 MIDI 與教材（演奏／題庫兩個分頁）。 |
 | `src/views/teacher/TeacherAssignmentDetailView.vue` | 學生作業詳情：檔案、繳交紀錄與回饋、刪除作業。 |
 | `src/views/teacher/TeacherSupportView.vue` | 和平台管理員的對話。 |
-| `src/views/teacher/TeacherChatListView.vue` | 老師的對話列表。 |
-| `src/views/teacher/TeacherChatRoomView.vue` | 老師聊天室。 |
+| `src/views/teacher/TeacherChatListView.vue` | 老師的聊天頁：左邊對話列表，右邊是選到的對話（子路由）。 |
+| `src/views/teacher/TeacherChatRoomView.vue` | 老師聊天室（聊天頁右欄）。 |
 | `src/views/admin/AdminDashboardView.vue` | 管理員資訊總覽。 |
 | `src/views/admin/AdminApplicationsView.vue` | 核准或駁回老師申請。 |
 | `src/views/admin/AdminPeopleView.vue` | 老師名單和學生名單共用這一頁。 |
-| `src/views/admin/AdminChatListView.vue` | 管理員和所有老師、學生的對話列表。 |
+| `src/views/admin/AdminChatListView.vue` | 管理員的聊天頁：左邊和所有老師、學生的對話，右邊是選到的對話。 |
 | `src/views/admin/AdminChatRoomView.vue` | 管理員回覆一段對話。 |
 | `src/views/admin/AdminPasswordResetsView.vue` | 處理忘記密碼申請：重設成臨時密碼（只顯示一次）或略過。 |
 | `src/views/ComingSoonView.vue` | 搜尋、課程詳情和找不到的網址共用這一頁。 |
@@ -148,7 +148,11 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/components/console/AudioRecorder.vue` | 練習錄音。沒有麥克風時可改選音檔。 |
 | `src/components/console/DayStrip.vue` | 課表上方的星期一～日選擇列。 |
 | `src/components/console/SupportChat.vue` | 平台管理員對話的聊天畫面（每 5 秒更新）。 |
-| `src/components/console/WeekPicker.vue` | 選擇要看的那一週。 |
+| `src/components/console/CalendarPager.vue` | 課表右上方：切換日／週／月、上一段／下一段、今天。 |
+| `src/components/console/WeekTimetable.vue` | 週課表格子：左邊時間、上面星期，課堂畫成色塊。 |
+| `src/components/console/MonthCalendar.vue` | 月曆：一格一天，列出那天的課。 |
+| `src/components/console/ChatSplit.vue` | 聊天頁的左右兩欄（老師、學生、管理員共用）。 |
+| `src/components/console/CourseJoinCodes.vue` | 課程卡上的綁定碼：限時綁定碼與洽詢中學生的一人一碼。 |
 | `src/components/console/CoursePicker.vue` | 學生在課表、練習頁切換已綁定的課程。 |
 | `src/components/console/ImagePicker.vue` | 選擇要上傳的圖片。 |
 | `src/components/console/FeedbackView.vue` | 顯示練習回饋。 |

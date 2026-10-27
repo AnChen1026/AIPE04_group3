@@ -83,7 +83,7 @@ onMounted(load)
   <form class="card join" novalidate @submit.prevent="join">
     <div class="join__text">
       <h2 class="card__title">輸入綁定碼</h2>
-      <p class="muted">老師決定收你之後，會在聊天裡給你一組綁定碼，輸入後就能看課表、交作業。</p>
+      <p class="muted">老師給你的綁定碼（聊天裡收到的，或老師直接給的課程碼）輸入後，就能看課表、交作業。</p>
     </div>
     <div class="join__form">
       <label class="visually-hidden" for="join-code">綁定碼</label>
