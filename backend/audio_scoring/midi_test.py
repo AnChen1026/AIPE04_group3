@@ -18,7 +18,7 @@
   1. 把標準答案 MIDI 放到 backend/audio_scoring/midi_test_data/
   2. 把測試音檔放到 backend/audio_scoring/audio_test_data/
   3. 先安裝套件：pip install -r requirements.txt
-  4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY=你的key
+  4. 若要產生 AI 回饋，在專案根目錄 .env 寫入 GEMINI_API_KEY（或設定 PRACTICE_FEEDBACK_LLM_PROVIDER=openai 與 OPENAI_API_KEY）
   5. 在專案根目錄執行：python backend/audio_scoring/midi_test.py
 '''
 
@@ -29,7 +29,7 @@ import shutil  # 找 ffmpeg 在哪裡
 import subprocess  # 瀏覽器錄的 webm／m4a 先用 ffmpeg 轉成 wav
 import sys  # 結束程式時回傳成功或失敗代碼
 import tempfile  # 取得系統暫存資料夾
-import time  # 計算整支程式執行秒數；Gemini 忙碌時也用來稍等再重試
+import time  # 計算整支程式執行秒數
 
 import librosa  # 讀取音檔、轉單聲道、去掉靜音；後面也用來做 DTW
 import numpy  # 建立 DTW 需要的成本矩陣
@@ -37,8 +37,6 @@ import pretty_midi  # 讀取與解析 MIDI 檔
 import soundfile  # 把處理後的音波寫回 wav 檔
 from basic_pitch import FilenameSuffix, build_icassp_2022_model_path  # 選 ONNX 模型，避開 TensorFlow
 from basic_pitch.inference import predict  # 把音檔轉成 MIDI / 音符
-from google import genai  # 步驟 13：呼叫 Gemini 寫回饋
-from google.genai import types  # 設定 Gemini 的系統提示與溫度
 from pydantic import BaseModel  # 步驟 12：把評分結果整理成固定格式
 
 # librosa / numba 需要可寫入的快取目錄，否則轉 MIDI 可能失敗
@@ -104,10 +102,6 @@ SOUNDING_EARLY_SECONDS = 0.05
 TEMPO_CHANGE_FACTOR = 1.35
 TEMPO_CHANGE_MIN_INTERVALS = 3
 
-# 步驟 13：測試回饋使用 Gemini 免費額度較夠的模型
-GEMINI_MODEL = "gemini-3.8-flash"
-GEMINI_RETRY_TIMES = 3
-GEMINI_RETRY_WAIT_SECONDS = 3
 
 
 # ======================================================
@@ -1108,41 +1102,11 @@ def build_score_report(midi_path, audio_path, standard_midi, student_midi, score
 
 
 # ======================================================
-# 從環境變數或專案根目錄 .env 讀取指定名稱的 key
+# 步驟 13：把結構化結果交給 LLM，產生給學生看的文字回饋
+# 透過 backend/services/llm.py 呼叫：有等待上限、會重試一次、失敗會記下原因，
+# 也可以在 .env 用 PRACTICE_FEEDBACK_LLM_PROVIDER 切換 Gemini 或 OpenAI
 # ======================================================
-def read_env_value(name):
-    """先看系統環境變數，再看 .env 檔。找不到就回傳 None。"""
-    value = os.environ.get(name)
-    if value:
-        return value.strip()
-
-    env_path = BASE_DIR.parents[1] / ".env"  # 專案根目錄
-    if env_path.exists() is False:
-        return None
-
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        text = line.strip()
-        if text.startswith("#") or ("=" not in text):
-            continue
-        key_name, key_value = text.split("=", 1)
-        if key_name.strip() == name:
-            cleaned = key_value.strip().strip('"').strip("'")
-            if cleaned:
-                return cleaned
-    return None
-
-
-# ======================================================
-# 步驟 13：把結構化結果交給 Gemini，產生給學生看的文字回饋
-# ======================================================
-def generate_feedback(score_report):
-    """回傳 (回饋文字, 錯誤訊息)。成功時錯誤訊息是 None。"""
-    api_key = read_env_value("GEMINI_API_KEY")
-    if api_key is None:
-        return None, "沒有設定 GEMINI_API_KEY，請在專案根目錄 .env 貼上你的 key。"
-
-    teacher_prompt = (
-        """你是一位溫柔、簡潔、清楚的鋼琴老師。
+FEEDBACK_SYSTEM_PROMPT = """你是一位溫柔、簡潔、清楚的鋼琴老師。
 
         請根據「本次練習評分 JSON」以及「上次練習紀錄（如果有）」，
         用繁體中文給學生簡短的鋼琴練習回饋。
@@ -1194,37 +1158,27 @@ def generate_feedback(score_report):
         「這次整體彈得很不錯！第 5、7、9 小節還有幾個音需要再確認一下，可以看著樂譜慢慢練一次。另外這次節奏偶爾有點偏快，建議跟著節拍器再練一遍。繼續保持，你已經進步很多了！」
 
         只輸出給學生看的回饋，不要輸出分析過程、JSON、標題或條列。"""
+
+
+def load_llm_module():
+    """在專案根目錄外直接執行這支檔案時，先把專案根目錄加進 sys.path 才找得到 backend 套件。"""
+    try:
+        from backend.services import llm
+    except ImportError:
+        sys.path.insert(0, str(BASE_DIR.parents[1]))
+        from backend.services import llm
+    return llm
+
+
+def generate_feedback(score_report):
+    """回傳 (回饋文字, 失敗原因)。成功時失敗原因是 None。"""
+    llm = load_llm_module()
+    return llm.generate_text_with_reason(
+        FEEDBACK_SYSTEM_PROMPT,
+        score_report.model_dump_json(indent=2),
+        feature=llm.FEATURE_PRACTICE_FEEDBACK,
+        temperature=0.4,
     )
-
-    client = genai.Client(api_key=api_key)
-    last_error = None
-    try_count = 1
-
-    while try_count <= GEMINI_RETRY_TIMES:
-        try:
-            response = client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=score_report.model_dump_json(indent=2),
-                config=types.GenerateContentConfig(
-                    system_instruction=teacher_prompt,
-                    temperature=0.4,
-                ),
-            )
-            feedback_text = response.text
-            if feedback_text:
-                return feedback_text.strip(), None
-            return None, "Gemini 有回應，但沒有文字內容。"
-        except Exception as error:
-            last_error = str(error)
-            busy_now = ("503" in last_error) or ("UNAVAILABLE" in last_error) or ("high demand" in last_error)
-            if busy_now and try_count < GEMINI_RETRY_TIMES:
-                print("Gemini 目前忙碌，" + str(GEMINI_RETRY_WAIT_SECONDS) + " 秒後重試第 " + str(try_count + 1) + " 次...")
-                time.sleep(GEMINI_RETRY_WAIT_SECONDS)
-                try_count = try_count + 1
-            else:
-                return None, "呼叫 Gemini 失敗：" + last_error
-
-    return None, "呼叫 Gemini 失敗：" + str(last_error)
 
 
 # ======================================================

@@ -61,8 +61,10 @@ def score_recording(
     score_result = midi_test.score_performance(standard_midi, student_midi, alignment, metronome_bpm)
     report = midi_test.build_score_report(midi_path, audio_path, standard_midi, student_midi, score_result)
 
-    feedback_text, _ = midi_test.generate_feedback(report)
+    feedback_text, reason = midi_test.generate_feedback(report)
     if not feedback_text:
+        # 原因（沒有金鑰、逾時、服務忙碌…）寫進後端紀錄，學生改看依分數寫的簡短說明
+        logger.warning("練習回饋改用規則產生的文字：%s", reason)
         feedback_text = _plain_feedback(report, midi_test.PITCH_SCORE_MAX, midi_test.RHYTHM_SCORE_MAX)
 
     return ScoringResult(
