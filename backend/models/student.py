@@ -295,7 +295,11 @@ class PracticeRecording(Base):
     teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
-    # 送出當時這門課的參考 MIDI。老師之後換曲子，舊練習仍知道是跟哪一首比的
+    # 繳交哪一份作業；舊資料或直接照課程參考曲練習的是空的
+    assignment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assignments.id", ondelete="SET NULL"), nullable=True
+    )
+    # 送出當時用的參考 MIDI（作業的或課程的）。老師之後換曲子，舊練習仍知道是跟哪一首比的
     reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")

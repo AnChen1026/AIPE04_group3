@@ -207,6 +207,7 @@ def _recording_response(db: Session, recording) -> RecordingResponse:
     return RecordingResponse(
         id=recording.id,
         course_id=recording.course_id,
+        assignment_id=recording.assignment_id,
         status=recording.status,
         submitted_at=recording.submitted_at,
         feedback=FeedbackResponse.model_validate(feedback) if feedback else None,

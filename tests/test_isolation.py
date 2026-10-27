@@ -69,7 +69,7 @@ def test_刪掉的舊API已經不存在(make_user, login):
         ("post", "/chat"),
         ("post", "/bindings"),
         ("get", "/teacher/submissions"),
-        ("get", "/teacher/assignments"),
+        # /teacher/assignments 現在是新的作業 API（tests/test_assignments.py），不在這份清單
     ]:
         assert getattr(teacher_client, method)(path).status_code in (404, 405)
 

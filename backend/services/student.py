@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.models.assignment import Assignment
 from backend.models.student import (
     BindingCode,
     ChangeRequest,
@@ -296,10 +297,13 @@ def save_recording(
     course_id: uuid.UUID,
     filename: str,
     content: bytes,
+    assignment: Assignment | None = None,
 ) -> PracticeRecording:
+    """繳交作業時跟作業的參考 MIDI 比；作業沒附 MIDI、或不是交作業時，用課程的參考曲。"""
     course = require_bound(db, student.id, course_id)
-    if not course.reference_midi_path:
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "老師還沒設定這門課的參考曲，暫時不能送出錄音。")
+    reference_midi_path = (assignment.midi_path if assignment else None) or course.reference_midi_path
+    if not reference_midi_path:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "老師還沒設定參考曲，暫時不能送出錄音。")
     suffix = Path(filename).suffix.lower()
     if suffix not in RECORDING_SUFFIXES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請上傳音檔，或用網頁錄音。")
@@ -320,7 +324,8 @@ def save_recording(
         teacher_id=course.teacher_id,
         student_id=student.id,
         file_path=stored_path(path),
-        reference_midi_path=course.reference_midi_path,
+        assignment_id=assignment.id if assignment else None,
+        reference_midi_path=reference_midi_path,
         status="pending",
     )
     feedback = PracticeFeedback(
