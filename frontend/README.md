@@ -108,7 +108,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/student/StudentSettingsView.vue` | 學生設定：個人資料維護、修改密碼兩個分頁。 |
 | `src/views/student/StudentProfileView.vue` | 學生個人資料（用 `AccountProfileForm`）。 |
 | `src/views/teacher/TeacherDashboardView.vue` | 老師資訊總覽。 |
-| `src/views/teacher/TeacherStudioView.vue` | 工作室管理。 |
+| `src/views/teacher/TeacherStudioView.vue` | 工作室資料：老師自己建立與修改，編號由系統產生。 |
 | `src/views/teacher/TeacherSettingsView.vue` | 老師設定的外框：個人資料／基本資料／修改密碼三個分頁。 |
 | `src/views/teacher/TeacherProfileView.vue` | 設定 → 個人資料：學生看到的老師介紹。 |
 | `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料。姓名唯讀，在基本資料修改。 |

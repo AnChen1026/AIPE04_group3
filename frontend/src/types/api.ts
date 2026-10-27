@@ -206,3 +206,17 @@ export interface CourseJoinCode {
   code: string
   expires_at: string
 }
+
+export interface Studio {
+  id: string
+  code: string
+  name: string
+  owner_name: string
+  city: string | null
+  district: string | null
+  intro: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type StudioInput = Pick<Studio, 'name' | 'owner_name' | 'city' | 'district' | 'intro'>

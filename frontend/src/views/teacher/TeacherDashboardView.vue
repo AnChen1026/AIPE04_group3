@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import ConsoleIcon from '@/components/console/ConsoleIcon.vue'
-import { fetchChangeRequests, fetchMyLessons, fetchTeacherConversations } from '@/api/teacher'
+import { fetchChangeRequests, fetchMyLessons, fetchStudio, fetchTeacherConversations } from '@/api/teacher'
 import type { Conversation, TeacherChangeRequest, TeacherLesson } from '@/types/api'
 import { formatTime, sameDay } from '@/utils/format'
 
@@ -10,6 +10,8 @@ const lessons = ref<TeacherLesson[]>([])
 const requests = ref<TeacherChangeRequest[]>([])
 const conversations = ref<Conversation[]>([])
 const loading = ref(true)
+// 審核通過後還沒填工作室資料時，待處理事項的第一項提醒去建立
+const hasStudio = ref(true)
 const error = ref('')
 
 const today = new Date()
@@ -23,11 +25,14 @@ const newInquiries = computed(() => conversations.value.filter((item) => !item.b
 
 onMounted(async () => {
   try {
-    ;[lessons.value, requests.value, conversations.value] = await Promise.all([
+    let studio
+    ;[lessons.value, requests.value, conversations.value, studio] = await Promise.all([
       fetchMyLessons(),
       fetchChangeRequests(),
       fetchTeacherConversations(),
+      fetchStudio().catch(() => undefined),
     ])
+    hasStudio.value = studio !== null
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到後台資料。'
   } finally {
@@ -54,13 +59,14 @@ onMounted(async () => {
   <section class="card">
     <h2 class="card__title"><ConsoleIcon name="clipboard" />待處理事項</h2>
     <ul v-if="!loading" class="todo">
+      <li v-if="!hasStudio"><RouterLink to="/teacher/studio">還沒建立工作室資料，先去填寫</RouterLink></li>
       <li v-if="leaveCount"><RouterLink to="/teacher/schedule">{{ leaveCount }} 筆請假申請</RouterLink></li>
       <li v-if="bookingCount"><RouterLink to="/teacher/schedule">{{ bookingCount }} 筆約課／調課申請待確認</RouterLink></li>
       <li v-if="unreadConversations.length">
         <RouterLink to="/teacher/chat">{{ unreadConversations.length }} 則聊天訊息未回覆</RouterLink>
       </li>
       <li v-if="newInquiries"><RouterLink to="/teacher/chat">{{ newInquiries }} 位學生洽詢中、尚未綁定</RouterLink></li>
-      <li v-if="!leaveCount && !bookingCount && !unreadConversations.length && !newInquiries" class="muted">目前沒有待處理的事。</li>
+      <li v-if="hasStudio && !leaveCount && !bookingCount && !unreadConversations.length && !newInquiries" class="muted">目前沒有待處理的事。</li>
     </ul>
   </section>
 
