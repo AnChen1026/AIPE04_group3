@@ -1,34 +1,106 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import CoursePicker from '@/components/console/CoursePicker.vue'
+import WeekPicker from '@/components/console/WeekPicker.vue'
+import DayStrip from '@/components/console/DayStrip.vue'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import { createChangeRequest, fetchMyChangeRequests, fetchStudentSchedule } from '@/api/student'
 import { useBoundCourses } from '@/composables/useBoundCourses'
-import type { ChangeRequest, ChangeRequestType, Lesson } from '@/types/api'
+import type { ChangeRequest, ChangeRequestType, Conversation, Lesson } from '@/types/api'
 import {
   CHANGE_STATUS_LABELS,
   CHANGE_TYPE_LABELS,
+  addDays,
   formatDateTime,
   formatRange,
+  formatTime,
+  sameDay,
+  startOfWeek,
   toLocalInput,
+  toneClass,
 } from '@/utils/format'
 
+// 設計稿的學生課表：上方選一週、一天，下面列出那天所有已綁定課程的課；待老師確認的約課也一起列出
+const route = useRoute()
 const courses = useBoundCourses()
-const lessons = ref<Lesson[]>([])
-const requests = ref<ChangeRequest[]>([])
+const lessons = ref<(Lesson & { course: Conversation })[]>([])
+const requests = ref<(ChangeRequest & { course: Conversation })[]>([])
 const error = ref('')
+const weekStart = ref(startOfWeek(new Date()))
+const selectedDay = ref(new Date())
 
-const upcoming = computed(() => lessons.value.filter((lesson) => new Date(lesson.ends_at) > new Date()))
-const past = computed(() => lessons.value.filter((lesson) => new Date(lesson.ends_at) <= new Date()).reverse())
 const pendingFor = (lessonId: string) =>
   requests.value.find((item) => item.session_id === lessonId && item.status === 'pending')
+const courseKeys = computed(() => courses.bound.value.map((item) => item.course_id))
+
+interface DayCard {
+  key: string
+  starts_at: string
+  ends_at: string
+  course: Conversation
+  status: 'confirmed' | 'cancelled' | 'pending'
+  lesson: Lesson | null
+}
+
+const STATUS_TEXT: Record<DayCard['status'], string> = { confirmed: '已確認', cancelled: '已取消', pending: '待確認' }
+
+const dayCards = computed<DayCard[]>(() => {
+  const list: DayCard[] = lessons.value.map((lesson) => ({
+    key: lesson.id,
+    starts_at: lesson.starts_at,
+    ends_at: lesson.ends_at,
+    course: lesson.course,
+    status: lesson.status === 'cancelled' ? 'cancelled' : 'confirmed',
+    lesson,
+  }))
+  for (const item of requests.value) {
+    if (item.request_type !== 'booking' || item.status !== 'pending' || !item.proposed_starts_at || !item.proposed_ends_at) continue
+    list.push({
+      key: item.id,
+      starts_at: item.proposed_starts_at,
+      ends_at: item.proposed_ends_at,
+      course: item.course,
+      status: 'pending',
+      lesson: null,
+    })
+  }
+  return list
+    .filter((card) => sameDay(new Date(card.starts_at), selectedDay.value))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+})
+
+const weekDates = computed(() =>
+  lessons.value
+    .map((lesson) => new Date(lesson.starts_at))
+    .filter((date) => date >= weekStart.value && date < addDays(weekStart.value, 7)),
+)
+
+// 「共 N 堂課，已上 M 堂」：這門課沒取消的課
+function progress(course: Conversation) {
+  const same = lessons.value.filter((item) => item.course_id === course.course_id && item.status === 'scheduled')
+  const done = same.filter((item) => new Date(item.ends_at) < new Date()).length
+  return `共 ${same.length} 堂課，已上 ${done} 堂`
+}
+
+function canChange(card: DayCard) {
+  return card.lesson !== null && card.status === 'confirmed' && new Date(card.lesson.starts_at) > new Date()
+}
+
+// 換週時，選這週的今天；不是本週就選星期一
+function pickWeek(start: Date) {
+  weekStart.value = start
+  if (selectedDay.value >= start && selectedDay.value < addDays(start, 7)) return
+  const today = new Date()
+  selectedDay.value = today >= start && today < addDays(start, 7) ? today : start
+}
 
 // 申請表單：約課（新的一堂）、請假、調課
 const form = reactive({
   open: false,
   type: 'booking' as ChangeRequestType,
+  courseId: '',
   lesson: null as Lesson | null,
   start: '',
   minutes: 60,
@@ -39,13 +111,17 @@ const form = reactive({
 const sent = ref(false)
 
 async function load() {
-  if (!courses.courseId.value) return
   error.value = ''
+  const bound = courses.bound.value
   try {
-    ;[lessons.value, requests.value] = await Promise.all([
-      fetchStudentSchedule(courses.courseId.value),
-      fetchMyChangeRequests(courses.courseId.value),
+    const [lessonLists, requestLists] = await Promise.all([
+      Promise.all(bound.map((course) => fetchStudentSchedule(course.course_id))),
+      Promise.all(bound.map((course) => fetchMyChangeRequests(course.course_id))),
     ])
+    lessons.value = lessonLists.flatMap((list, index) => list.map((lesson) => ({ ...lesson, course: bound[index]! })))
+    requests.value = requestLists
+      .flatMap((list, index) => list.map((item) => ({ ...item, course: bound[index]! })))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到課表。'
   }
@@ -57,6 +133,7 @@ function openForm(type: ChangeRequestType, lesson: Lesson | null = null) {
   Object.assign(form, {
     open: true,
     type,
+    courseId: lesson?.course_id ?? courses.courseId.value,
     lesson,
     start: toLocalInput(start),
     minutes: lesson ? Math.round((new Date(lesson.ends_at).getTime() - start.getTime()) / 60_000) : 60,
@@ -75,7 +152,7 @@ async function submit() {
   }
   form.sending = true
   try {
-    await createChangeRequest(courses.courseId.value, {
+    await createChangeRequest(form.courseId, {
       request_type: form.type,
       session_id: form.lesson?.id ?? null,
       proposed_starts_at: needsTime ? start.toISOString() : null,
@@ -92,48 +169,61 @@ async function submit() {
   }
 }
 
-watch(() => courses.courseId.value, load)
 onMounted(async () => {
   await courses.load()
   await load()
+  // 從「老師」頁按「上課申請」進來時，直接打開約課表單
+  if (route.query.apply && courses.courseId.value) openForm('booking')
 })
 </script>
 
 <template>
   <PageHeader title="課表" description="請假、調課或約新的一堂課，要等老師同意後課表才會改。">
-    <CoursePicker v-model="courses.courseId.value" :courses="courses.bound.value" />
-    <button v-if="courses.courseId.value" type="button" class="btn btn--primary" @click="openForm('booking')">約一堂課</button>
+    <WeekPicker :model-value="weekStart" @update:model-value="pickWeek" />
+    <button v-if="courses.bound.value.length" type="button" class="btn btn--primary" @click="openForm('booking')">新增申請</button>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
   <div v-if="courses.loaded.value && courses.bound.value.length === 0" class="card empty">
-    還沒有進入任何課程。先在「我的課程」和老師聊聊，輸入綁定碼後就會看到課表。
+    還沒有進入任何課程。先在「老師」頁輸入老師給的綁定碼，就會看到課表。
   </div>
 
   <template v-else>
-    <section class="card">
-      <h2 class="card__title">接下來的課</h2>
-      <p v-if="upcoming.length === 0" class="muted">還沒有排定的課，可以按「約一堂課」向老師提出時間。</p>
-      <ul class="lessons">
-        <li v-for="lesson in upcoming" :key="lesson.id">
-          <span class="lessons__time">{{ formatRange(lesson.starts_at, lesson.ends_at) }}</span>
-          <span v-if="pendingFor(lesson.id)" class="badge badge--warn">
-            {{ CHANGE_TYPE_LABELS[pendingFor(lesson.id)!.request_type] }}申請中
-          </span>
-          <span v-else class="lessons__actions">
-            <button type="button" class="btn btn--ghost btn--small" @click="openForm('reschedule', lesson)">調課</button>
-            <button type="button" class="btn btn--ghost btn--small" @click="openForm('leave', lesson)">請假</button>
-          </span>
-        </li>
-      </ul>
-    </section>
+    <DayStrip v-model="selectedDay" :week-start="weekStart" :marked="weekDates" />
 
-    <section class="card">
+    <div v-if="dayCards.length === 0" class="card empty">這天沒有課，可以按「新增申請」向老師提出時間。</div>
+    <article
+      v-for="card in dayCards"
+      :key="card.key"
+      class="tone-card lesson-card"
+      :class="toneClass(card.course.course_id, courseKeys)"
+    >
+      <div class="tone-card__cell lesson-card__time">
+        <p class="tone-card__title">{{ formatTime(card.starts_at) }} - {{ formatTime(card.ends_at) }}</p>
+        <span class="tone-btn lesson-card__status">{{ STATUS_TEXT[card.status] }}</span>
+      </div>
+      <div class="tone-card__cell">
+        <p class="tone-card__title">{{ card.course.course_title }}　{{ card.course.teacher_name }}老師</p>
+        <p v-if="card.lesson && pendingFor(card.lesson.id)" class="tone-card__line">
+          {{ CHANGE_TYPE_LABELS[pendingFor(card.lesson.id)!.request_type] }}申請中
+        </p>
+        <p v-else-if="canChange(card)" class="lesson-card__actions">
+          <button type="button" class="tone-btn" @click="openForm('reschedule', card.lesson)">調課</button>
+          <button type="button" class="tone-btn" @click="openForm('leave', card.lesson)">請假</button>
+        </p>
+      </div>
+      <div class="tone-card__cell">
+        <p class="tone-card__line">{{ progress(card.course) }}</p>
+      </div>
+    </article>
+
+    <section class="card requests-card">
       <h2 class="card__title">申請紀錄</h2>
       <p v-if="requests.length === 0" class="muted">還沒有送出申請。</p>
       <ul class="requests">
         <li v-for="item in requests" :key="item.id">
           <span class="badge badge--soft">{{ CHANGE_TYPE_LABELS[item.request_type] }}</span>
+          <span>{{ item.course.course_title }}</span>
           <span v-if="item.proposed_starts_at && item.proposed_ends_at">{{ formatRange(item.proposed_starts_at, item.proposed_ends_at) }}</span>
           <span v-else class="muted">送出於 {{ formatDateTime(item.created_at) }}</span>
           <span
@@ -145,17 +235,18 @@ onMounted(async () => {
         </li>
       </ul>
     </section>
-
-    <section v-if="past.length" class="card">
-      <h2 class="card__title">上過的課</h2>
-      <ul class="lessons">
-        <li v-for="lesson in past" :key="lesson.id" class="muted">{{ formatRange(lesson.starts_at, lesson.ends_at) }}</li>
-      </ul>
-    </section>
   </template>
 
   <ModalPanel :open="form.open" :title="CHANGE_TYPE_LABELS[form.type] ?? ''" @close="form.open = false">
     <form id="change-form" novalidate @submit.prevent="submit">
+      <div v-if="!form.lesson && courses.bound.value.length > 1" class="field">
+        <label class="field__label" for="change-course">課程</label>
+        <select id="change-course" v-model="form.courseId" class="select">
+          <option v-for="item in courses.bound.value" :key="item.course_id" :value="item.course_id">
+            {{ item.course_title }}｜{{ item.teacher_name }} 老師
+          </option>
+        </select>
+      </div>
       <p v-if="form.lesson" class="muted">原本：{{ formatRange(form.lesson.starts_at, form.lesson.ends_at) }}</p>
       <template v-if="form.type !== 'leave'">
         <div class="field">
@@ -195,14 +286,37 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.lessons,
+.lesson-card {
+  grid-template-columns: 170px minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+.lesson-card__time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.lesson-card__status {
+  cursor: default;
+}
+
+.lesson-card__actions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.requests-card {
+  margin-top: 22px;
+}
+
 .requests {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.lessons li,
 .requests li {
   display: flex;
   align-items: center;
@@ -212,22 +326,17 @@ onMounted(async () => {
   border-top: 1px solid var(--home-line);
 }
 
-.lessons li:first-child,
 .requests li:first-child {
   border-top: 0;
 }
 
-.lessons__time {
-  font-variant-numeric: tabular-nums;
-}
-
-.lessons__actions,
 .requests__status {
   margin-left: auto;
 }
 
-.lessons__actions {
-  display: flex;
-  gap: 8px;
+@media (max-width: 720px) {
+  .lesson-card__time {
+    align-items: flex-start;
+  }
 }
 </style>

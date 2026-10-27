@@ -1,6 +1,11 @@
 <script setup lang="ts">
-// 每頁上方的標題列：左邊標題與說明，右邊放按鈕
+import { inject } from 'vue'
+import { SHELL_TOP_ACTIONS } from './shell'
+
+// 每頁的標題與說明。老師後台、學生專區照設計稿把按鈕、搜尋框放到外框上方的標題列；管理員後台維持放在標題右邊
 defineProps<{ title: string; description?: string }>()
+
+const topActions = inject(SHELL_TOP_ACTIONS, false)
 </script>
 
 <template>
@@ -9,7 +14,9 @@ defineProps<{ title: string; description?: string }>()
       <h1>{{ title }}</h1>
       <p v-if="description">{{ description }}</p>
     </div>
-    <div v-if="$slots.default" class="page-header__actions"><slot /></div>
+    <Teleport v-if="$slots.default" defer to="#shell-actions" :disabled="!topActions">
+      <div class="page-header__actions"><slot /></div>
+    </Teleport>
   </div>
 </template>
 

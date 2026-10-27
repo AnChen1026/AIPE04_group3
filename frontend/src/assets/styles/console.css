@@ -262,3 +262,99 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 設計稿用橘、綠、藍三色區分不同課程的卡片（課表、學生、作業、老師），配色只用在這些卡片上 */
+.tone-card {
+  --tone-bg: #fdecd2;
+  --tone-ink: #c08a52;
+  --tone-strong: #f5c48f;
+  --tone-line: #f3cf9f;
+
+  display: grid;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 18px 26px;
+  border: 1px solid var(--tone-line);
+  border-radius: 28px;
+  background: var(--tone-bg);
+  color: var(--tone-ink);
+}
+
+.tone-card + .tone-card {
+  margin-top: 16px;
+}
+
+.tone-card--1 {
+  --tone-bg: #e9eedf;
+  --tone-ink: #3f8f2a;
+  --tone-strong: #8db33f;
+  --tone-line: #9fc07a;
+}
+
+.tone-card--2 {
+  --tone-bg: #dbe5fa;
+  --tone-ink: #1f66b8;
+  --tone-strong: #3d8bdc;
+  --tone-line: #6aa2e2;
+}
+
+.tone-card__cell + .tone-card__cell {
+  padding-left: 24px;
+  border-left: 1px solid color-mix(in srgb, var(--tone-ink) 35%, transparent);
+}
+
+.tone-card__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.tone-card__line {
+  margin: 4px 0 0;
+  font-size: 15px;
+}
+
+.tone-card .muted {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.tone-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--tone-strong);
+  color: color-mix(in srgb, var(--tone-ink) 55%, #000);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tone-btn:hover {
+  filter: brightness(0.96);
+}
+
+.tone-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 720px) {
+  .tone-card {
+    grid-template-columns: 1fr !important;
+    padding: 16px 20px;
+  }
+
+  .tone-card__cell + .tone-card__cell {
+    padding-top: 10px;
+    padding-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--tone-ink) 25%, transparent);
+    border-left: 0;
+  }
+}

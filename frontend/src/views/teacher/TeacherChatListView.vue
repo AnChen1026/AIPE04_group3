@@ -2,10 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchTeacherConversations } from '@/api/teacher'
-import type { Conversation } from '@/types/api'
+import { fetchSupportConversation } from '@/api/support'
+import type { Conversation, SupportConversation } from '@/types/api'
 import { formatShort } from '@/utils/format'
 
 const conversations = ref<Conversation[]>([])
+// 和平台管理員的對話，固定在列表最上方
+const support = ref<SupportConversation | null>(null)
 const keyword = ref('')
 const error = ref('')
 let timer = 0
@@ -20,7 +23,7 @@ const shown = computed(() => {
 
 async function load() {
   try {
-    conversations.value = await fetchTeacherConversations()
+    ;[conversations.value, support.value] = await Promise.all([fetchTeacherConversations(), fetchSupportConversation().catch(() => null)])
     error.value = ''
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到聊天列表。'
@@ -43,6 +46,27 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     </label>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
+
+  <RouterLink
+    v-if="support"
+    to="/teacher/support"
+    class="card conversation conversation--admin"
+    :class="{ 'conversation--unread': support.unread_count > 0 }"
+  >
+    <span class="conversation__avatar" aria-hidden="true">管</span>
+    <div class="conversation__main">
+      <div class="conversation__title">
+        <strong>平台管理員</strong>
+        <span class="badge badge--soft">置頂</span>
+      </div>
+      <p class="muted">通知與使用協助</p>
+      <p v-if="support.last_message" class="conversation__last">{{ support.last_message }}</p>
+    </div>
+    <div class="conversation__side">
+      <span class="muted">{{ formatShort(support.last_message_at) }}</span>
+      <span v-if="support.unread_count" class="conversation__unread">未讀訊息 {{ support.unread_count }} 則</span>
+    </div>
+  </RouterLink>
 
   <p class="muted list__caption">近期聊天紀錄</p>
   <div v-if="shown.length === 0" class="card empty">
@@ -95,6 +119,11 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 
 .conversation + .conversation {
   margin-top: 12px;
+}
+
+.conversation--admin {
+  margin-bottom: 22px;
+  border-color: var(--home-wood);
 }
 
 .conversation--unread {

@@ -95,3 +95,31 @@ export function addDays(value: Date, days: number): Date {
 export function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString()
 }
+
+// 卡片三色輪流：同一門課固定同一色（依 keys 裡的順序）
+export function toneClass(key: string, keys: string[]): string {
+  const index = Math.max(keys.indexOf(key), 0) % 3
+  return index ? `tone-card--${index}` : ''
+}
+
+// 作業的繳交期限：「繳交期限：2026-11-05 剩餘 3 天」；沒設定時是「待定」
+export function dueText(value: string | null | undefined): string {
+  if (!value) return '繳交期限：待定'
+  const due = new Date(value)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const day = new Date(due)
+  day.setHours(0, 0, 0, 0)
+  const days = Math.round((day.getTime() - today.getTime()) / 86_400_000)
+  const date = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`
+  if (days > 0) return `繳交期限：${date} 剩餘 ${days} 天`
+  if (days === 0) return `繳交期限：${date}（今天）`
+  return `繳交期限：${date}（已過 ${-days} 天）`
+}
+
+export const ASSIGNMENT_KIND_LABELS: Record<string, string> = { performance: '演奏作業', quiz: '題庫作業' }
+
+export function fileSizeText(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}

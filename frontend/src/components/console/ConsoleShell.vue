@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ConsoleIcon from './ConsoleIcon.vue'
+import { SHELL_TOP_ACTIONS } from './shell'
 import { useAuthStore } from '@/stores/auth'
 
 export interface NavItem {
@@ -12,11 +13,16 @@ export interface NavItem {
   exact?: boolean
 }
 
-// 老師後台與學生專區共用的外框：上方標題列、左側選單、右側內容卡
-defineProps<{
+// 老師後台與學生專區共用的外框：上方標題列（右邊放各頁的搜尋與按鈕）、左側選單、右側內容卡
+const props = defineProps<{
   heading: string
   items: NavItem[]
+  // 有給的話，選單最上方顯示「👋 姓名＋身分」，點了回資訊總覽；各頁按鈕也改放到上方標題列
+  homeTo?: string
+  roleLabel?: string
 }>()
+
+provide(SHELL_TOP_ACTIONS, Boolean(props.homeTo))
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -58,11 +64,23 @@ async function logout() {
         </button>
         <RouterLink to="/" class="shell__brand" aria-label="melo">melo.</RouterLink>
         <span class="shell__heading">{{ heading }}</span>
-        <span class="shell__user">{{ auth.user?.name }}</span>
+        <!-- 各頁 PageHeader 的按鈕會傳送到這裡 -->
+        <div v-if="homeTo" id="shell-actions" class="shell__actions"></div>
+        <span v-else class="shell__user">{{ auth.user?.name }}</span>
       </header>
 
       <div class="shell__body">
         <nav id="shell-nav" class="shell__nav" :class="{ 'shell__nav--open': menuOpen }" :aria-label="heading">
+          <RouterLink
+            v-if="homeTo"
+            :to="homeTo"
+            class="shell__greeting"
+            :class="{ 'shell__greeting--active': route.path === homeTo }"
+            :aria-current="route.path === homeTo ? 'page' : undefined"
+          >
+            <span aria-hidden="true">👋</span>
+            <strong>{{ auth.user?.name }}</strong><small>{{ roleLabel }}</small>
+          </RouterLink>
           <RouterLink
             v-for="item in items"
             :key="item.to"
@@ -130,10 +148,49 @@ async function logout() {
   font-weight: 600;
 }
 
+.shell__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+}
+
 .shell__user {
   margin-left: auto;
   color: var(--home-muted);
   font-size: 14px;
+}
+
+.shell__greeting {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  color: var(--home-accent);
+  transition: background 0.2s ease;
+}
+
+.shell__greeting:hover,
+.shell__greeting--active {
+  background: var(--home-cream);
+}
+
+.shell__greeting strong {
+  overflow: hidden;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__greeting small {
+  flex: none;
+  font-size: 13px;
 }
 
 .shell__menu-button {
@@ -221,6 +278,15 @@ async function logout() {
 
   .shell__heading {
     font-size: 16px;
+  }
+
+  .shell__top {
+    flex-wrap: wrap;
+  }
+
+  .shell__actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
   }
 
   .shell__user {

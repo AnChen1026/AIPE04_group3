@@ -3,30 +3,36 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vue'
 import { fetchMyConversations } from '@/api/student'
+import { fetchSupportConversation } from '@/api/support'
 
 const route = useRoute()
 const unread = ref(0)
 
-// 學生專區沿用老師後台的版面：我的課程（含聊天）、課表、練習
+// 學生專區沿用老師後台的版面，選單照設計稿；資訊總覽是點最上方的學生姓名
 const items = computed<NavItem[]>(() => [
-  { to: '/student', label: '我的課程', icon: 'home', exact: true, badge: unread.value },
   { to: '/student/schedule', label: '課表', icon: 'schedule' },
-  { to: '/student/practice', label: '練習', icon: 'mic' },
-  { to: '/student/profile', label: '基本資料', icon: 'profile' },
+  { to: '/student/teachers', label: '老師', icon: 'students' },
+  { to: '/student/courses', label: '課程', icon: 'courses' },
+  { to: '/student/homework', label: '作業', icon: 'practice' },
+  { to: '/student/chat', label: '聊天', icon: 'chat', badge: unread.value },
+  { to: '/student/settings', label: '設定', icon: 'settings' },
 ])
 
 watch(
   () => route.fullPath,
   async () => {
-    const conversations = await fetchMyConversations().catch(() => [])
-    unread.value = conversations.reduce((sum, row) => sum + row.unread_count, 0)
+    const [conversations, support] = await Promise.all([
+      fetchMyConversations().catch(() => []),
+      fetchSupportConversation().catch(() => null),
+    ])
+    unread.value = conversations.reduce((sum, row) => sum + row.unread_count, 0) + (support?.unread_count ?? 0)
   },
   { immediate: true },
 )
 </script>
 
 <template>
-  <ConsoleShell heading="學生專區" :items="items">
+  <ConsoleShell heading="學生課程與學習管理平台" :items="items" home-to="/student" role-label="學生">
     <RouterView />
   </ConsoleShell>
 </template>

@@ -101,6 +101,8 @@ export interface Feedback {
 export interface Recording {
   id: string
   course_id: string
+  // 繳交的是哪一份作業；直接照課程參考曲練習的是 null
+  assignment_id: string | null
   status: 'pending' | 'processing' | 'completed' | 'failed'
   submitted_at: string
   feedback: Feedback | null
@@ -159,4 +161,43 @@ export interface BoundStudent {
   name: string
   phone_number: string | null
   courses: { course_id: string; course_title: string; bound_at: string }[]
+}
+
+export interface AssignmentMaterial {
+  id: string
+  filename: string
+  content_type: string | null
+  file_size_bytes: number
+  created_at: string
+}
+
+// 老師發給一位學生的作業。performance＝演奏作業（錄音繳交），quiz＝題庫作業
+export interface Assignment {
+  id: string
+  course_id: string
+  course_title: string
+  student_id: string
+  student_name: string
+  kind: 'performance' | 'quiz'
+  title: string
+  description: string | null
+  due_at: string | null
+  has_midi: boolean
+  midi_filename: string | null
+  materials: AssignmentMaterial[]
+  submission_count: number
+  last_submitted_at: string | null
+  created_at: string
+}
+
+// 平台管理員和一位老師或學生的對話
+export interface SupportConversation {
+  id: string
+  user_id: string
+  user_name: string
+  user_role: string
+  created_at: string
+  unread_count: number
+  last_message: string | null
+  last_message_at: string | null
 }

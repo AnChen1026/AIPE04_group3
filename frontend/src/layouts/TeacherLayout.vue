@@ -5,6 +5,7 @@ import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vu
 import TeacherApplicationForm from '@/components/console/TeacherApplicationForm.vue'
 import { fetchChangeRequests, fetchTeacherConversations } from '@/api/teacher'
 import { fetchCurrentUser } from '@/api/auth'
+import { fetchSupportConversation } from '@/api/support'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -21,22 +22,29 @@ async function onApplied() {
   auth.setUser(await fetchCurrentUser())
 }
 
+// 選單照設計稿：資訊總覽改成點最上方的老師姓名；工作室管理與設定維持原本的頁面
 const items = computed<NavItem[]>(() => [
-  { to: '/teacher', label: '資訊總覽', icon: 'overview', exact: true },
-  { to: '/teacher/studio', label: '工作室管理', icon: 'studio' },
   { to: '/teacher/schedule', label: '課表', icon: 'schedule', badge: pending.value },
   { to: '/teacher/students', label: '學生', icon: 'students' },
   { to: '/teacher/courses', label: '課程', icon: 'courses' },
   { to: '/teacher/practice', label: '作業', icon: 'practice' },
   { to: '/teacher/chat', label: '聊天', icon: 'chat', badge: unread.value },
+  { to: '/teacher/studio', label: '工作室管理', icon: 'studio' },
   { to: '/teacher/settings', label: '設定', icon: 'settings' },
 ])
 
 // 換頁時更新選單上的未讀與待處理數字
 async function refreshBadges() {
   if (!approved.value) return
-  const [conversations, requests] = await Promise.allSettled([fetchTeacherConversations(), fetchChangeRequests()])
-  if (conversations.status === 'fulfilled') unread.value = conversations.value.reduce((sum, row) => sum + row.unread_count, 0)
+  const [conversations, requests, support] = await Promise.allSettled([
+    fetchTeacherConversations(),
+    fetchChangeRequests(),
+    fetchSupportConversation(),
+  ])
+  const supportUnread = support.status === 'fulfilled' ? support.value.unread_count : 0
+  if (conversations.status === 'fulfilled') {
+    unread.value = conversations.value.reduce((sum, row) => sum + row.unread_count, 0) + supportUnread
+  }
   if (requests.status === 'fulfilled') pending.value = requests.value.length
 }
 
@@ -44,7 +52,7 @@ watch(() => route.fullPath, refreshBadges, { immediate: true })
 </script>
 
 <template>
-  <ConsoleShell heading="教師管理後台" :items="items">
+  <ConsoleShell heading="教師管理後台" :items="items" home-to="/teacher" role-label="老師">
     <RouterView v-if="approved" />
     <TeacherApplicationForm v-else-if="!status" @submitted="onApplied" />
     <div v-else class="card pending">
