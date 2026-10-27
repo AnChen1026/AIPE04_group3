@@ -1,26 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import FeedbackView from '@/components/console/FeedbackView.vue'
-import ModalPanel from '@/components/console/ModalPanel.vue'
-import { fetchCourseRecordings, fetchMyCourses, fetchMyStudents } from '@/api/teacher'
-import { apiUrl } from '@/api/http'
-import type { BoundStudent, Course, TeacherRecording } from '@/types/api'
-import { RECORDING_STATUS_LABELS, formatDateTime, toneClass } from '@/utils/format'
+import { fetchAssignments } from '@/api/teacher'
+import type { Assignment } from '@/types/api'
+import { ASSIGNMENT_KIND_LABELS, dueText, toneClass } from '@/utils/format'
 
-// 設計稿的「作業狀態」：每位學生在每門課的演奏作業（照參考 MIDI 錄的練習）有沒有繳交，點「查看詳情」看每次錄音與回饋。
-// 題庫作業與繳交期限後端還沒有，先留位置
+// 設計稿的「作業狀態」：老師發出的每一份作業，學生有沒有繳交。按「新增」到作業上傳，「查看詳情」看檔案與每次錄音的回饋
 const route = useRoute()
-const courses = ref<Course[]>([])
-const students = ref<BoundStudent[]>([])
-const recordings = ref<TeacherRecording[]>([])
+const assignments = ref<Assignment[]>([])
 const keyword = ref('')
 const filter = ref<'all' | 'submitted' | 'missing'>('all')
+const loaded = ref(false)
 const error = ref('')
-const detailKey = ref('')
-const addOpen = ref(false)
-let timer = 0
 
 const filters = [
   { value: 'all', label: '全部' },
@@ -28,80 +20,33 @@ const filters = [
   { value: 'missing', label: '未繳交' },
 ] as const
 
-interface HomeworkRow {
-  key: string
-  course: Course
-  studentId: string
-  studentName: string
-  recordings: TeacherRecording[]
-}
-
-// 一位學生 × 一門課 = 一張卡；網址帶 ?course= 時只看那門課（從課表的「查看作業分析」進來）
-const rows = computed<HomeworkRow[]>(() => {
-  const onlyCourse = typeof route.query.course === 'string' ? route.query.course : ''
-  const list: HomeworkRow[] = []
-  for (const student of students.value) {
-    for (const bound of student.courses) {
-      const course = courses.value.find((item) => item.id === bound.course_id)
-      if (!course || (onlyCourse && course.id !== onlyCourse)) continue
-      list.push({
-        key: `${course.id}:${student.id}`,
-        course,
-        studentId: student.id,
-        studentName: student.name,
-        recordings: recordings.value.filter((item) => item.course_id === course.id && item.student_id === student.id),
-      })
-    }
-  }
-  return list
-})
-
+// 網址帶 ?course= 時只看那門課（從課表的「查看作業分析」進來）
+const onlyCourse = computed(() => (typeof route.query.course === 'string' ? route.query.course : ''))
+const courseKeys = computed(() => [...new Set(assignments.value.map((item) => item.course_id))])
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  return rows.value.filter(
-    (row) =>
-      (filter.value === 'all' || (filter.value === 'submitted') === row.recordings.length > 0) &&
-      (!text || [row.studentName, row.course.title].some((value) => value.toLowerCase().includes(text))),
+  return assignments.value.filter(
+    (item) =>
+      (!onlyCourse.value || item.course_id === onlyCourse.value) &&
+      (filter.value === 'all' || (filter.value === 'submitted') === item.submission_count > 0) &&
+      (!text || [item.student_name, item.course_title, item.title].some((value) => value.toLowerCase().includes(text))),
   )
 })
 
-const courseKeys = computed(() => courses.value.map((item) => item.id))
-const detail = computed(() => rows.value.find((row) => row.key === detailKey.value) ?? null)
-
-function statusText(row: HomeworkRow) {
-  if (!row.course.has_reference_midi) return '作業待上傳'
-  return row.recordings.length ? '作業已上傳，學生已繳交' : '作業已上傳，學生未繳交'
+function statusText(item: Assignment) {
+  if (item.kind === 'quiz') return '題庫作業已發布'
+  return item.submission_count ? `學生已繳交（${item.submission_count} 次）` : '作業已上傳，學生未繳交'
 }
 
-function lastText(row: HomeworkRow) {
-  const latest = row.recordings[0]
-  if (!latest) return '繳交期限：未設定'
-  return `最近繳交：${formatDateTime(latest.submitted_at)}（${RECORDING_STATUS_LABELS[latest.status]}）`
-}
-
-async function load() {
-  window.clearTimeout(timer)
+onMounted(async () => {
   try {
-    if (!courses.value.length) {
-      ;[courses.value, students.value] = await Promise.all([
-        fetchMyCourses().then((list) => list.filter((item) => item.status !== 'archived')),
-        fetchMyStudents(),
-      ])
-    }
-    const lists = await Promise.all(courses.value.map((course) => fetchCourseRecordings(course.id)))
-    recordings.value = lists.flat().sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))
-    error.value = ''
+    assignments.value = await fetchAssignments()
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到作業。'
+  } finally {
+    loaded.value = true
   }
-  // 還有錄音在分析時，每 5 秒更新一次
-  if (recordings.value.some((item) => item.status === 'pending' || item.status === 'processing')) {
-    timer = window.setTimeout(load, 5000)
-  }
-}
-
-onMounted(load)
-onBeforeUnmount(() => window.clearTimeout(timer))
+})
 </script>
 
 <template>
@@ -113,7 +58,9 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
       </svg>
     </label>
-    <button type="button" class="btn btn--primary" @click="addOpen = true">新增</button>
+    <RouterLink :to="{ name: 'teacher-assignment-new', query: onlyCourse ? { course: onlyCourse } : {} }" class="btn btn--primary">
+      新增
+    </RouterLink>
   </PageHeader>
 
   <div class="chip-group homework__filters" role="group" aria-label="依繳交狀態篩選">
@@ -127,60 +74,25 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     >
       {{ item.label }}
     </button>
-    <RouterLink v-if="route.query.course" :to="{ name: 'teacher-practice' }" class="chip">看全部課程</RouterLink>
+    <RouterLink v-if="onlyCourse" :to="{ name: 'teacher-practice' }" class="chip">看全部課程</RouterLink>
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
 
-  <div v-if="shown.length === 0" class="card empty">
-    {{ rows.length === 0 ? '還沒有學生加入你的課程。' : '沒有符合的作業。' }}
+  <div v-if="loaded && shown.length === 0" class="card empty">
+    {{ assignments.length === 0 ? '還沒有發過作業。按右上角「新增」替已綁定的學生發第一份作業。' : '沒有符合的作業。' }}
   </div>
-  <article v-for="row in shown" :key="row.key" class="tone-card homework" :class="toneClass(row.course.id, courseKeys)">
-    <p class="tone-card__cell tone-card__title homework__type">演奏作業</p>
+  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="toneClass(item.course_id, courseKeys)">
+    <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
     <div class="tone-card__cell">
-      <p class="tone-card__title">{{ row.course.title }}</p>
-      <p class="tone-card__line">{{ row.studentName }}</p>
+      <p class="tone-card__title">{{ item.course_title }}</p>
+      <p class="tone-card__line">{{ item.student_name }}</p>
     </div>
     <div class="tone-card__cell">
-      <p class="tone-card__title">{{ statusText(row) }}</p>
-      <p class="tone-card__line">{{ lastText(row) }}</p>
+      <p class="tone-card__title">{{ statusText(item) }}</p>
+      <p class="tone-card__line">{{ item.title }}・{{ dueText(item.due_at) }}</p>
     </div>
-    <button type="button" class="tone-btn" @click="detailKey = row.key">查看詳情</button>
+    <RouterLink :to="{ name: 'teacher-assignment', params: { id: item.id } }" class="tone-btn">查看詳情</RouterLink>
   </article>
-
-  <ModalPanel :open="detail !== null" :title="detail ? `${detail.course.title}｜${detail.studentName}` : ''" wide @close="detailKey = ''">
-    <template v-if="detail">
-      <div v-if="!detail.course.has_reference_midi" class="card homework__notice">
-        這門課還沒有參考 MIDI，學生暫時不能送出練習。
-        <RouterLink :to="`/teacher/courses/${detail.course.id}/edit`">到課程設定上傳</RouterLink>
-      </div>
-      <p v-if="detail.recordings.length === 0" class="muted">這位學生還沒有送出練習。</p>
-      <article v-for="item in detail.recordings" :key="item.id" class="recording">
-        <header class="recording__head">
-          <strong>{{ formatDateTime(item.submitted_at) }}</strong>
-        </header>
-        <audio class="recording__audio" controls preload="none" :src="apiUrl(`/teacher/recordings/${item.id}/audio`)"></audio>
-        <FeedbackView :recording="item" />
-      </article>
-    </template>
-  </ModalPanel>
-
-  <ModalPanel :open="addOpen" title="新增作業" @close="addOpen = false">
-    <ul class="add">
-      <li>
-        <strong>演奏作業（音檔）</strong>
-        <p class="muted">在課程設定上傳參考 MIDI，學生就能照著錄音繳交。</p>
-        <div class="add__courses">
-          <RouterLink v-for="course in courses" :key="course.id" :to="`/teacher/courses/${course.id}/edit`" class="btn btn--ghost btn--small">
-            {{ course.title }}
-          </RouterLink>
-        </div>
-      </li>
-      <li>
-        <strong>題庫作業（問答）</strong>
-        <p class="muted">尚未開放。</p>
-      </li>
-    </ul>
-  </ModalPanel>
 </template>
 
 <style scoped>
@@ -202,51 +114,9 @@ onBeforeUnmount(() => window.clearTimeout(timer))
   text-align: center;
 }
 
-.homework__notice {
-  margin-bottom: 16px;
-  background: var(--home-cream);
-  font-size: 14px;
-}
-
-.homework__notice a {
-  margin-left: 6px;
-  color: var(--home-accent);
-  text-decoration: underline;
-}
-
-.recording + .recording {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid var(--home-line);
-}
-
-.recording__audio {
-  display: block;
-  width: 100%;
-  max-width: 420px;
-  margin: 10px 0;
-}
-
-.add {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.add li + li {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--home-line);
-}
-
-.add p {
-  margin: 4px 0 10px;
-  font-size: 14px;
-}
-
-.add__courses {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+@media (max-width: 720px) {
+  .homework__type {
+    text-align: left;
+  }
 }
 </style>

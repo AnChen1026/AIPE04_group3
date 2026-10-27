@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vue'
 import { fetchMyConversations } from '@/api/student'
+import { fetchSupportConversation } from '@/api/support'
 
 const route = useRoute()
 const unread = ref(0)
@@ -20,8 +21,11 @@ const items = computed<NavItem[]>(() => [
 watch(
   () => route.fullPath,
   async () => {
-    const conversations = await fetchMyConversations().catch(() => [])
-    unread.value = conversations.reduce((sum, row) => sum + row.unread_count, 0)
+    const [conversations, support] = await Promise.all([
+      fetchMyConversations().catch(() => []),
+      fetchSupportConversation().catch(() => null),
+    ])
+    unread.value = conversations.reduce((sum, row) => sum + row.unread_count, 0) + (support?.unread_count ?? 0)
   },
   { immediate: true },
 )

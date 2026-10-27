@@ -1,5 +1,6 @@
-import { request } from './http'
+import { apiUrl, request } from './http'
 import type {
+  Assignment,
   BoundStudent,
   Conversation,
   Course,
@@ -37,11 +38,6 @@ export function uploadCourseImage(id: string, file: File) {
   return request<Course>(`/courses/${id}/image`, { method: 'POST', body: form })
 }
 
-export function uploadReferenceMidi(id: string, file: File) {
-  const form = new FormData()
-  form.append('midi', file)
-  return request<Course>(`/courses/${id}/reference-midi`, { method: 'POST', body: form })
-}
 
 // ---------- 學生
 export const fetchMyStudents = () => request<BoundStudent[]>('/teacher/students')
@@ -71,3 +67,34 @@ export const sendTeacherMessage = (id: string, body: string, clientMessageId: st
   })
 export const issueBindingCode = (id: string) =>
   request<{ code: string }>(`/teacher/conversations/${id}/binding-code`, { method: 'POST' })
+
+// ---------- 作業：替已綁定的學生發作業，附參考 MIDI 與教材
+export interface AssignmentInput {
+  course_id: string
+  student_id: string
+  kind: Assignment['kind']
+  title: string
+  description?: string
+  due_at?: string | null
+  midi?: File | null
+  materials?: File[]
+}
+
+export const fetchAssignments = () => request<Assignment[]>('/teacher/assignments')
+export const deleteAssignment = (id: string) => request<void>(`/teacher/assignments/${id}`, { method: 'DELETE' })
+
+export function createAssignment(input: AssignmentInput) {
+  const form = new FormData()
+  form.append('course_id', input.course_id)
+  form.append('student_id', input.student_id)
+  form.append('kind', input.kind)
+  form.append('title', input.title)
+  if (input.description) form.append('description', input.description)
+  if (input.due_at) form.append('due_at', input.due_at)
+  if (input.midi) form.append('midi', input.midi)
+  for (const file of input.materials ?? []) form.append('materials', file)
+  return request<Assignment>('/teacher/assignments', { method: 'POST', body: form })
+}
+
+export const teacherAssignmentMidiUrl = (id: string) => apiUrl(`/teacher/assignments/${id}/midi`)
+export const teacherMaterialUrl = (id: string) => apiUrl(`/teacher/assignment-materials/${id}`)

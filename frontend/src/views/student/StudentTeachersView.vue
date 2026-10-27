@@ -134,10 +134,10 @@ onMounted(load)
   <NoticeDialog
     :open="joined !== null"
     :message="`已經加入「${joined?.title ?? ''}」！`"
-    detail="現在可以看課表、請假或調課，也能照老師指定的曲子錄音交作業。"
-    confirm-text="去交作業"
+    detail="現在可以看課表、請假或調課。老師發作業後，會出現在「作業」頁。"
+    confirm-text="看作業"
     cancel-text="留在這裡"
-    @confirm="router.push({ path: '/student/homework/practice', query: { course: joined!.courseId } })"
+    @confirm="router.push('/student/homework')"
     @cancel="joined = null"
   />
 </template>

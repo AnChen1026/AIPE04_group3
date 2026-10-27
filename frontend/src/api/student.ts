@@ -1,5 +1,5 @@
-import { request } from './http'
-import type { ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
+import { apiUrl, request } from './http'
+import type { Assignment, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
 
 // ---------- 接洽對話與綁定
 export const startConversation = (courseId: string) =>
@@ -52,4 +52,16 @@ export function uploadRecording(courseId: string, audio: Blob, filename: string)
   const form = new FormData()
   form.append('audio', audio, filename)
   return request<Recording>(`/api/student/courses/${courseId}/recordings`, { method: 'POST', body: form })
+}
+
+// ---------- 作業：老師發給自己的作業、下載檔案、錄音繳交
+export const fetchMyAssignments = () => request<Assignment[]>('/api/student/assignments')
+export const fetchAssignmentRecordings = (id: string) => request<Recording[]>(`/api/student/assignments/${id}/recordings`)
+export const studentAssignmentMidiUrl = (id: string) => apiUrl(`/api/student/assignments/${id}/midi`)
+export const studentMaterialUrl = (id: string) => apiUrl(`/api/student/assignment-materials/${id}`)
+
+export function submitAssignment(id: string, audio: Blob, filename: string) {
+  const form = new FormData()
+  form.append('audio', audio, filename)
+  return request<Recording>(`/api/student/assignments/${id}/recordings`, { method: 'POST', body: form })
 }

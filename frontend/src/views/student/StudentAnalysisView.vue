@@ -10,7 +10,7 @@ import PageHeader from '@/components/console/PageHeader.vue'
   </PageHeader>
 
   <div class="kinds">
-    <RouterLink :to="{ path: '/student/homework/practice', hash: '#history' }" class="kind kind--play">
+    <RouterLink :to="{ path: '/student/homework', query: {} }" class="kind kind--play">
       <span class="kind__icon" aria-hidden="true">♪</span>
       <strong>演奏作業</strong>
       <span class="kind__hint">音高 · 節奏 · 回饋</span>

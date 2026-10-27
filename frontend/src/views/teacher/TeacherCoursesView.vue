@@ -90,7 +90,7 @@ onMounted(async () => {
       <li v-if="course.time_slots">{{ course.time_slots }}</li>
     </ul>
     <footer class="course__foot">
-      <span class="muted">{{ course.has_reference_midi ? '已設定參考 MIDI' : '尚未設定參考 MIDI，學生還不能送出練習錄音' }}</span>
+      <RouterLink :to="{ name: 'teacher-assignment-new', query: { course: course.id } }" class="muted course__assign">替這門課的學生發作業</RouterLink>
       <span class="badge" :class="statusClass(course.status)">{{ COURSE_STATUS_LABELS[course.status] }}</span>
     </footer>
     </div>

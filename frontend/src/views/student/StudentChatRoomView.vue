@@ -74,7 +74,7 @@ onMounted(async () => {
       <div v-if="conversation?.bound" class="chat-actions">
         <span class="badge badge--accent">上課中</span>
         <RouterLink :to="{ path: '/student/schedule', query: { course: conversation.course_id } }" class="btn btn--ghost btn--small">課表</RouterLink>
-        <RouterLink :to="{ path: '/student/homework/practice', query: { course: conversation.course_id } }" class="btn btn--primary btn--small">交作業</RouterLink>
+        <RouterLink to="/student/homework" class="btn btn--primary btn--small">看作業</RouterLink>
       </div>
       <form v-else class="chat-actions" @submit.prevent="bind">
         <label class="muted" for="bind-code">老師給你綁定碼了嗎？</label>

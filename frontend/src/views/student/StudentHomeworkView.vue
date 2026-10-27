@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
-import { fetchMyRecordings } from '@/api/student'
-import { useBoundCourses } from '@/composables/useBoundCourses'
-import type { Recording } from '@/types/api'
-import { RECORDING_STATUS_LABELS, formatDateTime, toneClass } from '@/utils/format'
+import { fetchMyAssignments } from '@/api/student'
+import type { Assignment } from '@/types/api'
+import { ASSIGNMENT_KIND_LABELS, dueText, toneClass } from '@/utils/format'
 
-// 設計稿的學生「作業狀態」：每門已綁定的課一張演奏作業卡（照老師的參考曲錄音），可以上傳或看詳情。
-// 題庫作業與繳交期限後端還沒有，先留位置
-const courses = useBoundCourses()
-const recordings = ref<Record<string, Recording[]>>({})
+// 設計稿的學生「作業狀態」：老師發給自己的每一份作業。演奏作業可以上傳錄音，題庫作業的作答尚未開放
+const assignments = ref<Assignment[]>([])
 const keyword = ref('')
 const filter = ref<'all' | 'missing' | 'submitted'>('all')
+const loaded = ref(false)
 const error = ref('')
 
 const filters = [
@@ -20,29 +18,28 @@ const filters = [
   { value: 'submitted', label: '已繳交' },
 ] as const
 
-const courseKeys = computed(() => courses.bound.value.map((item) => item.course_id))
+const courseKeys = computed(() => [...new Set(assignments.value.map((item) => item.course_id))])
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  return courses.bound.value.filter((item) => {
-    const submitted = (recordings.value[item.course_id] ?? []).length > 0
-    return (
-      (filter.value === 'all' || (filter.value === 'submitted') === submitted) &&
-      (!text || [item.course_title ?? '', item.teacher_name ?? ''].some((value) => value.toLowerCase().includes(text)))
-    )
-  })
+  return assignments.value.filter(
+    (item) =>
+      (filter.value === 'all' || (filter.value === 'submitted') === item.submission_count > 0) &&
+      (!text || [item.course_title, item.title].some((value) => value.toLowerCase().includes(text))),
+  )
 })
 
-function latest(courseId: string) {
-  return recordings.value[courseId]?.[0] ?? null
+function statusText(item: Assignment) {
+  if (item.kind === 'quiz') return '題庫作業'
+  return item.submission_count ? '作業已繳交' : '作業未繳交'
 }
 
 onMounted(async () => {
   try {
-    await courses.load()
-    const lists = await Promise.all(courses.bound.value.map((item) => fetchMyRecordings(item.course_id)))
-    recordings.value = Object.fromEntries(courses.bound.value.map((item, index) => [item.course_id, lists[index]!]))
+    assignments.value = await fetchMyAssignments()
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到作業。'
+  } finally {
+    loaded.value = true
   }
 })
 </script>
@@ -75,35 +72,24 @@ onMounted(async () => {
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
 
-  <div v-if="courses.loaded.value && courses.bound.value.length === 0" class="card empty">
-    還沒有進入任何課程。在「老師」頁輸入老師給的綁定碼後，就能在這裡交作業。
+  <div v-if="loaded && assignments.length === 0" class="card empty">
+    老師還沒有發作業給你。老師發布後，會出現在這裡。
   </div>
-  <div v-else-if="courses.loaded.value && shown.length === 0" class="card empty">沒有符合的作業。</div>
-  <article
-    v-for="item in shown"
-    :key="item.course_id"
-    class="tone-card homework"
-    :class="toneClass(item.course_id, courseKeys)"
-  >
-    <p class="tone-card__cell tone-card__title homework__type">演奏作業</p>
+  <div v-else-if="loaded && shown.length === 0" class="card empty">沒有符合的作業。</div>
+  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="toneClass(item.course_id, courseKeys)">
+    <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
     <div class="tone-card__cell">
       <p class="tone-card__title">{{ item.course_title }}</p>
-      <p class="tone-card__line">{{ item.teacher_name }}老師</p>
+      <p class="tone-card__line">{{ item.title }}</p>
     </div>
     <div class="tone-card__cell">
-      <p class="tone-card__title">{{ latest(item.course_id) ? '作業已繳交' : '作業未繳交' }}</p>
-      <p class="tone-card__line">
-        <template v-if="latest(item.course_id)">
-          最近繳交：{{ formatDateTime(latest(item.course_id)!.submitted_at) }}（{{ RECORDING_STATUS_LABELS[latest(item.course_id)!.status] }}）
-        </template>
-        <template v-else>繳交期限：未設定</template>
-      </p>
+      <p class="tone-card__title">{{ statusText(item) }}</p>
+      <p class="tone-card__line">{{ dueText(item.due_at) }}</p>
     </div>
     <div class="homework__actions">
-      <RouterLink :to="{ path: '/student/homework/practice', query: { course: item.course_id } }" class="tone-btn">上傳</RouterLink>
-      <RouterLink :to="{ path: '/student/homework/practice', query: { course: item.course_id }, hash: '#history' }" class="tone-btn">
-        查看詳情
-      </RouterLink>
+      <RouterLink v-if="item.kind === 'performance'" :to="`/student/homework/${item.id}`" class="tone-btn">上傳</RouterLink>
+      <button v-else type="button" class="tone-btn" disabled title="題庫作答尚未開放">作答</button>
+      <RouterLink :to="{ path: `/student/homework/${item.id}`, hash: '#history' }" class="tone-btn">查看詳情</RouterLink>
     </div>
   </article>
 </template>

@@ -5,6 +5,7 @@ import ConsoleShell, { type NavItem } from '@/components/console/ConsoleShell.vu
 import TeacherApplicationForm from '@/components/console/TeacherApplicationForm.vue'
 import { fetchChangeRequests, fetchTeacherConversations } from '@/api/teacher'
 import { fetchCurrentUser } from '@/api/auth'
+import { fetchSupportConversation } from '@/api/support'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -35,8 +36,15 @@ const items = computed<NavItem[]>(() => [
 // 換頁時更新選單上的未讀與待處理數字
 async function refreshBadges() {
   if (!approved.value) return
-  const [conversations, requests] = await Promise.allSettled([fetchTeacherConversations(), fetchChangeRequests()])
-  if (conversations.status === 'fulfilled') unread.value = conversations.value.reduce((sum, row) => sum + row.unread_count, 0)
+  const [conversations, requests, support] = await Promise.allSettled([
+    fetchTeacherConversations(),
+    fetchChangeRequests(),
+    fetchSupportConversation(),
+  ])
+  const supportUnread = support.status === 'fulfilled' ? support.value.unread_count : 0
+  if (conversations.status === 'fulfilled') {
+    unread.value = conversations.value.reduce((sum, row) => sum + row.unread_count, 0) + supportUnread
+  }
   if (requests.status === 'fulfilled') pending.value = requests.value.length
 }
 
