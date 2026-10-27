@@ -25,6 +25,8 @@
 from pathlib import Path  # 處理檔案路徑，避免自己拼字串
 import argparse  # 讀取指令列參數，例如 --midi、--audio
 import os  # 設定環境變數，例如 numba 快取目錄、Gemini API key
+import shutil  # 找 ffmpeg 在哪裡
+import subprocess  # 瀏覽器錄的 webm／m4a 先用 ffmpeg 轉成 wav
 import sys  # 結束程式時回傳成功或失敗代碼
 import tempfile  # 取得系統暫存資料夾
 import time  # 計算整支程式執行秒數；Gemini 忙碌時也用來稍等再重試
@@ -65,7 +67,7 @@ PROCESS_SAMPLE_RATE = 22050
 
 # 檢查副檔名時使用
 MIDI_SUFFIXES = {".mid", ".midi"}
-AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
+AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".webm"}
 
 # 步驟 8、11：音高最多 70 分，必須 MIDI number 完全相同
 PITCH_SCORE_MAX = 70
@@ -85,6 +87,23 @@ DTW_DIFFERENT_PITCH_COST = 100.0
 # 標準 MIDI 沒有 Tempo 時的預設速度
 DEFAULT_TEMPO_BPM = 120.0
 
+# 步驟 5：過濾 Basic Pitch 把泛音、殘響當成音符的假音（見開發紀錄 2026-09-29）
+# 只保留標準答案音域上下一個八度內的音
+PITCH_RANGE_MARGIN = 12
+# 同時有一顆比較大聲的音在響，而且剛好高出這些半音數（八度、十二度、兩個八度…），就當成泛音
+OVERTONE_INTERVALS = {12, 19, 24, 28, 31, 36}
+OVERTONE_MAX_AMPLITUDE_RATIO = 0.6
+# 很小聲又很短、旁邊有大聲的音在響：多半是殘響或鍵盤雜音
+GHOST_MAX_AMPLITUDE = 0.4
+GHOST_MAX_SECONDS = 0.15
+GHOST_MAX_AMPLITUDE_RATIO = 0.5
+# 判斷「同時在響」時，允許這顆音比較早一點點出現
+SOUNDING_EARLY_SECONDS = 0.05
+
+# 步驟 9：找出「突然變快／變慢」的段落。連續幾個間隔都比整體速度快或慢超過這個倍數，就寫進回饋
+TEMPO_CHANGE_FACTOR = 1.35
+TEMPO_CHANGE_MIN_INTERVALS = 3
+
 # 步驟 13：測試回饋使用 Gemini 免費額度較夠的模型
 GEMINI_MODEL = "gemini-3.8-flash"
 GEMINI_RETRY_TIMES = 3
@@ -102,6 +121,15 @@ class ErrorNote(BaseModel):
     note_in_measure: int | None = None
     pitch_name: str
     reason: str
+
+
+class TempoChange(BaseModel):
+    """一段突然變快或變慢的地方。factor 是比整體速度快（或慢）幾倍。"""
+
+    start_measure: int
+    end_measure: int
+    direction: str  # "faster" 或 "slower"
+    factor: float
 
 
 class MeasureSummary(BaseModel):
@@ -133,6 +161,12 @@ class ScoreReport(BaseModel):
     pitch_score: float
     rhythm_score: float
     tempo_ratio: float
+    # 節奏用哪個速度當標準："metronome"＝學生開的節拍器，"student"＝學生自己的整體速度
+    tempo_source: str = "student"
+    metronome_bpm: float | None = None
+    # 學生這次整體大約彈幾 BPM（依音和音的間隔推算）
+    played_bpm: float | None = None
+    tempo_changes: list[TempoChange] = []
     raw_total: float
     final_score: int
     measures: list[MeasureSummary]
@@ -183,11 +217,7 @@ def preprocess_audio(audio_path, output_path):
     """讀取測試音檔，做基本前處理，並存成新的 wav。"""
     # sr=PROCESS_SAMPLE_RATE：統一取樣率
     # mono=True：如果是左右聲道，合成一條聲音
-    waveform, sample_rate = librosa.load(
-        str(audio_path),
-        sr=PROCESS_SAMPLE_RATE,
-        mono=True,
-    )
+    waveform, sample_rate = load_audio(audio_path)
     original_seconds = len(waveform) / sample_rate
 
     # 去掉開頭和結尾比較安靜的部分
@@ -214,6 +244,28 @@ def preprocess_audio(audio_path, output_path):
         "original_seconds": round(original_seconds, 4),
         "trimmed_seconds": round(trimmed_seconds, 4),
     }
+
+
+def load_audio(audio_path):
+    """讀音檔並轉成單聲道、統一取樣率。
+
+    librosa 1.0 只認 wav、mp3、flac、ogg 這類格式；瀏覽器錄的 webm、手機的 m4a 先用 ffmpeg 轉成 wav 再讀。
+    """
+    try:
+        return librosa.load(str(audio_path), sr=PROCESS_SAMPLE_RATE, mono=True)
+    except Exception:
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg is None:
+            raise
+    with tempfile.TemporaryDirectory(prefix="aipe04_decode_") as work_dir:
+        wav_path = Path(work_dir) / "decoded.wav"
+        subprocess.run(
+            [ffmpeg, "-loglevel", "error", "-y", "-i", str(audio_path), "-ac", "1", "-ar", str(PROCESS_SAMPLE_RATE), str(wav_path)],
+            check=True,
+            capture_output=True,
+            timeout=120,
+        )
+        return librosa.load(str(wav_path), sr=PROCESS_SAMPLE_RATE, mono=True)
 
 
 # ======================================================
@@ -247,13 +299,18 @@ def note_events_to_dicts(note_events):
 # ======================================================
 # 步驟 5：用 Basic Pitch 把「前處理後的音檔」轉成 MIDI 並存檔
 # ======================================================
-def convert_audio_to_midi(audio_path, output_midi_path):
-    """把音檔轉成 MIDI，並回傳模型辨識到的音符。"""
-    onnx_model_path = build_icassp_2022_model_path(FilenameSuffix.onnx)
-    model_output, midi_data, note_events = predict(str(audio_path), onnx_model_path)
+def convert_audio_to_midi(audio_path, output_midi_path, reference_pitch_range=None):
+    """把音檔轉成 MIDI，濾掉泛音等假音後存檔，並回傳留下來的音符。
 
-    output_midi_path.parent.mkdir(parents=True, exist_ok=True)
-    midi_data.write(str(output_midi_path))
+    reference_pitch_range 是標準答案的 (最低音, 最高音)，有給才會限制音域。
+    """
+    # 一定要指定 ONNX 模型：basic-pitch 預設是 TensorFlow 版，在 Python 3.12 裝不起來
+    onnx_model_path = build_icassp_2022_model_path(FilenameSuffix.onnx)
+    model_output, _midi_data, note_events = predict(str(audio_path), onnx_model_path)
+
+    raw_notes = note_events_to_dicts(note_events)
+    notes = remove_false_notes(raw_notes, reference_pitch_range)
+    write_notes_to_midi(notes, output_midi_path)
 
     model_output_keys = []
     if isinstance(model_output, dict):
@@ -263,9 +320,62 @@ def convert_audio_to_midi(audio_path, output_midi_path):
         "source_audio": str(audio_path),
         "output_midi": str(output_midi_path),
         "model_output_keys": model_output_keys,
-        "note_count": len(note_events),
-        "notes": note_events_to_dicts(note_events),
+        "raw_note_count": len(raw_notes),
+        "note_count": len(notes),
+        "notes": notes,
     }
+
+
+def remove_false_notes(notes, reference_pitch_range=None):
+    """拿掉模型多抓的假音：音域外的音、泛音、很小聲又很短的殘響。真的多彈的音音量夠大，會留下來。"""
+    kept = []
+    for note in notes:
+        if reference_pitch_range is not None:
+            lowest, highest = reference_pitch_range
+            if note["pitch"] < lowest - PITCH_RANGE_MARGIN or note["pitch"] > highest + PITCH_RANGE_MARGIN:
+                continue
+
+        louder_notes = [
+            other
+            for other in notes
+            if other is not note
+            and other["start"] <= note["start"] + SOUNDING_EARLY_SECONDS
+            and note["start"] < other["end"]
+            and other["amplitude"] > note["amplitude"]
+        ]
+        is_overtone = any(
+            note["pitch"] - other["pitch"] in OVERTONE_INTERVALS
+            and note["amplitude"] / other["amplitude"] < OVERTONE_MAX_AMPLITUDE_RATIO
+            for other in louder_notes
+        )
+        is_ghost = (
+            note["amplitude"] < GHOST_MAX_AMPLITUDE
+            and note["duration"] < GHOST_MAX_SECONDS
+            and any(note["amplitude"] / other["amplitude"] < GHOST_MAX_AMPLITUDE_RATIO for other in louder_notes)
+        )
+        if not is_overtone and not is_ghost:
+            kept.append(note)
+    return kept
+
+
+def write_notes_to_midi(notes, output_midi_path):
+    """把音符列表存成單一鋼琴軌的 MIDI。"""
+    midi_data = pretty_midi.PrettyMIDI()
+    piano = pretty_midi.Instrument(program=0)
+    for note in notes:
+        velocity = max(1, min(127, int(round(note.get("amplitude", 0.6) * 127))))
+        piano.notes.append(pretty_midi.Note(velocity=velocity, pitch=note["pitch"], start=note["start"], end=note["end"]))
+    midi_data.instruments.append(piano)
+    output_midi_path.parent.mkdir(parents=True, exist_ok=True)
+    midi_data.write(str(output_midi_path))
+
+
+def pitch_range_of(notes):
+    """標準答案的最低音與最高音；沒有音符時回傳 None（不限制音域）。"""
+    if not notes:
+        return None
+    pitches = [note["pitch"] for note in notes]
+    return (min(pitches), max(pitches))
 
 
 # ======================================================
@@ -548,8 +658,11 @@ def score_one_ioi(standard_ioi, student_ioi, tempo_ratio):
 # ======================================================
 # 步驟 8、9、11：用整首標準音符算總分，並順便做每小節摘要
 # ======================================================
-def score_performance(standard_midi, student_midi, alignment):
-    """依規格計算音高 70、節奏 30，以及每小節紀錄。"""
+def score_performance(standard_midi, student_midi, alignment, metronome_bpm=None):
+    """依規格計算音高 70、節奏 30，以及每小節紀錄。
+
+    有開節拍器時，節奏照節拍器速度比；沒開時，照學生自己的整體速度（中位數）按比例比。
+    """
     standard_notes = standard_midi["notes"]
     student_notes = student_midi["notes"]
     standard_to_student = alignment["standard_to_student"]
@@ -574,7 +687,14 @@ def score_performance(standard_midi, student_midi, alignment):
     else:
         pitch_score = correct_pitch_count / standard_count * PITCH_SCORE_MAX
 
-    tempo_ratio = estimate_tempo_ratio(standard_notes, standard_to_student, student_notes)
+    played_ratio = estimate_tempo_ratio(standard_notes, standard_to_student, student_notes)
+    if metronome_bpm:
+        # 標準音之間的秒數是照 MIDI 速度算的；換成節拍器速度後，每個間隔應該是原本的 MIDI 速度 / 節拍器速度 倍
+        tempo_ratio = standard_midi["tempo_bpm"] / metronome_bpm
+        tempo_source = "metronome"
+    else:
+        tempo_ratio = played_ratio
+        tempo_source = "student"
 
     ioi_weights = []
     ioi_details = []
@@ -634,6 +754,11 @@ def score_performance(standard_midi, student_midi, alignment):
         "pitch_score": round(pitch_score, 2),
         "rhythm_score": round(rhythm_score, 2),
         "tempo_ratio": round(tempo_ratio, 4),
+        "tempo_source": tempo_source,
+        "metronome_bpm": metronome_bpm,
+        "played_bpm": round(standard_midi["tempo_bpm"] / played_ratio, 1) if played_ratio > 0 else None,
+        "tempo_changes": find_tempo_changes(standard_midi, ioi_details, tempo_ratio),
+        "ioi_details": ioi_details,
         "ioi_count": ioi_count,
         "raw_total": round(raw_total, 2),
         "final_score": final_score,
@@ -647,6 +772,44 @@ def score_performance(standard_midi, student_midi, alignment):
             tempo_ratio,
         ),
     }
+
+
+def find_tempo_changes(standard_midi, ioi_details, tempo_ratio):
+    """找出連續好幾個間隔都明顯比整體速度快或慢的段落，例如前面 65 BPM、中間突然 120 BPM。
+
+    這些間隔在節奏分數裡本來就拿不到分；這裡只是把位置找出來，寫進回饋讓學生知道。
+    """
+    changes = []
+    run = []
+    run_direction = None
+
+    def close_run():
+        if len(run) >= TEMPO_CHANGE_MIN_INTERVALS:
+            local = get_median([item["local"] for item in run])
+            factor = 1 / local if run_direction == "faster" else local
+            start = get_standard_note_location(standard_midi, run[0]["from_standard_index"])["measure_number"]
+            end = get_standard_note_location(standard_midi, run[-1]["to_standard_index"])["measure_number"]
+            changes.append(
+                TempoChange(start_measure=start, end_measure=end, direction=run_direction, factor=round(factor, 1))
+            )
+
+    for detail in ioi_details:
+        direction = None
+        if detail["student_ioi"] and detail["standard_ioi"] > 0 and tempo_ratio > 0:
+            # 1 代表和整體速度一樣，0.5 代表這一段快了一倍
+            local = detail["student_ioi"] / detail["standard_ioi"] / tempo_ratio
+            if local < 1 / TEMPO_CHANGE_FACTOR:
+                direction = "faster"
+            elif local > TEMPO_CHANGE_FACTOR:
+                direction = "slower"
+        if direction is not None and direction == run_direction:
+            run.append({**detail, "local": local})
+            continue
+        close_run()
+        run = [{**detail, "local": local}] if direction else []
+        run_direction = direction
+    close_run()
+    return changes
 
 
 # ======================================================
@@ -932,6 +1095,10 @@ def build_score_report(midi_path, audio_path, standard_midi, student_midi, score
         pitch_score=score_result["pitch_score"],
         rhythm_score=score_result["rhythm_score"],
         tempo_ratio=score_result["tempo_ratio"],
+        tempo_source=score_result["tempo_source"],
+        metronome_bpm=score_result["metronome_bpm"],
+        played_bpm=score_result["played_bpm"],
+        tempo_changes=score_result["tempo_changes"],
         raw_total=score_result["raw_total"],
         final_score=score_result["final_score"],
         measures=score_result["measures"],
@@ -1000,6 +1167,10 @@ def generate_feedback(score_report):
 
         5. 漏音、多彈、錯音、節奏問題不需要全部回饋。
         只有當該問題較明顯時才需要提到。
+
+        5-1. tempo_changes 有資料時，代表那幾小節突然變快或變慢（factor 是幾倍），
+        請挑最明顯的一段提醒，例如「第 5～6 小節突然變快很多，那裡可以放慢、保持跟前面一樣的速度」。
+        tempo_source 是 "metronome" 時，代表學生有開節拍器，節奏是照節拍器速度（metronome_bpm）比的。
 
         6. 如果有多彈的音，只需要簡單寫：
         「有幾個地方出現多彈的音，彈奏時可以再注意一下。」
@@ -1129,10 +1300,10 @@ def main():
     processed_audio_path = PROCESSED_DIR / (args.audio.stem + "_processed.wav")
     preprocess_audio(args.audio, processed_audio_path)
 
-    converted_midi_path = CONVERTED_DIR / (args.audio.stem + "_converted.mid")
-    convert_audio_to_midi(processed_audio_path, converted_midi_path)
-
     standard_midi = read_midi_notes(args.midi, "標準答案")
+    converted_midi_path = CONVERTED_DIR / (args.audio.stem + "_converted.mid")
+    convert_audio_to_midi(processed_audio_path, converted_midi_path, pitch_range_of(standard_midi["notes"]))
+
     student_midi = read_midi_notes(converted_midi_path, "學生演奏（由音檔轉出）")
 
     alignment = align_notes_with_dtw(standard_midi["notes"], student_midi["notes"])

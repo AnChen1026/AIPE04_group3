@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.audio_scoring import scorer
 from backend.core.database import SessionLocal
-from backend.core.uploads import resolve_stored_path
+from backend.core.uploads import resolve_stored_path, stored_path
 from backend.models.student import Course, PracticeFeedback, PracticeRecording
 
 logger = logging.getLogger(__name__)
@@ -51,10 +51,8 @@ def _analyze(db: Session, recording_id: uuid.UUID) -> None:
         midi_path = recording.reference_midi_path or (course.reference_midi_path if course else None)
         if not midi_path:
             raise scorer.ScoringFailed("這門課還沒有參考 MIDI。")
-        result = scorer.score_recording(
-            resolve_stored_path(midi_path),
-            resolve_stored_path(recording.file_path),
-        )
+        audio_path = resolve_stored_path(recording.file_path)
+        result = scorer.score_recording(resolve_stored_path(midi_path), audio_path, recording.metronome_bpm)
     except scorer.ScoringFailed as error:
         _mark_failed(db, recording, feedback, str(error))
         return
@@ -66,6 +64,11 @@ def _analyze(db: Session, recording_id: uuid.UUID) -> None:
     feedback.pitch_score = result.pitch_score
     feedback.rhythm_score = result.rhythm_score
     feedback.feedback_text = result.feedback_text
+    if result.score_sheet_xml:
+        # 對照樂譜放在錄音旁邊，同一個檔名、副檔名改成 .musicxml
+        sheet_path = audio_path.with_suffix(".musicxml")
+        sheet_path.write_text(result.score_sheet_xml, encoding="utf-8")
+        feedback.score_sheet_path = stored_path(sheet_path)
     feedback.status = "completed"
     recording.status = "completed"
     db.commit()

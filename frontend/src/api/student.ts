@@ -59,9 +59,12 @@ export const fetchMyAssignments = () => request<Assignment[]>('/api/student/assi
 export const fetchAssignmentRecordings = (id: string) => request<Recording[]>(`/api/student/assignments/${id}/recordings`)
 export const studentAssignmentMidiUrl = (id: string) => apiUrl(`/api/student/assignments/${id}/midi`)
 export const studentMaterialUrl = (id: string) => apiUrl(`/api/student/assignment-materials/${id}`)
+export const studentScoreSheetUrl = (recordingId: string) => apiUrl(`/api/student/recordings/${recordingId}/score-sheet`)
 
-export function submitAssignment(id: string, audio: Blob, filename: string) {
+// 錄音時有開節拍器就帶速度，節奏照節拍器評分
+export function submitAssignment(id: string, audio: Blob, filename: string, metronomeBpm: number | null = null) {
   const form = new FormData()
   form.append('audio', audio, filename)
+  if (metronomeBpm) form.append('metronome_bpm', String(metronomeBpm))
   return request<Recording>(`/api/student/assignments/${id}/recordings`, { method: 'POST', body: form })
 }

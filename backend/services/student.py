@@ -363,6 +363,7 @@ def save_recording(
     filename: str,
     content: bytes,
     assignment: Assignment | None = None,
+    metronome_bpm: float | None = None,
 ) -> PracticeRecording:
     """繳交作業時跟作業的參考 MIDI 比；作業沒附 MIDI、或不是交作業時，用課程的參考曲。"""
     course = require_bound(db, student.id, course_id)
@@ -376,6 +377,8 @@ def save_recording(
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔是空的。")
     if len(content) > MAX_RECORDING_BYTES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔最大 20 MB。")
+    if metronome_bpm is not None and not 30 <= metronome_bpm <= 240:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "節拍器速度要在 30～240 BPM 之間。")
 
     recording_id = uuid.uuid4()
     folder = PRACTICE_UPLOAD_DIR / str(student.id)
@@ -391,6 +394,7 @@ def save_recording(
         file_path=stored_path(path),
         assignment_id=assignment.id if assignment else None,
         reference_midi_path=reference_midi_path,
+        metronome_bpm=metronome_bpm,
         status="pending",
     )
     feedback = PracticeFeedback(

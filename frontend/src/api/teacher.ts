@@ -91,6 +91,8 @@ export interface AssignmentInput {
   due_at?: string | null
   midi?: File | null
   materials?: File[]
+  // 練習速度（BPM），沒填就用 MIDI 的速度
+  practice_bpm?: number | null
 }
 
 export const fetchAssignments = () => request<Assignment[]>('/teacher/assignments')
@@ -105,9 +107,11 @@ export function createAssignment(input: AssignmentInput) {
   if (input.description) form.append('description', input.description)
   if (input.due_at) form.append('due_at', input.due_at)
   if (input.midi) form.append('midi', input.midi)
+  if (input.practice_bpm) form.append('practice_bpm', String(input.practice_bpm))
   for (const file of input.materials ?? []) form.append('materials', file)
   return request<Assignment>('/teacher/assignments', { method: 'POST', body: form })
 }
 
 export const teacherAssignmentMidiUrl = (id: string) => apiUrl(`/teacher/assignments/${id}/midi`)
 export const teacherMaterialUrl = (id: string) => apiUrl(`/teacher/assignment-materials/${id}`)
+export const teacherScoreSheetUrl = (recordingId: string) => apiUrl(`/teacher/recordings/${recordingId}/score-sheet`)

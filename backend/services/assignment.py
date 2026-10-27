@@ -21,6 +21,9 @@ from backend.services.student import StudentBusinessError, _commit, require_boun
 KINDS = ("performance", "quiz")
 MAX_MATERIAL_BYTES = 30 * 1024 * 1024
 MAX_MATERIALS = 10
+# 節拍器與練習速度的範圍
+MIN_BPM = 30
+MAX_BPM = 240
 
 
 def _clean_filename(filename: str, fallback: str) -> str:
@@ -33,6 +36,17 @@ def _write(teacher_id: uuid.UUID, suffix: str, content: bytes) -> Path:
     path = folder / f"{uuid.uuid4()}{suffix}"
     path.write_bytes(content)
     return path
+
+
+def _midi_bpm(path: Path) -> float | None:
+    """參考 MIDI 開頭的速度。讀不到時回傳 None，前端就用 120。"""
+    try:
+        import pretty_midi
+
+        _, tempos = pretty_midi.PrettyMIDI(str(path)).get_tempo_changes()
+        return round(float(tempos[0]), 1) if len(tempos) else None
+    except Exception:
+        return None
 
 
 def _check_midi(filename: str, content: bytes) -> None:
@@ -55,6 +69,7 @@ def create_assignment(
     due_at: datetime | None,
     midi: tuple[str, bytes] | None,
     materials: list[tuple[str, str | None, bytes]],
+    practice_bpm: int | None = None,
 ) -> Assignment:
     """materials 是 (檔名, content type, 內容)。只能發給目前綁定在這門課的學生。"""
     course = db.get(Course, course_id)
@@ -87,6 +102,8 @@ def create_assignment(
             raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"「{name}」超過 30 MB。")
     if midi is not None:
         _check_midi(*midi)
+    if practice_bpm is not None and not MIN_BPM <= practice_bpm <= MAX_BPM:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"練習速度請填 {MIN_BPM}～{MAX_BPM} BPM。")
 
     written: list[Path] = []
     try:
@@ -99,12 +116,14 @@ def create_assignment(
             title=text,
             description=(description or "").strip() or None,
             due_at=due_at,
+            practice_bpm=practice_bpm if kind == "performance" else None,
         )
         if midi is not None:
             path = _write(teacher_id, ".mid", midi[1])
             written.append(path)
             assignment.midi_path = stored_path(path)
             assignment.midi_filename = _clean_filename(midi[0], "reference.mid")
+            assignment.midi_bpm = _midi_bpm(path)
         db.add(assignment)
         db.flush()
         for name, content_type, content in materials:
@@ -223,6 +242,8 @@ def assignment_rows(db: Session, assignments: list[Assignment]) -> list[dict]:
                 "due_at": item.due_at,
                 "has_midi": item.midi_path is not None,
                 "midi_filename": item.midi_filename,
+                "midi_bpm": item.midi_bpm,
+                "practice_bpm": item.practice_bpm,
                 "materials": materials[item.id],
                 "submission_count": stat.count if stat else 0,
                 "last_submitted_at": stat.latest if stat else None,

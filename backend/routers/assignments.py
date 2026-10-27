@@ -61,6 +61,7 @@ def api_create_assignment(
     description: str | None = Form(None),
     due_at: datetime | None = Form(None),
     midi: UploadFile | None = File(None),
+    practice_bpm: int | None = Form(None),
     materials: list[UploadFile] | None = File(None),
     db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
@@ -74,7 +75,7 @@ def api_create_assignment(
     ]
     try:
         assignment = create_assignment(
-            db, teacher.user_id, course_id, student_id, kind, title, description, due_at, midi_file, files
+            db, teacher.user_id, course_id, student_id, kind, title, description, due_at, midi_file, files, practice_bpm
         )
     except StudentBusinessError as error:
         _raise(error)
@@ -183,10 +184,11 @@ def api_submit_assignment(
     assignment_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     audio: UploadFile = File(...),
+    metronome_bpm: float | None = Form(None),
     db: Session = Depends(get_db),
     student: User = Depends(student_only),
 ):
-    """繳交演奏作業：跟這份作業的參考 MIDI 比，評分在背景跑。"""
+    """繳交演奏作業：跟這份作業的參考 MIDI 比，評分在背景跑。錄音時有開節拍器就帶 metronome_bpm，節奏照它算。"""
     try:
         assignment = student_assignment(db, student.id, assignment_id)
         if assignment.kind != "performance":
@@ -198,6 +200,7 @@ def api_submit_assignment(
             audio.filename or "audio.webm",
             audio.file.read(MAX_RECORDING_BYTES + 1),
             assignment=assignment,
+            metronome_bpm=metronome_bpm,
         )
     except StudentBusinessError as error:
         _raise(error)
@@ -211,6 +214,7 @@ def _recording_response(db: Session, recording) -> RecordingResponse:
         id=recording.id,
         course_id=recording.course_id,
         assignment_id=recording.assignment_id,
+        metronome_bpm=recording.metronome_bpm,
         status=recording.status,
         submitted_at=recording.submitted_at,
         feedback=FeedbackResponse.model_validate(feedback) if feedback else None,
