@@ -327,13 +327,17 @@ watch(
     title="課表"
     description="點一堂課可以看課前摘要。學生的約課、請假、調課要在這裡確認後才會改動課表。按「編輯時段」開放可上課時段給已綁定的學生預約。"
   >
-    <button type="button" class="btn btn--small" :class="editing ? 'btn--primary' : 'btn--ghost'" @click="toggleEditing">
-      {{ editing ? '完成編輯' : '編輯時段' }}
-    </button>
+    <template #title-actions>
+      <button type="button" class="btn btn--primary" :aria-pressed="editing" @click="toggleEditing">
+        {{ editing ? '完成編輯' : '編輯時段' }}
+      </button>
+    </template>
     <CalendarPager v-model="anchor" v-model:mode="mode" />
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
+  <!-- 編輯時段時三種框放在週課表右側並固定住，捲到晚上的時段也拖得到；窄螢幕改放上方 -->
+  <div class="schedule" :class="{ 'schedule--editing': editing && mode === 'week' }">
   <section v-if="editing" class="card palette" aria-label="編輯時段">
     <div class="palette__items">
       <span
@@ -363,6 +367,7 @@ watch(
     @drop="onDrop"
     @drop-on-item="onDropOnItem"
   />
+  </div>
   <MonthCalendar v-else-if="mode === 'month'" :month="anchor" :items="items" @select="openLesson" @day="showDay" />
   <template v-else>
   <DayStrip v-model="anchor" :week-start="weekStart" :marked="weekLessonDates" />
@@ -494,20 +499,40 @@ watch(
 </template>
 
 <style scoped>
+.schedule--editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 168px;
+  gap: 14px;
+  align-items: start;
+}
+
+.schedule--editing .palette {
+  position: sticky;
+  top: 16px;
+  grid-column: 2;
+  grid-row: 1;
+}
+
 .palette {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 14px;
+  padding: 16px;
+}
+
+.schedule--editing .palette {
+  margin-bottom: 0;
 }
 
 .palette__items {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 10px;
 }
 
 .palette__item {
   padding: 8px 16px;
+  text-align: center;
   border: 1.5px dashed currentColor;
   border-radius: 12px;
   font-size: 14px;
@@ -673,6 +698,23 @@ watch(
   margin: 8px 0 0;
   color: var(--home-muted);
   font-size: 12px;
+}
+
+@media (max-width: 860px) {
+  .schedule--editing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .schedule--editing .palette {
+    position: static;
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .palette__items {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 720px) {

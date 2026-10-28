@@ -85,7 +85,7 @@ function allowDrop(event: DragEvent) {
 
 <template>
   <div class="week">
-    <div class="week__grid" :style="{ '--rows': hours.length, '--hour': `${HOUR_HEIGHT}px` }">
+    <div class="week__grid" :class="{ 'week__grid--fit': editable }" :style="{ '--rows': hours.length, '--hour': `${HOUR_HEIGHT}px` }">
       <div class="week__corner">時間</div>
       <div
         v-for="(day, index) in days"
@@ -147,6 +147,12 @@ function allowDrop(event: DragEvent) {
   grid-template-columns: 64px repeat(7, minmax(96px, 1fr));
   grid-template-rows: auto calc(var(--rows) * var(--hour));
   min-width: 760px;
+}
+
+/* 編輯時段時右側多一欄拖曳框，課表縮到容器寬度，不出現橫向捲軸 */
+.week__grid--fit {
+  grid-template-columns: 52px repeat(7, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .week__corner,
