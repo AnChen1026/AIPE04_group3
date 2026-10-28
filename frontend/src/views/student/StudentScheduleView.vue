@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import CalendarPager, { type CalendarMode } from '@/components/console/CalendarPager.vue'
@@ -9,9 +9,9 @@ import MonthCalendar from '@/components/console/MonthCalendar.vue'
 import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { createChangeRequest, fetchMyChangeRequests, fetchStudentSchedule } from '@/api/student'
+import { bookSlot, createChangeRequest, fetchMyChangeRequests, fetchStudentSchedule, fetchTeacherAvailability } from '@/api/student'
 import { useBoundCourses } from '@/composables/useBoundCourses'
-import type { ChangeRequest, ChangeRequestType, Conversation, Lesson } from '@/types/api'
+import type { AvailabilitySlot, ChangeRequest, ChangeRequestType, Conversation, Lesson } from '@/types/api'
 import {
   CHANGE_STATUS_LABELS,
   CHANGE_TYPE_LABELS,
@@ -78,17 +78,81 @@ const dayCards = computed(() =>
     .filter((card) => sameDay(new Date(card.starts_at), anchor.value))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
 )
-const items = computed<TimetableItem[]>(() =>
-  allCards.value.map((card) => ({
+// 選一門已綁定的課，就把那位老師還開放的時段疊在自己的課表上，點一下就能預約。
+// 只能透過自己已綁定的課看那位老師的時段（ADR 0009）
+const SLOT_PREFIX = 'slot:'
+const slotCourseId = ref('')
+const slotCourse = computed(() => courses.bound.value.find((item) => item.course_id === slotCourseId.value) ?? null)
+const slots = ref<AvailabilitySlot[]>([])
+const slotError = ref('')
+const picking = ref<AvailabilitySlot | null>(null)
+const booking = ref(false)
+const booked = ref('')
+
+async function loadSlots() {
+  slotError.value = ''
+  if (!slotCourseId.value) {
+    slots.value = []
+    return
+  }
+  try {
+    slots.value = await fetchTeacherAvailability(slotCourseId.value)
+  } catch (problem) {
+    slots.value = []
+    slotError.value = problem instanceof Error ? problem.message : '讀不到老師的時段。'
+  }
+}
+
+watch(slotCourseId, loadSlots)
+
+const daySlots = computed(() =>
+  slots.value.filter((slot) => sameDay(new Date(slot.starts_at), anchor.value)),
+)
+
+function pickSlot(id: string) {
+  picking.value = slots.value.find((slot) => `${SLOT_PREFIX}${slot.id}` === id || slot.id === id) ?? null
+}
+
+async function confirmBooking() {
+  const slot = picking.value
+  const courseId = slotCourseId.value
+  picking.value = null
+  if (!slot || !courseId) return
+  booking.value = true
+  slotError.value = ''
+  try {
+    await bookSlot(courseId, slot.id)
+    booked.value = formatRange(slot.starts_at, slot.ends_at)
+  } catch (problem) {
+    // 被別的同學搶先預約時後端回 409
+    slotError.value = problem instanceof Error ? problem.message : '預約失敗，請再試一次。'
+  } finally {
+    booking.value = false
+    await Promise.all([load(), loadSlots()])
+  }
+}
+
+const items = computed<TimetableItem[]>(() => [
+  ...allCards.value.map((card) => ({
     id: card.key,
     starts_at: card.starts_at,
     ends_at: card.ends_at,
-    title: card.course.course_title ?? '課程',
-    subtitle: card.status === 'pending' ? '待老師確認' : `${card.course.teacher_name}老師`,
+    title: card.status === 'pending' ? '待完成約課' : (card.course.course_title ?? '課程'),
+    subtitle: card.status === 'pending' ? `${card.course.course_title ?? ''}・等老師確認` : `${card.course.teacher_name}老師`,
     colorKey: card.course.course_id,
     cancelled: card.status === 'cancelled',
+    slot: card.status === 'pending' ? ('held' as const) : undefined,
   })),
-)
+  ...slots.value.map((slot) => ({
+    id: `${SLOT_PREFIX}${slot.id}`,
+    starts_at: slot.starts_at,
+    ends_at: slot.ends_at,
+    title: '可預約',
+    subtitle: slotCourse.value ? `${slotCourse.value.teacher_name}老師・點一下預約` : '點一下預約',
+    colorKey: 'availability',
+    slot: 'open' as const,
+  })),
+])
 
 const weekDates = computed(() =>
   lessons.value
@@ -114,6 +178,10 @@ function showDay(date: Date) {
 }
 
 function showCard(key: string) {
+  if (key.startsWith(SLOT_PREFIX)) {
+    pickSlot(key)
+    return
+  }
   const card = allCards.value.find((item) => item.key === key)
   if (card) showDay(new Date(card.starts_at))
 }
@@ -193,6 +261,7 @@ async function submit() {
 
 onMounted(async () => {
   await courses.load()
+  slotCourseId.value = courses.courseId.value
   await load()
   // 從「老師」頁按「上課申請」進來時，直接打開約課表單
   if (route.query.apply && courses.courseId.value) openForm('booking')
@@ -206,6 +275,23 @@ onMounted(async () => {
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
+  <div class="slot-bar">
+    <label class="slot-bar__label" for="slot-course">老師可預約時段</label>
+    <select v-if="courses.bound.value.length" id="slot-course" v-model="slotCourseId" class="select slot-bar__select">
+      <option value="">不顯示</option>
+      <option v-for="item in courses.bound.value" :key="item.course_id" :value="item.course_id">
+        {{ item.course_title }}・{{ item.teacher_name }}老師
+      </option>
+    </select>
+    <span v-else-if="courses.loaded.value" class="muted">還沒有綁定課程，先輸入老師給的綁定碼才看得到老師的時段。</span>
+    <span v-if="slotCourse && slots.length === 0 && !slotError" class="muted">這位老師目前沒有開放的時段。</span>
+    <span v-if="slotCourse && slots.length" class="slot-bar__legend">
+      <span class="slot-bar__swatch slot-bar__swatch--open"></span>可預約
+      <span class="slot-bar__swatch slot-bar__swatch--held"></span>待完成約課
+    </span>
+  </div>
+  <p v-if="slotError" class="error-text" role="alert">{{ slotError }}</p>
+
   <div v-if="courses.loaded.value && courses.bound.value.length === 0" class="card empty">
     還沒有進入任何課程。先在「老師」頁輸入老師給的綁定碼，就會看到課表。
   </div>
@@ -216,7 +302,13 @@ onMounted(async () => {
     <template v-else>
     <DayStrip v-model="anchor" :week-start="weekStart" :marked="weekDates" />
 
-    <div v-if="dayCards.length === 0" class="card empty">這天沒有課，可以按「新增申請」向老師提出時間。</div>
+    <div v-if="dayCards.length === 0 && daySlots.length === 0" class="card empty">這天沒有課，可以按「新增申請」向老師提出時間。</div>
+    <div v-if="daySlots.length" class="card day-slots">
+      <span class="muted">{{ slotCourse?.teacher_name }}老師這天可預約：</span>
+      <button v-for="slot in daySlots" :key="slot.id" type="button" class="chip" :disabled="booking" @click="pickSlot(slot.id)">
+        {{ formatTime(slot.starts_at) }}－{{ formatTime(slot.ends_at) }}
+      </button>
+    </div>
     <article
       v-for="card in dayCards"
       :key="card.key"
@@ -303,6 +395,24 @@ onMounted(async () => {
   </ModalPanel>
 
   <NoticeDialog
+    :open="picking !== null"
+    :message="picking ? `預約 ${formatRange(picking.starts_at, picking.ends_at)}？` : ''"
+    :detail="`${slotCourse?.course_title ?? ''}・${slotCourse?.teacher_name ?? ''}老師。送出後時段先保留給你，老師完成約課才會排進課表。`"
+    confirm-text="預約"
+    cancel-text="再想想"
+    @confirm="confirmBooking"
+    @cancel="picking = null"
+  />
+
+  <NoticeDialog
+    :open="booked !== ''"
+    message="已送出預約"
+    :detail="`${booked}，等老師完成約課後會變成正式的課。`"
+    @confirm="booked = ''"
+    @cancel="booked = ''"
+  />
+
+  <NoticeDialog
     :open="sent"
     message="申請已送出"
     detail="老師同意之前，正式課表還不會改變。"
@@ -312,6 +422,58 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.slot-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.slot-bar__label {
+  font-weight: 500;
+}
+
+.slot-bar__select {
+  width: auto;
+  min-width: 220px;
+  max-width: 100%;
+}
+
+.slot-bar__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--home-muted);
+}
+
+.slot-bar__swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border: 1.5px dashed currentColor;
+  border-radius: 4px;
+}
+
+.slot-bar__swatch--open {
+  background: #eef3e6;
+  color: #55623f;
+}
+
+.slot-bar__swatch--held {
+  background: #fbefd9;
+  color: #8a5a1f;
+}
+
+.day-slots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
 .lesson-card {
   grid-template-columns: 170px minmax(0, 1.4fr) minmax(0, 1fr);
 }
