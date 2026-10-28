@@ -100,7 +100,7 @@ DB 備份不包含 Storage bytes。DB 使用 pg_dump custom format；Storage 另
 - 學生錄音 byte Range 206、對應老師回放通過；1 秒合成音檔的背景評分 completed。這不是長錄音或多人並行壓力測試，不承諾免費服務可承擔正式用量。
 - Render 於 14:11（Asia/Taipei）手動重啟，事件顯示 Service restarted；重啟後首頁、課程、私人錄音與作業 MIDI 仍可讀取。
 - 雲端 `public` schema/data 備份在隔離 PostgreSQL 還原成功，426 已發布課程及錄音可查。三個 bucket 另備份 5 個物件，共 45,091 bytes，逐一核對 SHA-256。備份位於被 Git 忽略的 `db-backups/`。
-- 目前完成的是手動備份與還原驗證，尚未排程每日自動備份／容量告警；維運仍需執行本文件流程。
+- 2026-10-28 已於維運者 Mac 安裝每日備份、每小時監控及 Gmail 告警；執行方式與本機可用性限制見 [維運手冊](operations.md)。
 
 
 ## 本機驗證紀錄（2026-10-28）
