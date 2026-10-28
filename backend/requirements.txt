@@ -26,10 +26,15 @@ librosa>=0.8.0
 soundfile>=0.12.1
 onnxruntime
 setuptools<81
-# basic-pitch 在 Mac + Python 3.12 不能直接 pip install（會要求舊版 tensorflow-macos）
-# 請另外執行：pip install basic-pitch==0.4.0 --no-deps
+# basic-pitch 不能直接 pip install：它要求的 TensorFlow 舊版沒有 Python 3.12 版本。
+# 我們只用它的 ONNX 模型（onnxruntime 執行），用不到 TensorFlow，所以另外執行：
+#   pip install basic-pitch==0.4.0 --no-deps
+# Dockerfile 已經自動做這一步。
 # --no-deps 不會自動裝下面這些，所以要自己列出
 mir_eval
 resampy>=0.2.2,<0.4.3
 scikit-learn
 google-genai>=1.0.0
+
+# 練習回饋的上下對照樂譜（MusicXML）
+music21>=9.1

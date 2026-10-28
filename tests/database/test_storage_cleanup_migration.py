@@ -12,3 +12,19 @@ def test_storage_cleanup_upgrade_downgrade(migration_database):
     assert "teacher_studios" in inspect(engine).get_table_names()
     command.upgrade(config, "head")
     assert "storage_cleanup_jobs" in inspect(engine).get_table_names()
+
+
+def test_both_existing_heads_upgrade_to_merged_head(migration_database):
+    from alembic.script import ScriptDirectory
+
+    config, engine = migration_database
+    command.upgrade(config, "015_studios")
+    for previous in ("016_storage_cleanup", "016_metronome_score"):
+        command.upgrade(config, previous)
+        command.upgrade(config, "head")
+        assert ScriptDirectory.from_config(config).get_current_head() == "017_merge_storage_audio"
+        inspector = inspect(engine)
+        assert "storage_cleanup_jobs" in inspector.get_table_names()
+        assert "score_sheet_path" in {c["name"] for c in inspector.get_columns("practice_feedbacks")}
+        assert "metronome_bpm" in {c["name"] for c in inspector.get_columns("practice_recordings")}
+        command.downgrade(config, "015_studios")

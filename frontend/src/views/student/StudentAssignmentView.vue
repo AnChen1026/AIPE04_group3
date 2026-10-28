@@ -4,11 +4,13 @@ import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import AudioRecorder from '@/components/console/AudioRecorder.vue'
 import FeedbackView from '@/components/console/FeedbackView.vue'
+import ScoreCompare from '@/components/console/ScoreCompare.vue'
 import {
   fetchAssignmentRecordings,
   fetchMyAssignments,
   studentAssignmentMidiUrl,
   studentMaterialUrl,
+  studentScoreSheetUrl,
   submitAssignment,
 } from '@/api/student'
 import { apiUrl } from '@/api/http'
@@ -24,6 +26,8 @@ const recorder = ref<InstanceType<typeof AudioRecorder> | null>(null)
 const uploading = ref(false)
 const error = ref('')
 const notice = ref('')
+// 正在看哪一筆的對照樂譜
+const openSheet = ref('')
 let timer = 0
 
 async function loadRecordings() {
@@ -39,12 +43,12 @@ async function loadRecordings() {
   }
 }
 
-async function submit(audio: Blob, filename: string) {
+async function submit(audio: Blob, filename: string, metronomeBpm: number | null) {
   error.value = ''
   notice.value = ''
   uploading.value = true
   try {
-    await submitAssignment(assignmentId, audio, filename)
+    await submitAssignment(assignmentId, audio, filename, metronomeBpm)
     recorder.value?.discard()
     notice.value = '已繳交，分析大約需要半分鐘。'
     await loadRecordings()
@@ -102,8 +106,13 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     <template v-if="assignment.kind === 'performance'">
       <section class="card">
         <h2 class="card__title">錄音繳交</h2>
-        <p class="muted info">照參考曲錄一段，系統會分開看音高和節奏，並給這一次的文字回饋。</p>
-        <AudioRecorder ref="recorder" :busy="uploading" @submit="submit" />
+        <p class="muted info">照參考曲錄一段，系統會分開看音高和節奏，給這一次的文字回饋，也會把你彈的轉成樂譜，和答案上下對照。</p>
+        <AudioRecorder
+          ref="recorder"
+          :busy="uploading"
+          :default-bpm="assignment.practice_bpm ?? assignment.midi_bpm ?? 120"
+          @submit="submit"
+        />
         <p v-if="notice" class="notice" role="status">{{ notice }}</p>
       </section>
 
@@ -113,9 +122,20 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         <article v-for="item in recordings" :key="item.id" class="history">
           <header>
             <strong>{{ formatDateTime(item.submitted_at) }}</strong>
+            <span v-if="item.metronome_bpm" class="badge badge--soft">節拍器 {{ Math.round(item.metronome_bpm) }} BPM</span>
             <audio controls preload="none" :src="apiUrl(`/api/student/recordings/${item.id}/audio`)"></audio>
+            <button
+              v-if="item.feedback?.has_score_sheet"
+              type="button"
+              class="btn btn--ghost btn--small"
+              :aria-expanded="openSheet === item.id"
+              @click="openSheet = openSheet === item.id ? '' : item.id"
+            >
+              {{ openSheet === item.id ? '收起對照譜' : '看對照譜' }}
+            </button>
           </header>
           <FeedbackView :recording="item" />
+          <ScoreCompare v-if="openSheet === item.id" :url="studentScoreSheetUrl(item.id)" />
         </article>
       </section>
     </template>

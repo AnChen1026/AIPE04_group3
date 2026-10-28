@@ -96,6 +96,8 @@ export interface Feedback {
   rhythm_score: number | null
   feedback_text: string | null
   status: 'pending' | 'completed' | 'failed'
+  // 有答案與學生上下對照的樂譜
+  has_score_sheet: boolean
 }
 
 export interface Recording {
@@ -103,6 +105,8 @@ export interface Recording {
   course_id: string
   // 繳交的是哪一份作業；直接照課程參考曲練習的是 null
   assignment_id: string | null
+  // 錄音時開的節拍器速度；沒開是 null
+  metronome_bpm: number | null
   status: 'pending' | 'processing' | 'completed' | 'failed'
   submitted_at: string
   feedback: Feedback | null
@@ -184,6 +188,9 @@ export interface Assignment {
   due_at: string | null
   has_midi: boolean
   midi_filename: string | null
+  // 參考 MIDI 的速度，以及老師指定的練習速度（學生的節拍器預設用練習速度）
+  midi_bpm: number | null
+  practice_bpm: number | null
   materials: AssignmentMaterial[]
   submission_count: number
   last_submitted_at: string | null

@@ -130,6 +130,8 @@ class FeedbackResponse(BaseModel):
     rhythm_score: float | None = None
     feedback_text: str | None = None
     status: str
+    # 有沒有答案與學生的對照樂譜，可以用 score-sheet 網址下載
+    has_score_sheet: bool = False
 
     class Config:
         from_attributes = True
@@ -140,6 +142,8 @@ class RecordingResponse(BaseModel):
     course_id: uuid.UUID
     # 繳交的是哪一份作業；直接照課程參考曲練習的是空的
     assignment_id: uuid.UUID | None = None
+    # 錄音時開的節拍器速度；沒開是空的
+    metronome_bpm: float | None = None
     status: str
     submitted_at: datetime
     feedback: FeedbackResponse | None = None
@@ -196,6 +200,8 @@ class AssignmentResponse(BaseModel):
     due_at: datetime | None = None
     has_midi: bool
     midi_filename: str | None = None
+    midi_bpm: float | None = None
+    practice_bpm: int | None = None
     materials: list[AssignmentMaterialResponse]
     submission_count: int
     last_submitted_at: datetime | None = None
