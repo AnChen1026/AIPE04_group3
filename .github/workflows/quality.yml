@@ -55,4 +55,4 @@ jobs:
             scan_range="$BASE_SHA..HEAD"
           fi
           docker run --rm -v "$PWD:/repo:ro" ghcr.io/gitleaks/gitleaks:v8.30.1 \
-            git --redact --no-banner --log-opts="$scan_range" /repo
+            git --redact --no-banner --log-opts="$scan_range --diff-merges=first-parent" /repo
