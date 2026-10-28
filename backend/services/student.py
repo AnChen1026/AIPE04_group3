@@ -25,7 +25,8 @@ from backend.models.student import (
 )
 from backend.models.teacher import TeacherDB
 from backend.models.user import User
-from backend.core.uploads import PRACTICE_UPLOAD_DIR, stored_path
+from backend.core.uploads import PRACTICE_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
 from backend.repositories.student import StudentRepository
 from backend.services.chat_hub import chat_hub, message_event
 
@@ -381,14 +382,14 @@ def save_recording(
     folder = PRACTICE_UPLOAD_DIR / str(student.id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{recording_id}{suffix}"
-    path.write_bytes(content)
+    storage_key = save_file(path, content)
 
     recording = PracticeRecording(
         id=recording_id,
         course_id=course.id,
         teacher_id=course.teacher_id,
         student_id=student.id,
-        file_path=stored_path(path),
+        file_path=storage_key,
         assignment_id=assignment.id if assignment else None,
         reference_midi_path=reference_midi_path,
         status="pending",
@@ -400,11 +401,16 @@ def save_recording(
         student_id=student.id,
         status="pending",
     )
-    db.add(recording)
-    # 兩張表之間沒有 relationship，先寫入錄音，回饋的外鍵才找得到
-    db.flush()
-    db.add(feedback)
-    _commit(db)
+    try:
+        db.add(recording)
+        # 先寫入錄音，回饋的外鍵才找得到
+        db.flush()
+        db.add(feedback)
+        _commit(db)
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(recording)
     return recording
 

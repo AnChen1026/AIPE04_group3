@@ -11,7 +11,8 @@ from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.core.uploads import ASSIGNMENT_UPLOAD_DIR, resolve_stored_path, stored_path
+from backend.core.uploads import ASSIGNMENT_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
 from backend.models.assignment import Assignment, AssignmentMaterial
 from backend.models.student import Course, CourseBinding, PracticeRecording
 from backend.models.user import User
@@ -27,12 +28,11 @@ def _clean_filename(filename: str, fallback: str) -> str:
     return filename.replace("\\", "/").rsplit("/", 1)[-1][-255:] or fallback
 
 
-def _write(teacher_id: uuid.UUID, suffix: str, content: bytes) -> Path:
+def _write(teacher_id: uuid.UUID, suffix: str, content: bytes) -> str:
     folder = ASSIGNMENT_UPLOAD_DIR / str(teacher_id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{uuid.uuid4()}{suffix}"
-    path.write_bytes(content)
-    return path
+    return save_file(path, content)
 
 
 def _check_midi(filename: str, content: bytes) -> None:
@@ -88,7 +88,7 @@ def create_assignment(
     if midi is not None:
         _check_midi(*midi)
 
-    written: list[Path] = []
+    written: list[str] = []
     try:
         assignment = Assignment(
             id=uuid.uuid4(),
@@ -103,7 +103,7 @@ def create_assignment(
         if midi is not None:
             path = _write(teacher_id, ".mid", midi[1])
             written.append(path)
-            assignment.midi_path = stored_path(path)
+            assignment.midi_path = path
             assignment.midi_filename = _clean_filename(midi[0], "reference.mid")
         db.add(assignment)
         db.flush()
@@ -115,15 +115,14 @@ def create_assignment(
                     assignment_id=assignment.id,
                     filename=_clean_filename(name, "material"),
                     content_type=(content_type or None) and content_type[:255],
-                    file_path=stored_path(path),
+                    file_path=path,
                     file_size_bytes=len(content),
                 )
             )
         _commit(db)
     except Exception:
         db.rollback()
-        for path in written:
-            path.unlink(missing_ok=True)
+        cleanup_files(written)
         raise
     db.refresh(assignment)
     return assignment
@@ -135,9 +134,8 @@ def delete_assignment(db: Session, teacher_id: uuid.UUID, assignment_id: uuid.UU
     paths = [assignment.midi_path] + [item.file_path for item in materials_of(db, [assignment.id])[assignment.id]]
     db.delete(assignment)
     _commit(db)
-    for value in paths:
-        if value:
-            resolve_stored_path(value).unlink(missing_ok=True)
+    from backend.services.storage_files import is_file_referenced
+    cleanup_files([value for value in paths if value and not is_file_referenced(db, value)])
 
 
 def own_assignment(db: Session, teacher_id: uuid.UUID, assignment_id: uuid.UUID) -> Assignment:

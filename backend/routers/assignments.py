@@ -4,11 +4,10 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import file_response
 from backend.dependencies.common import require_roles
 from backend.dependencies.teacher import get_current_teacher
 from backend.models.teacher import TeacherDB
@@ -105,7 +104,7 @@ def api_teacher_assignment_midi(
         _raise(error)
     if not assignment.midi_path:
         raise HTTPException(status_code=404, detail="這份作業沒有參考 MIDI。")
-    return FileResponse(resolve_stored_path(assignment.midi_path), media_type="audio/midi", filename=assignment.midi_filename)
+    return file_response(assignment.midi_path, media_type="audio/midi", filename=assignment.midi_filename)
 
 
 @router.get("/teacher/assignment-materials/{material_id}")
@@ -118,7 +117,7 @@ def api_teacher_material(
         material = material_for_teacher(db, teacher.user_id, material_id)
     except StudentBusinessError as error:
         _raise(error)
-    return FileResponse(resolve_stored_path(material.file_path), media_type=material.content_type, filename=material.filename)
+    return file_response(material.file_path, media_type=material.content_type, filename=material.filename)
 
 
 # ---------- 學生
@@ -146,7 +145,7 @@ def api_student_assignment_midi(
         _raise(error)
     if not assignment.midi_path:
         raise HTTPException(status_code=404, detail="這份作業沒有參考 MIDI。")
-    return FileResponse(resolve_stored_path(assignment.midi_path), media_type="audio/midi", filename=assignment.midi_filename)
+    return file_response(assignment.midi_path, media_type="audio/midi", filename=assignment.midi_filename)
 
 
 @router.get("/api/student/assignment-materials/{material_id}")
@@ -159,7 +158,7 @@ def api_student_material(
         material = material_for_student(db, student.id, material_id)
     except StudentBusinessError as error:
         _raise(error)
-    return FileResponse(resolve_stored_path(material.file_path), media_type=material.content_type, filename=material.filename)
+    return file_response(material.file_path, media_type=material.content_type, filename=material.filename)
 
 
 @router.get("/api/student/assignments/{assignment_id}/recordings", response_model=list[RecordingResponse])

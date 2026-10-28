@@ -1,3 +1,4 @@
+from backend.core.storage import cleanup_files
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -84,10 +85,16 @@ def upload_teacher_photo(
 ):
     """上傳或更換老師照片。沒有上傳時，首頁與課程頁用預設圖。"""
     try:
-        teacher.photo_path = save_image(photo.file.read(MAX_IMAGE_BYTES + 1), "teachers")
+        storage_key = save_image(photo.file.read(MAX_IMAGE_BYTES + 1), "teachers")
+        teacher.photo_path = storage_key
     except StudentBusinessError as error:
         raise HTTPException(status_code=error.status_code, detail=error.detail) from error
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(teacher)
     return profile_response(teacher)
 

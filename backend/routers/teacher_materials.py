@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.uploads import MATERIAL_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
 from backend.dependencies.teacher import get_current_teacher
 from backend.models.material import MaterialDB
 from backend.models.teacher import TeacherDB
@@ -44,13 +45,11 @@ async def upload_material(
     # 儲存檔案
     # -----------------------------------------------------
 
-    contents = await file.read()
+    contents = await file.read(30 * 1024 * 1024 + 1)
+    if not contents or len(contents) > 30 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="教材不可為空，最大 30 MB。")
 
-    with open(
-        file_path,
-        "wb",
-    ) as f:
-        f.write(contents)
+    storage_key = save_file(file_path, contents, file.content_type)
 
     # -----------------------------------------------------
     # 建立 DB
@@ -65,18 +64,23 @@ async def upload_material(
 
         file_type=file.content_type,
 
-        file_path=str(file_path),
+        file_path=storage_key,
     )
 
     db.add(material)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(material)
 
     return {
         "message": "教材上傳成功",
         "material_id": material.id,
         "filename": file.filename,
-        "file_path": str(file_path),
+        "file_path": storage_key,
     }
 
 @router.get("/teacher/materials")

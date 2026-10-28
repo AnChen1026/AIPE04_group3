@@ -95,3 +95,17 @@ def test_只輸入綁定碼就能加入課程(make_user, make_course, login):
     assert student_client.get(f"/api/student/courses/{course.id}/schedule").status_code == 200
     assert teacher_client.get(f"/teacher/conversations/{conversation_id}").json()["binding_code"] is None
     assert student_client.post("/api/student/bind", json={"code": code}).status_code == 400
+
+
+def test_草稿圖片只有擁有者可讀(make_user, make_course, login):
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    owner = make_user('teacher')
+    course = make_course(owner, status='draft')
+    client = login(owner)
+    assert client.post(f'/courses/{course.id}/image', files={'image': ('c.png', PNG, 'image/png')}).status_code == 200
+    url = f'/api/images/courses/{course.id}'
+    assert client.get(url).status_code == 200
+    assert client.get(url).headers['cache-control'] == 'no-store'
+    assert TestClient(app).get(url).status_code == 404
+    assert login(make_user('teacher')).get(url).status_code == 404

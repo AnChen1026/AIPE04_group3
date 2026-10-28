@@ -4,11 +4,10 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import file_response
 from backend.dependencies.common import get_current_user, require_roles
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
@@ -280,7 +279,7 @@ def api_my_recording_audio(
         require_bound(db, current_user.id, recording.course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
-    return FileResponse(resolve_stored_path(recording.file_path))
+    return file_response(recording.file_path)
 
 
 @router.get("/courses/{course_id}/reference-midi")
@@ -296,4 +295,4 @@ def api_reference_midi(
         _raise_business_error(error)
     if not course.reference_midi_path:
         raise HTTPException(status_code=404, detail="這門課還沒有參考 MIDI。")
-    return FileResponse(resolve_stored_path(course.reference_midi_path), media_type="audio/midi")
+    return file_response(course.reference_midi_path, media_type="audio/midi")

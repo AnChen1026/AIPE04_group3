@@ -2,6 +2,7 @@
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import Engine, inspect
 
 
@@ -36,7 +37,7 @@ def test_010_to_head_creates_recommendation_tables(
     }
     with engine.connect() as connection:
         revision = connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-    assert revision == RECOMMENDATION_REVISION
+    assert revision == ScriptDirectory.from_config(config).get_current_head()
 
 
 def test_downgrade_to_010_only_removes_recommendation_tables(

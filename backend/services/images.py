@@ -4,7 +4,8 @@ import uuid
 
 from fastapi import status
 
-from backend.core.uploads import UPLOAD_ROOT, stored_path
+from backend.core.uploads import UPLOAD_ROOT
+from backend.core.storage import save_file
 from backend.services.student import StudentBusinessError
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -39,5 +40,4 @@ def save_image(content: bytes, folder: str) -> str:
     target = IMAGE_DIR / folder
     target.mkdir(parents=True, exist_ok=True)
     path = target / f"{uuid.uuid4()}{suffix}"
-    path.write_bytes(content)
-    return stored_path(path)
+    return save_file(path, content)

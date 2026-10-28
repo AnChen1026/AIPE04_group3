@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.audio_scoring import scorer
 from backend.core.database import SessionLocal
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import local_file
 from backend.models.student import Course, PracticeFeedback, PracticeRecording
 
 logger = logging.getLogger(__name__)
@@ -51,10 +51,8 @@ def _analyze(db: Session, recording_id: uuid.UUID) -> None:
         midi_path = recording.reference_midi_path or (course.reference_midi_path if course else None)
         if not midi_path:
             raise scorer.ScoringFailed("這門課還沒有參考 MIDI。")
-        result = scorer.score_recording(
-            resolve_stored_path(midi_path),
-            resolve_stored_path(recording.file_path),
-        )
+        with local_file(midi_path) as midi_file, local_file(recording.file_path) as audio_file:
+            result = scorer.score_recording(midi_file, audio_file)
     except scorer.ScoringFailed as error:
         _mark_failed(db, recording, feedback, str(error))
         return
