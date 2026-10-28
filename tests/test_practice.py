@@ -19,7 +19,7 @@ def scoring(monkeypatch):
     """預設回傳固定分數；把 outcome 設成例外就模擬分析失敗。"""
     state = {"outcome": scorer.ScoringResult(pitch_score=61.5, rhythm_score=24.0, feedback_text="第 3 小節漏了兩個音。")}
 
-    def fake_score(midi_path, audio_path):
+    def fake_score(midi_path, audio_path, metronome_bpm=None):
         assert Path(midi_path).is_file()
         assert Path(audio_path).is_file()
         if isinstance(state["outcome"], Exception):
@@ -78,6 +78,7 @@ def test_送出後背景評分_學生看到這次的音高節奏與文字(bound_
         "rhythm_score": 24.0,
         "feedback_text": "第 3 小節漏了兩個音。",
         "status": "completed",
+        "has_score_sheet": False,
     }
     listed = student_client.get(f"/api/student/courses/{course.id}/recordings").json()
     assert [row["id"] for row in listed] == [recording_id]

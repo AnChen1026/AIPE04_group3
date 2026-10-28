@@ -207,6 +207,7 @@ def _recording_response(db: Session, recording) -> RecordingResponse:
         id=recording.id,
         course_id=recording.course_id,
         assignment_id=recording.assignment_id,
+        metronome_bpm=recording.metronome_bpm,
         status=recording.status,
         submitted_at=recording.submitted_at,
         feedback=FeedbackResponse.model_validate(feedback) if feedback else None,
@@ -280,6 +281,22 @@ def api_my_recording_audio(
     except StudentBusinessError as error:
         _raise_business_error(error)
     return file_response(recording.file_path)
+
+
+@router.get("/recordings/{recording_id}/score-sheet")
+def api_my_score_sheet(
+    recording_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """答案與自己這次演奏上下對照的樂譜（MusicXML）。"""
+    recording = _own_recording(db, current_user, recording_id)
+    feedback = StudentRepository.get_feedback(db, recording.id)
+    if feedback is None or not feedback.score_sheet_path:
+        raise HTTPException(status_code=404, detail="這次練習沒有對照樂譜。")
+    return file_response(
+        feedback.score_sheet_path, media_type="application/vnd.recordare.musicxml+xml"
+    )
 
 
 @router.get("/courses/{course_id}/reference-midi")

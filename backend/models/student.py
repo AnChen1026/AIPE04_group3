@@ -316,6 +316,8 @@ class PracticeRecording(Base):
     )
     # 送出當時用的參考 MIDI（作業的或課程的）。老師之後換曲子，舊練習仍知道是跟哪一首比的
     reference_midi_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # 錄音時有開節拍器就記下速度，節奏照它評分；沒開或上傳音檔時是空的
+    metronome_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -342,7 +344,13 @@ class PracticeFeedback(Base):
     pitch_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     rhythm_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     feedback_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 答案與學生上下對照的樂譜（MusicXML）存放位置；產生失敗或舊資料是空的
+    score_sheet_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+
+    @property
+    def has_score_sheet(self) -> bool:
+        return bool(self.score_sheet_path)
 
 
 class LessonPreparationSummary(Base):

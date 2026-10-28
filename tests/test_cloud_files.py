@@ -115,11 +115,11 @@ def test_cloud_assignment_recording_keeps_historical_midi(
     body = create(owner, course, student).json()
     seen = []
 
-    def score(midi_path, audio_path):
+    def score(midi_path, audio_path, metronome_bpm=None):
         assert Path(midi_path).read_bytes().startswith(b"MThd")
         assert Path(audio_path).read_bytes() == FAKE_AUDIO[1]
         seen.extend([Path(midi_path), Path(audio_path)])
-        return scorer.ScoringResult(80, 70, "測試")
+        return scorer.ScoringResult(80, 70, "測試", score_sheet_xml="<score-partwise/>")
 
     monkeypatch.setattr(scorer, "score_recording", score)
     response = learner.post(
@@ -128,6 +128,25 @@ def test_cloud_assignment_recording_keeps_historical_midi(
     assert response.status_code == 200, response.text
     assert all(not path.exists() for path in seen)
     recording = db.get(PracticeRecording, response.json()["id"])
+    from backend.models.student import PracticeFeedback
+    feedback = db.query(PracticeFeedback).filter_by(recording_id=recording.id).one()
+    assert feedback.score_sheet_path.startswith("storage://teaching-files/")
+    sheet_key = feedback.score_sheet_path.removeprefix("storage://")
+    assert remote_store[sheet_key] == b"<score-partwise/>"
+    for client, endpoint in (
+        (learner, f"/api/student/recordings/{recording.id}/score-sheet"),
+        (owner, f"/teacher/recordings/{recording.id}/score-sheet"),
+    ):
+        sheet = client.get(endpoint)
+        assert sheet.status_code == 200
+        assert sheet.content == b"<score-partwise/>"
+        assert sheet.headers["cache-control"] == "no-store"
+    before = dict(remote_store)
+    stranger = login(make_user("student"))
+    assert stranger.get(f"/api/student/recordings/{recording.id}/score-sheet").status_code == 404
+    other_teacher = login(make_user("teacher"))
+    assert other_teacher.get(f"/teacher/recordings/{recording.id}/score-sheet").status_code == 404
+    assert remote_store == before
     midi_key = recording.reference_midi_path.removeprefix("storage://")
     assert midi_key in remote_store
     assert owner.delete(f"/teacher/assignments/{body['id']}").status_code == 204

@@ -2,6 +2,15 @@
 
 這個資料夾用來測試 `midi_test.py`：把「標準答案 MIDI」和「學生演奏音檔」比對，算出音高／節奏分數，再請 Gemini 寫文字回饋。
 
+## 2026-10-27 更新重點
+
+- **步驟 5 濾掉假音**：音域外的音、泛音（大聲的音上方八度、十二度…的小聲音）、很小聲又很短的殘響。多彈的真音音量夠大，會留下來。
+- **節拍器**：學生錄音時有開節拍器，`score_performance(..., metronome_bpm)` 的節奏照節拍器速度比（`tempo_source = "metronome"`）；沒開或上傳音檔，照學生自己的整體速度（中位數）按比例比。評分標準不變：音高 70、節奏 30，多彈不扣分。
+- **突然變快／變慢**：`find_tempo_changes()` 找出連續 3 個以上間隔都比整體速度快或慢 1.35 倍以上的段落，放進 `ScoreReport.tempo_changes`，回饋會提到「第幾小節突然變快約幾倍」。這些間隔本來就拿不到節奏分。
+- **上下對照樂譜**：`score_sheet.py` 把答案和學生演奏做成同一份 MusicXML 的兩行，每個小節上下對齊。學生的音照評分用的速度換成拍子，對齊到跟答案一樣細的格子（最細 16 分音符）。顏色：紅＝彈錯音高（答案行：沒彈對的音）、橘＝多彈、藍＝音對但時間不對。網站的作業頁用 OpenSheetMusicDisplay 顯示。
+- **讀音檔**：`load_audio()` 讀不了 webm／m4a 時，先用 ffmpeg 轉成 wav。
+- **文字回饋改走 `backend/services/llm.py`**：每次最多等 20 秒（`LLM_TIMEOUT_SECONDS`），逾時或忙碌會再試一次，失敗原因寫進後端紀錄，學生改看依分數寫的簡短說明。`.env` 設 `PRACTICE_FEEDBACK_LLM_PROVIDER=openai` 和 `OPENAI_API_KEY` 就改用 OpenAI，課前摘要不受影響。
+
 ## 使用的工具與預訓練模型
 
 | 名稱 | 用在哪裡 | 做什麼 |
@@ -13,7 +22,9 @@
 | pretty_midi | 步驟 3、5、6 | 讀取 MIDI，取出每顆音的音高、開始時間和結束時間 |
 | NumPy | 步驟 7 | 建立 DTW 比對時使用的成本表 |
 | Pydantic | 步驟 12 | 把分數、小節摘要和錯音整理成固定格式 |
-| Google Gemini | 步驟 13 | 依照評分結果寫給學生看的文字回饋。測試使用 `gemini-3.8-flash` |
+| music21 | 對照樂譜 | 把答案與學生的音符排成兩行樂譜，輸出 MusicXML |
+| ffmpeg | 步驟 4 | 把瀏覽器錄的 webm、手機的 m4a 轉成 wav |
+| Google Gemini 或 OpenAI | 步驟 13 | 依照評分結果寫給學生看的文字回饋。透過 `backend/services/llm.py` 呼叫，預設 Gemini（`gemini-3.8-flash`），可用 `.env` 改成 OpenAI |
 
 目前做到步驟 1～13。中間結果大多是程式裡的 **Python dict**，**不會自動存成 JSON 檔**。只有兩個步驟會寫出檔案：
 
@@ -41,7 +52,7 @@ python backend/audio_scoring/midi_test.py
 python backend/audio_scoring/midi_test.py --midi backend/audio_scoring/midi_test_data/test1.mid --audio backend/audio_scoring/audio_test_data/test3.mp3
 ```
 
-若要產生 AI 回饋，在專案根目錄 `.env` 寫入 `GEMINI_API_KEY=你的key`。`.env` 不要提交到 Git。
+若要產生 AI 回饋，在專案根目錄 `.env` 寫入 `GEMINI_API_KEY=你的key`；要改用 OpenAI，另外寫 `PRACTICE_FEEDBACK_LLM_PROVIDER=openai` 和 `OPENAI_API_KEY=你的key`。`.env` 不要提交到 Git。
 
 ---
 
@@ -455,13 +466,13 @@ JSON 長這樣（精簡示例）：
 
 | 項目 | 內容 |
 | --- | --- |
-| 做什麼 | 把步驟 12 的 JSON 字串傳給 Gemini（`gemini-3.8-flash`） |
+| 做什麼 | 把步驟 12 的 JSON 字串交給 `backend/services/llm.py`，由它呼叫 Gemini 或 OpenAI（每次最多等 20 秒，逾時或忙碌重試一次） |
 | 寫出檔案 | 無 |
 | 程式回傳 | `(回饋文字, 錯誤訊息)`，兩個都是字串或 `None` |
 | 資料格式 | **純文字**，不是 JSON |
 
 成功：`("這次整體彈得很不錯！...", None)`  
-失敗：`(None, "沒有設定 GEMINI_API_KEY...")`
+失敗：`(None, "gemini（gemini-3.8-flash）：504 DEADLINE_EXCEEDED...")`，網站會把原因寫進後端紀錄，學生改看依分數寫的簡短說明
 
 ---
 

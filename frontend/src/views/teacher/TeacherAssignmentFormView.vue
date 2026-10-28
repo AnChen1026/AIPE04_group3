@@ -15,7 +15,7 @@ const router = useRouter()
 const courses = ref<Course[]>([])
 const students = ref<BoundStudent[]>([])
 const kind = ref<Assignment['kind']>('performance')
-const form = reactive({ courseId: '', studentId: '', title: '', dueDate: '', description: '' })
+const form = reactive({ courseId: '', studentId: '', title: '', dueDate: '', description: '', practiceBpm: '' as number | '' })
 const midi = ref<File | null>(null)
 const materials = ref<File[]>([])
 const recording = ref(false)
@@ -68,6 +68,7 @@ function validate() {
   if (!form.title.trim()) errors.title = '請填寫作業內容。'
   if (midi.value && !/\.midi?$/i.test(midi.value.name)) errors.midi = '請選擇 .mid 或 .midi 檔。'
   if (kind.value === 'performance' && !midi.value) errors.midi = '演奏作業需要參考 MIDI，學生錄音會跟它比對。'
+  if (form.practiceBpm !== '' && (form.practiceBpm < 30 || form.practiceBpm > 240)) errors.practiceBpm = '練習速度請填 30～240。'
   return Object.keys(errors).length === 0
 }
 
@@ -84,6 +85,7 @@ async function save() {
       description: form.description.trim(),
       due_at: form.dueDate ? new Date(`${form.dueDate}T23:59:00`).toISOString() : null,
       midi: kind.value === 'performance' ? midi.value : null,
+      practice_bpm: kind.value === 'performance' && form.practiceBpm !== '' ? form.practiceBpm : null,
       materials: materials.value,
     })
     done.value = true
@@ -96,7 +98,7 @@ async function save() {
 
 function again() {
   done.value = false
-  Object.assign(form, { title: '', dueDate: '', description: '' })
+  Object.assign(form, { title: '', dueDate: '', description: '', practiceBpm: '' })
   midi.value = null
   materials.value = []
   if (midiInput.value) midiInput.value.value = ''
@@ -176,6 +178,22 @@ onMounted(async () => {
       </div>
       <span class="field__hint">.mid／.midi，最大 2 MB。</span>
       <p v-if="errors.midi" class="error-text">{{ errors.midi }}</p>
+    </div>
+
+    <div v-if="kind === 'performance'" class="field">
+      <label class="field__label" for="assignment-bpm">練習速度（選填）</label>
+      <input
+        id="assignment-bpm"
+        v-model.number="form.practiceBpm"
+        class="input bpm-input"
+        type="number"
+        min="30"
+        max="240"
+        placeholder="例如 80"
+        :aria-invalid="Boolean(errors.practiceBpm)"
+      />
+      <span class="field__hint">BPM。學生開節拍器時預設用這個速度，可以比原曲慢；不填就用 MIDI 的原速。</span>
+      <p v-if="errors.practiceBpm" class="error-text">{{ errors.practiceBpm }}</p>
     </div>
 
     <div class="field">
@@ -286,6 +304,10 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bpm-input {
+  max-width: 160px;
 }
 
 .upload__recorder {
