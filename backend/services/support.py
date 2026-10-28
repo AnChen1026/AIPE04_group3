@@ -1,7 +1,7 @@
 """管理員和老師、學生之間的對話。
 
-每位使用者一段，所有管理員共用。老師審核通過、學生註冊成功時，系統以管理員身分送出歡迎訊息；
-送訊息失敗不影響審核或註冊本身。
+每位使用者一段，所有管理員共用。管理員預設可以和每一位老師、學生聊天，列表會替還沒有對話的人補上一段。
+老師審核通過、學生註冊成功時，系統以管理員身分送出歡迎訊息；送訊息失敗不影響審核或註冊本身。
 """
 
 import logging
@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from fastapi import status
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -54,6 +55,18 @@ def get_or_create_conversation(db: Session, user_id: uuid.UUID) -> SupportConver
         return db.scalar(select(SupportConversation).where(SupportConversation.user_id == user_id))
     db.refresh(conversation)
     return conversation
+
+
+def ensure_member_conversations(db: Session) -> None:
+    """每位老師、學生都要有一段和管理員的對話，包括還沒傳過訊息、或從舊資料搬來的帳號。"""
+    # id 只有 Python 端的預設值，一次插多筆要讓資料庫各自產生
+    members = select(func.gen_random_uuid(), User.id).where(User.role.in_(("teacher", "student")))
+    db.execute(
+        insert(SupportConversation)
+        .from_select(["id", "user_id"], members)
+        .on_conflict_do_nothing(index_elements=["user_id"])
+    )
+    _commit(db)
 
 
 def add_support_message(
@@ -151,7 +164,8 @@ def conversation_summary(db: Session, conversations: list[SupportConversation], 
                 "last_message_at": latest.created_at if latest else None,
             }
         )
-    rows.sort(key=lambda row: row["last_message_at"] or row["created_at"], reverse=True)
+    # 有訊息的依最後一則由新到舊，還沒聊過的排在後面
+    rows.sort(key=lambda row: row["last_message_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     return rows
 
 

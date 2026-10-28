@@ -7,7 +7,8 @@ import { fetchAdminConversations } from '@/api/support'
 import type { SupportConversation } from '@/types/api'
 import { formatShort } from '@/utils/format'
 
-// 管理員和所有老師、學生的對話。老師審核通過、學生註冊時系統已經先送出第一則。
+// 管理員和所有老師、學生的對話。每個人預設都在列表上，沒聊過的也能直接開口；
+// 老師審核通過、學生註冊時系統已經先送出第一則。
 // 左邊是列表，右邊直接顯示選到的對話（子路由 chat/:id）
 const route = useRoute()
 const conversations = ref<SupportConversation[]>([])
@@ -47,7 +48,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="聊天" description="和老師、學生的對話。老師審核通過、學生註冊成功時，系統會先送出歡迎與使用須知。">
+  <PageHeader title="聊天" description="所有老師、學生都在這裡，可以直接開始對話。老師審核通過、學生註冊成功時，系統會先送出歡迎與使用須知。">
     <label class="search-input">
       <span class="visually-hidden">搜尋姓名</span>
       <input v-model="keyword" class="input" type="search" placeholder="搜尋姓名" />
@@ -63,7 +64,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     </div>
 
     <div v-if="shown.length === 0" class="card empty">
-      {{ conversations.length === 0 ? '還沒有任何對話。' : '找不到符合的對話。' }}
+      {{ conversations.length === 0 ? '還沒有任何老師或學生。' : '找不到符合的人。' }}
     </div>
     <RouterLink
       v-for="item in shown"
@@ -81,6 +82,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
           <time>{{ formatShort(item.last_message_at) }}</time>
         </div>
         <p v-if="item.last_message" class="chat-item__line chat-item__line--last">{{ item.last_message }}</p>
+        <p v-else class="chat-item__line">還沒有訊息，點開就能開始聊。</p>
       </div>
       <span v-if="item.unread_count" class="chat-item__unread" :aria-label="`未讀 ${item.unread_count} 則`">{{ item.unread_count }}</span>
     </RouterLink>
