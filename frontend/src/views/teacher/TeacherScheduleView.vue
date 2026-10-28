@@ -367,7 +367,6 @@ watch(
     @drop="onDrop"
     @drop-on-item="onDropOnItem"
   />
-  </div>
   <MonthCalendar v-else-if="mode === 'month'" :month="anchor" :items="items" @select="openLesson" @day="showDay" />
   <template v-else>
   <DayStrip v-model="anchor" :week-start="weekStart" :marked="weekLessonDates" />
@@ -397,6 +396,7 @@ watch(
     <span class="tone-btn lesson-card__status">{{ lesson.status === 'cancelled' ? '已取消' : '已確認' }}</span>
   </article>
   </template>
+  </div>
 
   <section class="card requests">
     <h2 class="card__title">待確認的課務申請</h2>
