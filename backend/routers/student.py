@@ -14,6 +14,7 @@ from backend.models.user import User
 from backend.repositories.student import StudentRepository
 from backend.services.conversation import conversation_rows
 from backend.schemas.student import (
+    AvailabilitySlotResponse,
     BindIn,
     MessageIn,
     ChangeRequestResponse,
@@ -24,6 +25,7 @@ from backend.schemas.student import (
     MessageResponse,
     RecordingResponse,
 )
+from backend.services.availability import book_slot, list_open_slots
 from backend.services.practice import run_recording_analysis
 from backend.services.student import (
     MAX_RECORDING_BYTES,
@@ -198,6 +200,33 @@ def api_change_request(
             proposed_ends_at,
             reason,
         )
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+
+
+@router.get("/courses/{course_id}/availability", response_model=list[AvailabilitySlotResponse])
+def api_teacher_availability(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """這門課老師還沒被預約的可上課時段。要先綁定。"""
+    try:
+        return list_open_slots(db, current_user, course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+
+
+@router.post("/courses/{course_id}/availability/{slot_id}/book", response_model=ChangeRequestResponse)
+def api_book_slot(
+    course_id: uuid.UUID,
+    slot_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """點選時段送出約課，時段先保留給自己；別人已預約回 409。老師完成約課才進正式課表。"""
+    try:
+        return book_slot(db, current_user, course_id, slot_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
 

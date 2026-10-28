@@ -18,6 +18,7 @@ from backend.routers.chat_ws import router as chat_ws_router
 from backend.routers.teacher_chat import router as teacher_chat_router
 from backend.routers.teacher_courses import router as teacher_courses_router
 from backend.routers.teacher_inquiries import router as teacher_inquiries_router
+from backend.routers.teacher_availability import router as teacher_availability_router
 from backend.routers.teacher_lessons import router as teacher_lessons_router
 from backend.routers.teacher_materials import router as teacher_materials_router
 from backend.routers.teacher_practice import router as teacher_practice_router
@@ -56,6 +57,7 @@ for teacher_module in (
     teacher_courses_router,
     teacher_inquiries_router,
     teacher_lessons_router,
+    teacher_availability_router,
     teacher_materials_router,
     teacher_practice_router,
     teacher_quizzes_router,

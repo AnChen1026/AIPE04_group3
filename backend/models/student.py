@@ -1,6 +1,6 @@
 """學生找課之後用到的資料表。
 
-課程、接洽對話、綁定碼、課表、課務申請、練習錄音和練習回饋。
+課程、接洽對話、綁定碼、課表、可上課時段、課務申請、練習錄音和練習回饋。
 每筆資料都記老師與課程，不能只靠學生查詢。
 """
 
@@ -272,6 +272,44 @@ class LessonSession(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
 
 
+class AvailabilitySlot(Base):
+    """老師開放給已綁定學生預約的一段時間。
+
+    open：可預約；held：有學生點選、等老師完成約課；booked：已排進正式課表。
+    """
+
+    __tablename__ = "availability_slots"
+    __table_args__ = (
+        CheckConstraint("ends_at > starts_at", name="ck_availability_slots_time_order"),
+        CheckConstraint("status IN ('open', 'held', 'booked')", name="ck_availability_slots_status"),
+        CheckConstraint(
+            "status = 'open' OR (student_id IS NOT NULL AND course_id IS NOT NULL)",
+            name="ck_availability_slots_holder",
+        ),
+        Index("ix_availability_slots_teacher_starts", "teacher_id", "starts_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    # 預約的學生與課程；open 時是空的
+    student_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    course_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("courses.id"), nullable=True)
+    lesson_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("lesson_sessions.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    def reopen(self) -> None:
+        """取消預約：回到可預約，誰預約過不再保留。"""
+        self.status = "open"
+        self.student_id = None
+        self.course_id = None
+        self.lesson_id = None
+
+
 class ChangeRequest(Base):
     """約課、請假或調課。送出後正式課表先不變。"""
 
@@ -286,6 +324,12 @@ class ChangeRequest(Base):
     teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("lesson_sessions.id"), nullable=True)
+    # 學生點選老師的可上課時段送出的約課；自己填時間的約課是空的
+    availability_slot_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("availability_slots.id", ondelete="SET NULL", name="fk_change_requests_availability_slot_id"),
+        nullable=True,
+    )
     request_type: Mapped[str] = mapped_column(String(32), nullable=False)
     proposed_starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     proposed_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

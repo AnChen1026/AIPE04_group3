@@ -10,6 +10,7 @@ import type {
   Message,
   Studio,
   StudioInput,
+  TeacherAvailabilitySlot,
   TeacherChangeRequest,
   TeacherLesson,
   TeacherProfile,
@@ -60,6 +61,33 @@ export const unbindStudent = (courseId: string, studentId: string) =>
 // ---------- 課表與課務申請
 export const fetchMyLessons = () => request<TeacherLesson[]>('/teacher/lessons')
 export const fetchLessonSummary = (lessonId: string) => request<LessonSummary>(`/teacher/lessons/${lessonId}/summary`)
+export interface TeacherLessonInput {
+  student_id: string
+  course_id: string
+  starts_at: string
+  ends_at: string
+  slot_id?: string | null
+}
+// 和學生約好了，直接排進正式課表（從時段拖過來時帶 slot_id）
+export const createTeacherLesson = (input: TeacherLessonInput) =>
+  request<TeacherLesson>('/teacher/lessons', { method: 'POST', body: { ...input } })
+export const cancelTeacherLesson = (lessonId: string) =>
+  request<TeacherLesson>(`/teacher/lessons/${lessonId}/cancel`, { method: 'POST' })
+
+// ---------- 可上課時段
+export const fetchMySlots = () => request<TeacherAvailabilitySlot[]>('/teacher/availability')
+export const createSlot = (startsAt: string, endsAt: string) =>
+  request<TeacherAvailabilitySlot>('/teacher/availability', { method: 'POST', body: { starts_at: startsAt, ends_at: endsAt } })
+export const moveSlot = (id: string, startsAt: string, endsAt: string) =>
+  request<TeacherAvailabilitySlot>(`/teacher/availability/${id}`, {
+    method: 'PATCH',
+    body: { starts_at: startsAt, ends_at: endsAt },
+  })
+export const deleteSlot = (id: string) => request<void>(`/teacher/availability/${id}`, { method: 'DELETE' })
+// 取消預約：待確認的約課退回、已排的課取消，時段回到可預約
+export const releaseSlot = (id: string) =>
+  request<TeacherAvailabilitySlot>(`/teacher/availability/${id}/release`, { method: 'POST' })
+
 export const fetchChangeRequests = (status: 'pending' | 'all' = 'pending') =>
   request<TeacherChangeRequest[]>('/teacher/change-requests', { query: { status } })
 export const decideChangeRequest = (id: string, approve: boolean) =>
