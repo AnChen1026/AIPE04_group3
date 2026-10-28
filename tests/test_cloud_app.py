@@ -7,6 +7,8 @@ def test_cloud_serves_spa_and_prefixed_api(tmp_path):
     (tmp_path / "index.html").write_text("<html>melo</html>")
     app = create_app(tmp_path)
     client = TestClient(app)
+    assert client.get("/").text == "<html>melo</html>"
+    assert client.head("/").status_code == 200
     assert client.get("/courses").text == "<html>melo</html>"
     assert client.get("/backend/health").json() == {"status": "ok"}
     assert client.get("/health").json() == {"status": "ok"}

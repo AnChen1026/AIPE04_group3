@@ -22,7 +22,7 @@ class VueFiles(StaticFiles):
             if error.status_code != 404:
                 raise
         # Never turn unknown API requests/assets into a successful HTML response.
-        first = path.split("/")[0]
+        first = "" if path in {"", ".", "/"} else path.split("/")[0]
         allowed = {
             "",
             "courses",
