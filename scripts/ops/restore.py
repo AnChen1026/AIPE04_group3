@@ -10,7 +10,7 @@ from psycopg import sql
 
 from scripts.ops.backup import verify_bundle
 from scripts.ops.common import OpsError, atomic_json, utcnow
-from scripts.ops.database_refs import FILE_COLUMNS
+from scripts.ops.database_refs import file_columns
 
 
 def execute(args, timeout=180):
@@ -135,11 +135,14 @@ def restore_check(settings, bundle):
         counts = query(statement)
         if counts != manifest["database"]["row_counts"]:
             raise OpsError("restored_row_counts_mismatch")
+        revision = query("SELECT to_json(version_num) FROM public.alembic_version")
+        if revision != manifest["database"]["revision"]:
+            raise OpsError("restored_revision_mismatch")
         reference_selects = [
             sql.SQL(
                 "SELECT {field} AS value FROM public.{table} WHERE {field} IS NOT NULL"
             ).format(field=sql.Identifier(field), table=sql.Identifier(table))
-            for table, field in FILE_COLUMNS
+            for table, field in file_columns(revision)
         ]
         refs = query(
             sql.SQL("SELECT coalesce(json_agg(value),'[]'::json) FROM ({}) AS refs")
@@ -148,9 +151,6 @@ def restore_check(settings, bundle):
         )
         if set(refs) != set(manifest["database"]["references"]):
             raise OpsError("restored_file_references_mismatch")
-        revision = query("SELECT to_json(version_num) FROM public.alembic_version")
-        if revision != manifest["database"]["revision"]:
-            raise OpsError("restored_revision_mismatch")
         result = {
             "status": "success",
             "source_id": settings.source_id,

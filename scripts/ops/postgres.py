@@ -9,7 +9,7 @@ import psycopg
 from psycopg import sql
 
 from scripts.ops.common import OpsError
-from scripts.ops.database_refs import FILE_COLUMNS
+from scripts.ops.database_refs import file_columns
 
 
 class Postgres:
@@ -40,8 +40,14 @@ class Postgres:
                     ).fetchone()[0]
                     for name in names
                 }
+                revisions = conn.execute(
+                    "SELECT version_num FROM public.alembic_version"
+                ).fetchall()
+                if len(revisions) != 1:
+                    raise OpsError("application_schema_requires_single_head")
+                revision = revisions[0][0]
                 refs = set()
-                for table, field in FILE_COLUMNS:
+                for table, field in file_columns(revision):
                     if table not in names:
                         raise OpsError("application_schema_incomplete")
                     query = sql.SQL(
@@ -54,9 +60,6 @@ class Postgres:
                         if not value.startswith("storage://"):
                             raise OpsError("local_file_reference_in_cloud_database")
                         refs.add(value)
-                revision = conn.execute(
-                    "SELECT version_num FROM public.alembic_version"
-                ).fetchone()[0]
                 yield (
                     snapshot,
                     {

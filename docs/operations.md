@@ -50,4 +50,8 @@ PostgreSQL 使用同一個唯讀 snapshot 備份 `public` schema、資料、資�
 
 ## 已驗證
 
-23 個維運測試通過；實際備份與隔離還原核對 28 張表、5 個物件及 5 筆檔案引用。已人工觸發 launchd 工作驗證。這一階段沒有變更共用站 schema 或部署應用程式；獨立音訊評分 worker 仍留待下一階段。
+26 個維運測試通過；實際備份與隔離還原核對 28 張表、5 個物件及 5 筆檔案引用。已人工觸發 launchd 工作驗證。這一階段沒有變更共用站 schema 或部署應用程式；獨立音訊評分 worker 仍留待下一階段。
+
+## CI 與 schema 升級
+
+CI／PR 合併順序見 [CI 與 PR 手冊](ci-and-pr.md)。備份欄位契約明確支援現有 `016_storage_cleanup` 與合併後的 `017_merge_storage_audio`；後者納入 `practice_feedbacks.score_sheet_path`。未知 revision 或多個 migration head 會拒絕備份，避免漏驗檔案引用。升級其他 schema 前需先更新此契約。

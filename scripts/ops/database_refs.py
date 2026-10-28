@@ -1,4 +1,4 @@
-"""Application file-reference contract for schema 016; independent of web code.
+"""Application file-reference contract for supported schema revisions; independent of web code.
 
 Update this list when deploying a new file-bearing model. All bucket objects
 are backed up regardless; this contract adds snapshot-reference verification.
@@ -16,3 +16,13 @@ FILE_COLUMNS = [
     ("teacher_profiles", "photo_path"),
     ("teacher_applications", "proof_file_path"),
 ]
+
+
+def file_columns(revision):
+    from scripts.ops.common import OpsError
+
+    if revision == "016_storage_cleanup":
+        return list(FILE_COLUMNS)
+    if revision == "017_merge_storage_audio":
+        return [*FILE_COLUMNS, ("practice_feedbacks", "score_sheet_path")]
+    raise OpsError("unsupported_application_schema_revision")
