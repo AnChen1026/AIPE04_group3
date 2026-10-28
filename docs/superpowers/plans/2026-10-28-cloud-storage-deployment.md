@@ -42,5 +42,7 @@
 **Interfaces:** backend.cloud_app:app 支援 /backend 與 WebSocket 同源路徑，/health 公開，SPA fallback 不吃 API。
 - [x] 測試 API prefix、SPA traversal、Secure Cookie 與未知 API 404。
 - [x] Node 24 前端 build、非 reload Uvicorn、PORT、HTTPS Cookie、TLS DB；建置不含 env/uploads/backups。
-- [ ] 部署免費 Supabase/Render；使用者交接 DB 密碼、GitHub 授權，需 push 時另行要求既定 Git 授權。
-- [ ] DB backup/restore、private bucket、Data API 限制、seed dry-run/apply、重啟持久性驗收。未取得外部條件不得宣稱上線。
+- [x] 部署免費 Supabase/Render；使用者交接 DB 密碼、GitHub 授權，需 push 時另行要求既定 Git 授權。
+- [x] DB backup/restore、private bucket、Data API 限制、seed dry-run/apply、重啟持久性驗收。未取得外部條件不得宣稱上線。
+
+實際完成與限制見 docs/deployment.md。使用者已授權 commit/push 此功能分支；未合併 main。

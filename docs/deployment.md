@@ -79,8 +79,30 @@ DB 備份不包含 Storage bytes。DB 使用 pg_dump custom format；Storage 另
 ## 目前外部狀態
 
 - 2026-10-28：已建立 Free organization `AIPE04 Group 3` 與專案 `aipe04-group3-staging`（`eemekhsexmntnkxvunph`，Tokyo）。使用者已親自完成 DB 密碼設定。
-- 雲端 DB 匯入、Storage bucket、Render 部署與公開網址：尚未完成，不應以本文件視為完成證明。
+- 已完成雲端 Alembic 升級至 `016_storage_cleanup`，匯入 426 門課程與 226 位示範老師；重跑新增皆為 0。
+- 已建立三個 private bucket，實測匿名下載拒絕；Data API 控制台為關閉，REST 無法查詢資料。
+- 共用網站：https://aipe04-group3-staging.onrender.com ，課程頁 `/courses`，API 文件 `/backend/docs`。
+- Render 免費服務：`srv-dbgov2nf3r2c73aacvdg`；Blueprint：`exs-dbgorcon74is73d20pgg`。程式執行版本 `6900101`，後續純文件 commit 不影響執行程式。
+- Supabase 控制台的 main / Production 是平台內建資料庫分支標籤；本專案 APP_ENV 仍為 staging，未建立正式營運環境。
+- 功能分支已經使用者授權 commit/push；尚未合併 main，也未建立 PR。Render Auto Deploy 為關閉，後續程式更新須選 Manual Deploy → Deploy latest commit。
+
+## 網站管理與測試帳號
+
+管理員是使用者指定的個人 email，網站登入帳密另存本機 `.env.cloud.admin.json`（與 Supabase DB 密碼不同）。只有維運人員使用管理員；組員可以在共用網站各自註冊，老師由管理員核准。
+
+另外建立 1 位測試老師、2 位測試學生，帳密存 `.env.cloud.test-accounts.json`；驗收課程已封存，不影響公開 426 門課。原 226 位示範老師仍無登入密碼。這些私密檔案與 `.env.cloud.json`、`.env.cloud.password`、`.env.cloud.server-key` 全部被 Git 忽略且檔案權限為 0600。不要把完整雲端連線設定分享給一般測試者。
+
+## 雲端驗收紀錄（2026-10-28）
+
+- HTTPS 首頁、HEAD、課程頁、健康檢查、426 公開課程通過。
+- 管理員與測試師生登入／登出、Secure + HttpOnly Session Cookie 通過。
+- 實際圖片、課程 MIDI、作業 MIDI／PDF 教材、學生錄音上傳與下載通過；草稿與封存圖片、未綁定與其他學生越權讀取均拒絕。
+- 學生錄音 byte Range 206、對應老師回放通過；1 秒合成音檔的背景評分 completed。這不是長錄音或多人並行壓力測試，不承諾免費服務可承擔正式用量。
+- Render 於 14:11（Asia/Taipei）手動重啟，事件顯示 Service restarted；重啟後首頁、課程、私人錄音與作業 MIDI 仍可讀取。
+- 雲端 `public` schema/data 備份在隔離 PostgreSQL 還原成功，426 已發布課程及錄音可查。三個 bucket 另備份 5 個物件，共 45,091 bytes，逐一核對 SHA-256。備份位於被 Git 忽略的 `db-backups/`。
+- 目前完成的是手動備份與還原驗證，尚未排程每日自動備份／容量告警；維運仍需執行本文件流程。
+
 
 ## 本機驗證紀錄（2026-10-28）
 
-119 項後端測試通過（含獨立 PostgreSQL 的 migration 升降版、Storage mock 與跨帳號拒絕）；Alembic check 無差異；前端 lint-check、型別與正式 build 通過；完整雲端映像 build 成功。以該映像在 512 MiB 容器啟動，Vue SPA、API、426 課程匯入及重跑零新增驗證通過，閒置記憶體約 76 MiB。這不是實際 Render/Supabase 線上驗收，也不代表音訊評分峰值能在免費額度執行。
+119 項後端測試通過（含獨立 PostgreSQL 的 migration 升降版、Storage mock 與跨帳號拒絕）；Alembic check 無差異；前端 lint-check、型別與正式 build 通過；完整雲端映像 build 成功。以該映像在 512 MiB 容器啟動，Vue SPA、API、426 課程匯入及重跑零新增驗證通過，閒置記憶體約 76 MiB。此段是本機驗證；實際雲端驗收另見上節，未測音訊評分峰值。
