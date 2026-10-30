@@ -43,10 +43,16 @@ const topActions = inject(SHELL_TOP_ACTIONS, false)
   font-size: 14px;
 }
 
+/* 搜尋框和按鈕固定同一排；搜尋框寬度是百分比，允許換行時按鈕會被擠到下一排 */
 .page-header__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
+}
+
+.page-header__actions :slotted(.btn) {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 </style>
