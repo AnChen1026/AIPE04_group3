@@ -65,7 +65,7 @@ def score_recording(
     if not feedback_text:
         # 原因（沒有金鑰、逾時、服務忙碌…）寫進後端紀錄，學生改看依分數寫的簡短說明
         logger.warning("練習回饋改用規則產生的文字：%s", reason)
-        feedback_text = _plain_feedback(report, midi_test.PITCH_SCORE_MAX, midi_test.RHYTHM_SCORE_MAX)
+        feedback_text = _plain_feedback(report)
 
     return ScoringResult(
         pitch_score=report.pitch_score,
@@ -85,12 +85,11 @@ def _score_sheet(standard_midi, student_midi, alignment, score_result) -> str | 
         return None
 
 
-def _plain_feedback(report, pitch_max: int, rhythm_max: int) -> str:
-    """沒有設定 Gemini 或呼叫失敗時，只用這次評分結果寫一段簡短說明。"""
+def _plain_feedback(report) -> str:
+    """沒有設定 LLM 或呼叫失敗時，只用這次評分結果寫一段簡短說明。分數不給學生和老師看。"""
     lines = [
         f"這次彈對 {report.correct_pitch_count} / {report.standard_note_count} 個音，"
         f"漏掉 {report.missing_notes} 個，多彈 {report.extra_notes} 個。",
-        f"音高 {report.pitch_score} / {pitch_max} 分，節奏 {report.rhythm_score} / {rhythm_max} 分。",
     ]
     for change in report.tempo_changes:
         where = f"第 {change.start_measure} 小節" if change.start_measure == change.end_measure else f"第 {change.start_measure}～{change.end_measure} 小節"
