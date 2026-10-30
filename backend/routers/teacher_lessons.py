@@ -13,8 +13,10 @@ from backend.schemas.student import (
     ChangeRequestDecision,
     LessonSummaryResponse,
     TeacherChangeRequestResponse,
+    TeacherLessonIn,
     TeacherLessonResponse,
 )
+from backend.services.availability import cancel_teacher_lesson, create_teacher_lesson
 from backend.services.lesson_summary import get_lesson_summary
 from backend.services.student import StudentBusinessError, decide_change_request
 
@@ -47,6 +49,51 @@ def get_my_lessons(
         )
         for lesson, student_name, course_title in rows
     ]
+
+
+def _lesson_response(db: Session, lesson: LessonSession) -> TeacherLessonResponse:
+    student = db.get(User, lesson.student_id)
+    course = db.get(Course, lesson.course_id)
+    return TeacherLessonResponse(
+        id=lesson.id,
+        course_id=lesson.course_id,
+        starts_at=lesson.starts_at,
+        ends_at=lesson.ends_at,
+        status=lesson.status,
+        student_id=lesson.student_id,
+        student_name=student.name if student else "學生",
+        course_title=course.title if course else "課程",
+    )
+
+
+@router.post("/teacher/lessons", response_model=TeacherLessonResponse)
+def add_lesson(
+    data: TeacherLessonIn,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """和學生約好了就直接排課，不用學生再送申請。學生要已綁定這門課。"""
+    try:
+        lesson = create_teacher_lesson(
+            db, teacher.user_id, data.student_id, data.course_id, data.starts_at, data.ends_at, data.slot_id
+        )
+    except StudentBusinessError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return _lesson_response(db, lesson)
+
+
+@router.post("/teacher/lessons/{lesson_id}/cancel", response_model=TeacherLessonResponse)
+def cancel_lesson(
+    lesson_id: UUIDType,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """老師取消一堂課；它若來自可上課時段，時段回到可預約。"""
+    try:
+        lesson = cancel_teacher_lesson(db, teacher.user_id, lesson_id)
+    except StudentBusinessError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return _lesson_response(db, lesson)
 
 
 @router.get("/teacher/change-requests", response_model=list[TeacherChangeRequestResponse])

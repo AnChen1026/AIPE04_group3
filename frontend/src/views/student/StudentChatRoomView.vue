@@ -3,10 +3,12 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import ChatPanel from '@/components/console/ChatPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
+import TeacherSlotPicker from '@/components/console/TeacherSlotPicker.vue'
 import { fetchMyConversation, fetchStudentMessages, redeemBindingCode, sendStudentMessage } from '@/api/student'
 import { useConversation } from '@/composables/useConversation'
 import { useAuthStore } from '@/stores/auth'
-import type { Conversation } from '@/types/api'
+import type { AvailabilitySlot, Conversation } from '@/types/api'
+import { formatRange } from '@/utils/format'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -17,6 +19,19 @@ const code = ref('')
 const binding = ref(false)
 const bindError = ref('')
 const bound = ref(false)
+const panel = ref<InstanceType<typeof ChatPanel> | null>(null)
+// 「查看老師時段」：在訊息下方由系統列出老師可預約的時段，點一下就能預約
+const showSlots = ref(false)
+
+async function toggleSlots() {
+  showSlots.value = !showSlots.value
+  if (showSlots.value) await panel.value?.scrollToEnd()
+}
+
+// 預約後在對話裡留一句話，老師在聊天室也看得到
+async function onBooked(_request: unknown, slot: AvailabilitySlot) {
+  await send(`我預約了 ${formatRange(slot.starts_at, slot.ends_at)} 的時段，請老師完成約課。`)
+}
 
 async function refreshInfo() {
   conversation.value = await fetchMyConversation(conversationId)
@@ -57,6 +72,7 @@ onMounted(async () => {
 <template>
 
   <ChatPanel
+    ref="panel"
     :title="conversation ? `${conversation.teacher_name} 老師` : ''"
     :subtitle="conversation?.course_title ?? ''"
     :messages="chat.messages.value"
@@ -69,6 +85,9 @@ onMounted(async () => {
     <template #actions>
       <div v-if="conversation?.bound" class="chat-actions">
         <span class="badge badge--accent">上課中</span>
+        <button type="button" class="btn btn--ghost btn--small" :aria-pressed="showSlots" @click="toggleSlots">
+          {{ showSlots ? '收起老師時段' : '查看老師時段' }}
+        </button>
         <RouterLink :to="{ path: '/student/schedule', query: { course: conversation.course_id } }" class="btn btn--ghost btn--small">課表</RouterLink>
         <RouterLink to="/student/homework" class="btn btn--primary btn--small">看作業</RouterLink>
       </div>
@@ -78,6 +97,12 @@ onMounted(async () => {
         <button type="submit" class="btn btn--primary btn--small" :disabled="binding">{{ binding ? '確認中…' : '進入課程' }}</button>
       </form>
       <p v-if="bindError" class="error-text" role="alert">{{ bindError }}</p>
+    </template>
+    <template v-if="showSlots && conversation?.bound" #after>
+      <div class="slot-message">
+        <p class="slot-message__title">系統：{{ conversation.teacher_name }} 老師目前可以上課的時段，點一個就能預約</p>
+        <TeacherSlotPicker :course-id="conversation.course_id" @booked="onBooked" />
+      </div>
     </template>
   </ChatPanel>
 
@@ -97,6 +122,22 @@ onMounted(async () => {
   gap: 10px;
   flex-wrap: wrap;
   font-size: 14px;
+}
+
+.slot-message {
+  align-self: center;
+  width: min(520px, 100%);
+  margin: 6px auto;
+  padding: 14px 16px;
+  border: 1px dashed var(--home-line);
+  border-radius: 18px;
+  background: var(--home-paper);
+}
+
+.slot-message__title {
+  margin: 0 0 10px;
+  color: var(--home-muted);
+  font-size: 13px;
 }
 
 .bind__input {

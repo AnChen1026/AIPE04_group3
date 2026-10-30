@@ -1,5 +1,5 @@
 import { apiUrl, request } from './http'
-import type { Assignment, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
+import type { Assignment, AvailabilitySlot, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
 
 // ---------- 接洽對話與綁定
 export const startConversation = (courseId: string) =>
@@ -43,6 +43,12 @@ export const createChangeRequest = (courseId: string, input: ChangeRequestInput)
     method: 'POST',
     query: { ...input },
   })
+
+// ---------- 老師的可上課時段：要先綁定；點選後送出約課，老師完成約課才進正式課表
+export const fetchTeacherAvailability = (courseId: string) =>
+  request<AvailabilitySlot[]>(`/api/student/courses/${courseId}/availability`)
+export const bookSlot = (courseId: string, slotId: string) =>
+  request<ChangeRequest>(`/api/student/courses/${courseId}/availability/${slotId}/book`, { method: 'POST' })
 
 // ---------- 練習錄音
 export const fetchMyRecordings = (courseId: string) => request<Recording[]>(`/api/student/courses/${courseId}/recordings`)

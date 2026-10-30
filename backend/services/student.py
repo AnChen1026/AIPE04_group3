@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.assignment import Assignment
 from backend.models.student import (
+    AvailabilitySlot,
     BindingCode,
     ChangeRequest,
     ConversationMessage,
@@ -456,8 +457,13 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
     if not StudentRepository.is_bound(db, change_request.student_id, change_request.course_id):
         raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "學生尚未綁定這門課。")
 
+    # 學生點選可上課時段送出的約課：拒絕就把時段放回去，同意就標成已排
+    slot = db.get(AvailabilitySlot, change_request.availability_slot_id) if change_request.availability_slot_id else None
+
     if not approve:
         change_request.status = "rejected"
+        if slot is not None:
+            slot.reopen()
         _commit(db)
         db.refresh(change_request)
         return change_request
@@ -467,6 +473,9 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
         if lesson is None:
             raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到原本的課堂。")
         lesson.status = "cancelled"
+        booked_slot = db.scalar(select(AvailabilitySlot).where(AvailabilitySlot.lesson_id == lesson.id))
+        if booked_slot is not None:
+            booked_slot.reopen()
     else:
         ignore_id = change_request.session_id if change_request.request_type == "reschedule" else None
         taken = StudentRepository.slot_is_taken(
@@ -479,20 +488,25 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
         )
         if taken:
             change_request.status = "rejected"
+            if slot is not None:
+                slot.reopen()
             _commit(db)
             db.refresh(change_request)
             raise StudentBusinessError(status.HTTP_409_CONFLICT, "時段已被占用，正式課表沒有改變。")
         if change_request.request_type == "booking":
-            db.add(
-                LessonSession(
-                    course_id=change_request.course_id,
-                    teacher_id=change_request.teacher_id,
-                    student_id=change_request.student_id,
-                    starts_at=change_request.proposed_starts_at,
-                    ends_at=change_request.proposed_ends_at,
-                    status="scheduled",
-                )
+            lesson = LessonSession(
+                course_id=change_request.course_id,
+                teacher_id=change_request.teacher_id,
+                student_id=change_request.student_id,
+                starts_at=change_request.proposed_starts_at,
+                ends_at=change_request.proposed_ends_at,
+                status="scheduled",
             )
+            db.add(lesson)
+            if slot is not None:
+                db.flush()
+                slot.status = "booked"
+                slot.lesson_id = lesson.id
         else:
             lesson = StudentRepository.get_session(db, change_request.session_id)
             if lesson is None:

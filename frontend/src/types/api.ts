@@ -71,6 +71,26 @@ export interface TeacherLesson extends Lesson {
 
 export type ChangeRequestType = 'booking' | 'leave' | 'reschedule'
 
+// 老師開放的可上課時段。學生只看得到還沒被預約的時間
+export interface AvailabilitySlot {
+  id: string
+  starts_at: string
+  ends_at: string
+}
+
+// open：可預約；held：學生點選了、等老師完成約課；booked：已排進正式課表
+export type AvailabilityStatus = 'open' | 'held' | 'booked'
+
+export interface TeacherAvailabilitySlot extends AvailabilitySlot {
+  status: AvailabilityStatus
+  student_id: string | null
+  student_name: string | null
+  course_id: string | null
+  course_title: string | null
+  lesson_id: string | null
+  change_request_id: string | null
+}
+
 export interface ChangeRequest {
   id: string
   course_id: string

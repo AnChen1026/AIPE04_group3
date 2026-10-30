@@ -206,3 +206,41 @@ class AssignmentResponse(BaseModel):
     submission_count: int
     last_submitted_at: datetime | None = None
     created_at: datetime
+
+
+class AvailabilitySlotIn(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class AvailabilitySlotResponse(BaseModel):
+    """學生看到的老師可上課時段：只有時間。"""
+
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeacherAvailabilitySlotResponse(AvailabilitySlotResponse):
+    """老師自己的時段：多了狀態、預約的學生與課程，以及待處理的約課。"""
+
+    status: str
+    student_id: uuid.UUID | None = None
+    student_name: str | None = None
+    course_id: uuid.UUID | None = None
+    course_title: str | None = None
+    lesson_id: uuid.UUID | None = None
+    change_request_id: uuid.UUID | None = None
+
+
+class TeacherLessonIn(BaseModel):
+    """老師直接排課；從時段拖過來時帶 slot_id，時間以時段為準。"""
+
+    student_id: uuid.UUID
+    course_id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    slot_id: uuid.UUID | None = None
