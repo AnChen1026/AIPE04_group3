@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from backend.audio_scoring import scorer
 from backend.core.database import SessionLocal
-from backend.core.uploads import resolve_stored_path, stored_path
+from backend.core import uploads
+from backend.core.storage import local_file, save_file, cleanup_files
 from backend.models.student import Course, PracticeFeedback, PracticeRecording
 
 logger = logging.getLogger(__name__)
@@ -51,8 +52,12 @@ def _analyze(db: Session, recording_id: uuid.UUID) -> None:
         midi_path = recording.reference_midi_path or (course.reference_midi_path if course else None)
         if not midi_path:
             raise scorer.ScoringFailed("這門課還沒有參考 MIDI。")
-        audio_path = resolve_stored_path(recording.file_path)
-        result = scorer.score_recording(resolve_stored_path(midi_path), audio_path, recording.metronome_bpm)
+        with local_file(midi_path) as midi_file, local_file(recording.file_path) as audio_file:
+            result = scorer.score_recording(midi_file, audio_file, recording.metronome_bpm)
+        sheet_key = None
+        if result.score_sheet_xml:
+            sheet_path = uploads.PROJECT_ROOT / "uploads" / "practice" / str(recording.student_id) / f"{uuid.uuid4().hex}.musicxml"
+            sheet_key = save_file(sheet_path, result.score_sheet_xml.encode("utf-8"), "application/vnd.recordare.musicxml+xml")
     except scorer.ScoringFailed as error:
         _mark_failed(db, recording, feedback, str(error))
         return
@@ -64,14 +69,18 @@ def _analyze(db: Session, recording_id: uuid.UUID) -> None:
     feedback.pitch_score = result.pitch_score
     feedback.rhythm_score = result.rhythm_score
     feedback.feedback_text = result.feedback_text
-    if result.score_sheet_xml:
-        # 對照樂譜放在錄音旁邊，同一個檔名、副檔名改成 .musicxml
-        sheet_path = audio_path.with_suffix(".musicxml")
-        sheet_path.write_text(result.score_sheet_xml, encoding="utf-8")
-        feedback.score_sheet_path = stored_path(sheet_path)
+    previous_sheet = feedback.score_sheet_path
+    feedback.score_sheet_path = sheet_key
     feedback.status = "completed"
     recording.status = "completed"
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        cleanup_files([sheet_key])
+        raise
+    if previous_sheet and previous_sheet != sheet_key:
+        cleanup_files([previous_sheet])
 
 
 def _mark_failed(db: Session, recording: PracticeRecording, feedback: PracticeFeedback, reason: str) -> None:

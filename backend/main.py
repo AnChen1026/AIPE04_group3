@@ -3,7 +3,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend.core.config import get_session_secret_key
+from backend.core.config import get_session_secret_key, read_env_value
 from backend.core.database import SessionLocal
 from backend.routers.admin import router as admin_router
 from backend.routers.assignments import router as assignments_router
@@ -35,7 +35,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=get_session_secret_key(),
     same_site="lax",
-    https_only=False,
+    https_only=(read_env_value("SESSION_HTTPS_ONLY") or "false").lower() == "true",
 )
 
 app.include_router(health_router)

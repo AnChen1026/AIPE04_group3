@@ -4,11 +4,10 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import file_response
 from backend.dependencies.common import get_current_user, require_roles
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
@@ -310,7 +309,7 @@ def api_my_recording_audio(
         require_bound(db, current_user.id, recording.course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
-    return FileResponse(resolve_stored_path(recording.file_path))
+    return file_response(recording.file_path)
 
 
 @router.get("/recordings/{recording_id}/score-sheet")
@@ -324,8 +323,8 @@ def api_my_score_sheet(
     feedback = StudentRepository.get_feedback(db, recording.id)
     if feedback is None or not feedback.score_sheet_path:
         raise HTTPException(status_code=404, detail="這次練習沒有對照樂譜。")
-    return FileResponse(
-        resolve_stored_path(feedback.score_sheet_path), media_type="application/vnd.recordare.musicxml+xml"
+    return file_response(
+        feedback.score_sheet_path, media_type="application/vnd.recordare.musicxml+xml"
     )
 
 
@@ -342,4 +341,4 @@ def api_reference_midi(
         _raise_business_error(error)
     if not course.reference_midi_path:
         raise HTTPException(status_code=404, detail="這門課還沒有參考 MIDI。")
-    return FileResponse(resolve_stored_path(course.reference_midi_path), media_type="audio/midi")
+    return file_response(course.reference_midi_path, media_type="audio/midi")

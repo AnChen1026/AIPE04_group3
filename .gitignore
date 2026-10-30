@@ -54,3 +54,10 @@ frontend/*.tsbuildinfo
 
 # 本機介面設計工具資料
 .impeccable/
+
+# Cloud secrets and local certificates
+.env.*
+!.env.example
+!.env.cloud.example
+*.dump
+*.crt

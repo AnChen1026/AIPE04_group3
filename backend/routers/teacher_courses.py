@@ -1,12 +1,11 @@
 from uuid import UUID as UUIDType
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import file_response
 from backend.dependencies.teacher import get_current_teacher
 from backend.models.student import Course
 from backend.models.teacher import TeacherDB
@@ -127,7 +126,7 @@ def download_reference_midi(
         _raise(error)
     if not course.reference_midi_path:
         raise HTTPException(status_code=404, detail="這門課還沒有參考 MIDI。")
-    return FileResponse(resolve_stored_path(course.reference_midi_path), media_type="audio/midi")
+    return file_response(course.reference_midi_path, media_type="audio/midi")
 
 
 @router.post("/courses/{course_id}/image", response_model=CourseResponse)
