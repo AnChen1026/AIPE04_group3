@@ -81,3 +81,27 @@ def test_老師與管理員可以互傳訊息(make_user, login):
 def test_一般使用者看不到別人的對話(make_user, login):
     teacher_client = login(make_user("teacher"))
     assert teacher_client.get("/api/admin/support/conversations").status_code == 403
+
+
+def test_管理員列表預設包含所有老師與學生(make_user, login):
+    # 沒經過註冊流程、也還沒傳過訊息的帳號，例如從舊資料庫搬來的
+    admin = make_user("admin")
+    teacher = make_user("teacher", name="還沒聊過的老師")
+    student = make_user("student", name="還沒聊過的學生")
+    admin_client = login(admin)
+
+    rows = admin_client.get("/api/admin/support/conversations").json()
+    by_user = {item["user_id"]: item for item in rows}
+    assert str(teacher.id) in by_user and str(student.id) in by_user
+    assert str(admin.id) not in by_user
+    assert by_user[str(student.id)]["last_message"] is None
+
+    # 管理員可以直接在這段對話先開口
+    conversation_id = by_user[str(student.id)]["id"]
+    reply = admin_client.post(f"/api/admin/support/conversations/{conversation_id}/messages", json={"body": "哈囉"})
+    assert reply.status_code == 200, reply.text
+    assert [m["body"] for m in login(student).get("/api/support/messages").json()] == ["哈囉"]
+
+    # 再讀一次列表不會重複建立
+    again = admin_client.get("/api/admin/support/conversations").json()
+    assert len([item for item in again if item["user_id"] == str(student.id)]) == 1
