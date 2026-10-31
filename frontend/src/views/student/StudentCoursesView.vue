@@ -2,8 +2,11 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import ConsoleIcon from '@/components/console/ConsoleIcon.vue'
+import ModalPanel from '@/components/console/ModalPanel.vue'
+import TeacherSlotPicker from '@/components/console/TeacherSlotPicker.vue'
 import { fetchPublishedCourses } from '@/api/courses'
 import { useBoundCourses } from '@/composables/useBoundCourses'
+import type { Conversation } from '@/types/api'
 import type { CourseSummary } from '@/types/course'
 import { deliveryText, priceText } from '@/utils/format'
 
@@ -13,6 +16,8 @@ const details = ref<CourseSummary[]>([])
 const keyword = ref('')
 const status = ref<'all' | 'bound' | 'pending'>('all')
 const error = ref('')
+// 已綁定的課可以看老師的可上課時段，直接點選預約
+const slotCourse = ref<Conversation | null>(null)
 
 const filters = [
   { value: 'all', label: '全部' },
@@ -71,7 +76,12 @@ onMounted(async () => {
   <article v-for="{ conversation, detail } in shown" :key="conversation.id" class="card course">
     <header class="course__head">
       <h2>{{ conversation.course_title }}</h2>
-      <RouterLink :to="`/student/chat/${conversation.id}`" class="btn btn--ghost btn--small">查看老師</RouterLink>
+      <div class="course__actions">
+        <button v-if="conversation.bound" type="button" class="btn btn--primary btn--small" @click="slotCourse = conversation">
+          預約上課時段
+        </button>
+        <RouterLink :to="`/student/chat/${conversation.id}`" class="btn btn--ghost btn--small">查看老師</RouterLink>
+      </div>
     </header>
     <ul class="course__meta">
       <li><ConsoleIcon name="calendar" :size="18" />{{ detail?.timeSlots || '時段和老師討論' }}</li>
@@ -86,6 +96,14 @@ onMounted(async () => {
       {{ conversation.bound ? '進行中' : '待確認' }}
     </span>
   </article>
+
+  <ModalPanel
+    :open="slotCourse !== null"
+    :title="slotCourse ? `${slotCourse.teacher_name} 老師的可上課時段` : ''"
+    @close="slotCourse = null"
+  >
+    <TeacherSlotPicker v-if="slotCourse" :course-id="slotCourse.course_id" />
+  </ModalPanel>
 </template>
 
 <style scoped>
@@ -112,6 +130,13 @@ onMounted(async () => {
   gap: 12px;
   padding-bottom: 12px;
   border-bottom: 2px solid var(--home-line);
+}
+
+.course__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .course__head h2 {

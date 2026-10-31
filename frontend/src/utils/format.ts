@@ -36,12 +36,18 @@ export function pad(value: number): string {
   return String(value).padStart(2, '0')
 }
 
-// <input type="datetime-local"> 需要的格式
-export function toLocalInput(value: Date): string {
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`
+// 排課的最小單位是 15 分鐘
+export const QUARTER_MS = 15 * 60_000
+export const QUARTER_OPTIONS = Array.from({ length: 96 }, (_, index) => index * 15)
+// 固定時間規則的星期：0 是週一，和後端一致
+export const RULE_WEEKDAYS = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
+
+// 當天第幾分鐘換成 18:15
+export function minuteLabel(minute: number): string {
+  return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`
 }
 
-export const COURSE_LEVELS = ['入門', '初階', '中階', '進階', '不確定']
+export const COURSE_LEVELS =['入門', '初階', '中階', '進階', '不確定']
 
 export const DELIVERY_LABELS: Record<string, string> = { online: '線上', in_person: '實體', 線上: '線上', 實體: '實體' }
 

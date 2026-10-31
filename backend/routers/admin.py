@@ -4,7 +4,7 @@ from pathlib import Path
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from backend.core.storage import file_response
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -89,14 +89,10 @@ def api_download_proof(
     if application is None or application.proof_file_path is None:
         raise HTTPException(status_code=404, detail="找不到證明文件。")
 
-    file_path = UPLOAD_DIR / application.proof_file_path
-    if file_path.exists() is False:
-        raise HTTPException(status_code=404, detail="找不到證明文件。")
-
-    return FileResponse(
-        path=file_path,
-        filename=application.proof_file_name or "proof",
-    )
+    value = application.proof_file_path
+    if not value.startswith(("storage://", "uploads/")):
+        value = "uploads/" + value  # legacy proof paths omit uploads/
+    return file_response(value, filename=application.proof_file_name or "proof")
 
 
 @router.get("/api/admin/teachers", response_model=list[UserResponse])

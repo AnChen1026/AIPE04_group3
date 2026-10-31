@@ -3,11 +3,10 @@
 from uuid import UUID as UUIDType
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import file_response
 from backend.dependencies.teacher import get_current_teacher
 from backend.models.student import PracticeFeedback, PracticeRecording
 from backend.models.teacher import TeacherDB
@@ -72,7 +71,7 @@ def download_score_sheet(
     feedback = db.query(PracticeFeedback).filter(PracticeFeedback.recording_id == recording.id).one_or_none()
     if feedback is None or not feedback.score_sheet_path:
         raise HTTPException(status_code=404, detail="這次練習沒有對照樂譜。")
-    return FileResponse(resolve_stored_path(feedback.score_sheet_path), media_type=MUSICXML_MEDIA_TYPE)
+    return file_response(feedback.score_sheet_path, media_type=MUSICXML_MEDIA_TYPE)
 
 
 @router.get("/teacher/recordings/{recording_id}/audio")
@@ -84,4 +83,4 @@ def download_recording(
     recording = db.get(PracticeRecording, recording_id)
     if recording is None or recording.teacher_id != teacher.user_id:
         raise HTTPException(status_code=404, detail="找不到這段錄音。")
-    return FileResponse(resolve_stored_path(recording.file_path))
+    return file_response(recording.file_path)

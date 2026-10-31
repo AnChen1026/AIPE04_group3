@@ -112,7 +112,7 @@ def test_參考MIDI只收真的MIDI並同步metadata(db, make_user, make_course,
 def test_參考MIDI資料庫提交失敗會清掉新檔案(db, make_user, make_course, monkeypatch, tmp_path):
     teacher = make_user("teacher")
     course = make_course(teacher)
-    monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "midi")
+    monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "uploads" / "midi")
 
     def fail_commit():
         raise RuntimeError("forced commit failure")
@@ -127,7 +127,7 @@ def test_參考MIDI資料庫提交失敗會清掉新檔案(db, make_user, make_c
             SAMPLE_MIDI.read_bytes(),
         )
 
-    assert list((tmp_path / "midi").rglob("*.mid")) == []
+    assert list((tmp_path / "uploads" / "midi").rglob("*.mid")) == []
 
 
 def test_參考MIDI只有綁定學生能下載(make_user, make_course, login):
@@ -151,7 +151,7 @@ def test_參考MIDI只有綁定學生能下載(make_user, make_course, login):
 def test_metadata寫入失敗會清掉新檔且保留舊MIDI(db, make_user, make_course, monkeypatch, tmp_path, failure_point):
     teacher = make_user("teacher")
     course = make_course(teacher)
-    midi_dir = tmp_path / "midi"
+    midi_dir = tmp_path / "uploads" / "midi"
     monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", midi_dir)
     course_service.save_reference_midi(db, teacher.id, course.id, "original.mid", SAMPLE_MIDI.read_bytes())
     old_path = course.reference_midi_path

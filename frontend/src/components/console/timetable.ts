@@ -8,6 +8,10 @@ export interface TimetableItem {
   subtitle?: string
   colorKey: string
   cancelled?: boolean
+  // 老師的可上課時段：open 可預約、held 學生點選了等老師完成約課。畫成虛線框
+  slot?: 'open' | 'held'
+  // 編輯時段時可以拖動
+  draggable?: boolean
 }
 
 // 暖色系的課程顏色，和首頁的米白、木色同一組

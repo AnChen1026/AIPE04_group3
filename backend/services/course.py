@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from fastapi import status
 from sqlalchemy.orm import Session
 
-from backend.core.uploads import MIDI_UPLOAD_DIR, stored_path
+from backend.core.uploads import MIDI_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
 from backend.models.student import Course, ReferenceMidi
 from backend.services.student import StudentBusinessError
 
@@ -96,10 +97,9 @@ def save_reference_midi(
     folder = MIDI_UPLOAD_DIR / str(teacher_user_id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{uuid.uuid4()}.mid"
-    path.write_bytes(content)
+    storage_key = save_file(path, content, "audio/midi")
 
     try:
-        storage_key = stored_path(path)
         original_filename = filename.replace("\\", "/").rsplit("/", 1)[-1][-255:] or "reference.mid"
         course.reference_midi_path = storage_key
         reference = db.query(ReferenceMidi).filter(ReferenceMidi.course_id == course.id).one_or_none()
@@ -116,7 +116,7 @@ def save_reference_midi(
         db.commit()
     except Exception:
         db.rollback()
-        path.unlink(missing_ok=True)
+        cleanup_files([storage_key])
         raise
     db.refresh(course)
     return course
@@ -126,7 +126,13 @@ def save_course_image(db: Session, teacher_user_id: uuid.UUID, course_id: uuid.U
     from backend.services.images import save_image
 
     course = get_own_course(db, teacher_user_id, course_id)
-    course.image_path = save_image(content, "courses")
-    db.commit()
+    storage_key = save_image(content, "courses")
+    course.image_path = storage_key
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(course)
     return course

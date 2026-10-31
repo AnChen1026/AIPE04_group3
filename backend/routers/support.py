@@ -17,6 +17,7 @@ from backend.services.student import StudentBusinessError
 from backend.services.support import (
     add_support_message,
     conversation_summary,
+    ensure_member_conversations,
     get_or_create_conversation,
     list_support_messages,
     mark_read,
@@ -80,6 +81,8 @@ def _conversation(db: Session, conversation_id: uuid.UUID) -> SupportConversatio
 
 @router.get("/api/admin/support/conversations", response_model=list[SupportConversationResponse])
 def api_admin_conversations(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """所有老師、學生都在列表上，沒聊過的也能直接開口。"""
+    ensure_member_conversations(db)
     conversations = list(db.scalars(select(SupportConversation)))
     return conversation_summary(db, conversations, for_admin=True)
 

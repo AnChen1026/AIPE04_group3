@@ -1,5 +1,5 @@
 import { apiUrl, request } from './http'
-import type { Assignment, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
+import type { Assignment, AvailabilitySlot, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
 
 // ---------- 接洽對話與綁定
 export const startConversation = (courseId: string) =>
@@ -33,8 +33,6 @@ export const fetchMyChangeRequests = (courseId: string) =>
 export interface ChangeRequestInput {
   request_type: ChangeRequestType
   session_id?: string | null
-  proposed_starts_at?: string | null
-  proposed_ends_at?: string | null
   reason?: string | null
 }
 
@@ -43,6 +41,17 @@ export const createChangeRequest = (courseId: string, input: ChangeRequestInput)
     method: 'POST',
     query: { ...input },
   })
+
+// ---------- 老師的可上課時段：要先綁定；在時段內選時間送出約課或調課，老師同意才改正式課表
+export const fetchTeacherAvailability = (courseId: string) =>
+  request<AvailabilitySlot[]>(`/api/student/courses/${courseId}/availability`)
+export const bookSlot = (courseId: string, slotId: string, input: { starts_at: string; minutes: number; reason?: string | null }) =>
+  request<ChangeRequest>(`/api/student/courses/${courseId}/availability/${slotId}/book`, { method: 'POST', body: { ...input } })
+export const rescheduleToSlot = (
+  courseId: string,
+  slotId: string,
+  input: { session_id: string; starts_at: string; reason?: string | null },
+) => request<ChangeRequest>(`/api/student/courses/${courseId}/availability/${slotId}/reschedule`, { method: 'POST', body: { ...input } })
 
 // ---------- 練習錄音
 export const fetchMyRecordings = (courseId: string) => request<Recording[]>(`/api/student/courses/${courseId}/recordings`)

@@ -22,13 +22,14 @@ const emit = defineEmits<{ send: [body: string] }>()
 const draft = ref('')
 const list = ref<HTMLElement | null>(null)
 
-watch(
-  () => props.messages.length,
-  async () => {
-    await nextTick()
-    list.value?.scrollTo({ top: list.value.scrollHeight })
-  },
-)
+async function scrollToEnd() {
+  await nextTick()
+  list.value?.scrollTo({ top: list.value.scrollHeight })
+}
+
+watch(() => props.messages.length, scrollToEnd)
+// 訊息下方另外放的內容（例如老師的可上課時段）出現時，外面呼叫它捲到底
+defineExpose({ scrollToEnd })
 
 function submit() {
   const text = draft.value.trim()
@@ -72,6 +73,7 @@ function onKeydown(event: KeyboardEvent) {
           <time :datetime="message.created_at">{{ formatDateTime(message.created_at) }}</time>
         </div>
       </div>
+      <slot name="after" />
     </div>
 
     <form class="chat__form" @submit.prevent="submit">

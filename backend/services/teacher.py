@@ -8,6 +8,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.security import hash_password
+from backend.core.storage import save_file, cleanup_files
 from backend.models.teacher_application import TeacherApplication
 from backend.models.user import User
 from backend.repositories.teacher_application import (
@@ -49,16 +50,23 @@ def save_proof_file(proof_file: UploadFile | None) -> tuple[str | None, str | No
     if suffix not in ALLOWED_PROOF_SUFFIXES:
         raise InvalidProofFileError("證明文件只接受 PDF、JPG 或 PNG。")
 
-    file_bytes = proof_file.file.read()
+    file_bytes = proof_file.file.read(5 * 1024 * 1024 + 1)
+    if len(file_bytes) > 5 * 1024 * 1024:
+        raise InvalidProofFileError("證明文件最大 5 MB。")
     if not file_bytes:
         return None, None
 
+    valid = (
+        (suffix == '.pdf' and file_bytes.startswith(b'%PDF-'))
+        or (suffix in {'.jpg', '.jpeg'} and file_bytes.startswith(b'\xff\xd8\xff'))
+        or (suffix == '.png' and file_bytes.startswith(b'\x89PNG\r\n\x1a\n'))
+    )
+    if not valid:
+        raise InvalidProofFileError("證明文件內容與格式不符。")
     PROOF_DIR.mkdir(parents=True, exist_ok=True)
     stored_name = f"{uuid.uuid4().hex}{suffix}"
     stored_path = PROOF_DIR / stored_name
-    stored_path.write_bytes(file_bytes)
-
-    relative_path = f"teacher_proofs/{stored_name}"
+    relative_path = save_file(stored_path, file_bytes)
     return relative_path, original_name
 
 
@@ -86,24 +94,25 @@ def register_teacher(
         role="teacher",
         is_active=False,
     )
-    add_user(db, user)
-    db.flush()
-
-    application = TeacherApplication(
-        user_id=user.id,
-        teaching_subjects=register_data.teaching_subjects,
-        teaching_experience=register_data.teaching_experience,
-        bio=register_data.bio,
-        proof_file_path=relative_path,
-        proof_file_name=original_name,
-        status="pending",
-    )
-    add_application(db, application)
-
     try:
+        add_user(db, user)
+        db.flush()
+
+        application = TeacherApplication(
+            user_id=user.id,
+            teaching_subjects=register_data.teaching_subjects,
+            teaching_experience=register_data.teaching_experience,
+            bio=register_data.bio,
+            proof_file_path=relative_path,
+            proof_file_name=original_name,
+            status="pending",
+        )
+        add_application(db, application)
+
         db.commit()
     except Exception:
         db.rollback()
+        cleanup_files([relative_path])
         raise
 
     db.refresh(user)
@@ -139,6 +148,7 @@ def submit_teacher_application(
         db.commit()
     except Exception:
         db.rollback()
+        cleanup_files([relative_path])
         raise
 
     db.refresh(application)

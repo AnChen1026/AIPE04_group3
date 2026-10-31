@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: aipe04-group3-staging
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SESSION_HTTPS_ONLY
+        value: "true"
+      - key: SESSION_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_DB_CA_CERT
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false

@@ -56,5 +56,6 @@ function errorMessage(status: number, detail: unknown): string {
   if (Array.isArray(detail)) return '資料格式不正確，請再檢查一次。'
   if (status === 401) return '請先登入。'
   if (status === 403) return '沒有使用權限。'
+  if (status === 413) return '檔案太大，無法上傳。'
   return '系統忙碌中，請稍後再試。'
 }

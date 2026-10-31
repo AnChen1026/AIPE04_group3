@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("basic_pitch")
 pytest.importorskip("music21")
 
-from backend.audio_scoring import midi_test  # noqa: E402
+from backend.audio_scoring import midi_test, scorer  # noqa: E402
 from backend.audio_scoring.score_sheet import (  # noqa: E402
     COLOR_EXTRA,
     COLOR_RHYTHM,
@@ -167,3 +167,11 @@ def test_交給LLM的內容_列出真正的問題():
     assert report.problems[0] == "第 1 小節有漏掉或彈錯的音"
     assert any("突然變快" in item for item in report.problems)
     assert "滿分" not in midi_test.feedback_input(report).split("節奏分數")[1].split("\n")[0]
+
+
+def test_規則產生的回饋不寫分數():
+    standard = _scale()
+    standard_midi, student_midi, alignment, result = _score(standard, _scale())
+    report = midi_test.build_score_report("a.mid", "b.wav", standard_midi, student_midi, result)
+    text = scorer._plain_feedback(report)
+    assert "/ 70" not in text and "/ 30" not in text and "音高" not in text

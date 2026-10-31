@@ -71,6 +71,54 @@ export interface TeacherLesson extends Lesson {
 
 export type ChangeRequestType = 'booking' | 'leave' | 'reschedule'
 
+// 老師開放的可上課時段。學生只看得到還沒被預約的時間
+export interface AvailabilitySlot {
+  id: string
+  starts_at: string
+  ends_at: string
+}
+
+// open：可預約；held：學生點選了、等老師完成約課；booked：已排進正式課表
+export type AvailabilityStatus = 'open' | 'held' | 'booked'
+
+export interface TeacherAvailabilitySlot extends AvailabilitySlot {
+  status: AvailabilityStatus
+  student_id: string | null
+  student_name: string | null
+  course_id: string | null
+  course_title: string | null
+  lesson_id: string | null
+  change_request_id: string | null
+}
+
+// 每週的一段時間。weekday 0 是週一；分鐘是當天的第幾分鐘，例如 18:00 是 1080
+export interface WeeklyWindow {
+  weekday: number
+  start_minute: number
+  end_minute: number
+}
+
+export interface RecurringLesson extends WeeklyWindow {
+  id: string
+  student_id: string
+  student_name: string
+  course_id: string
+  course_title: string
+  future_lessons: { id: string; starts_at: string; ends_at: string }[]
+}
+
+export interface RecurringSkippedWeek {
+  starts_at: string
+  ends_at: string
+  reason: string
+}
+
+export interface RecurringLessonResult {
+  rule: RecurringLesson
+  created: number
+  skipped: RecurringSkippedWeek[]
+}
+
 export interface ChangeRequest {
   id: string
   course_id: string
@@ -131,8 +179,6 @@ export interface LessonSummary {
     completed_count: number
     failed_count: number
     waiting_count: number
-    average_pitch_score?: number
-    average_rhythm_score?: number
   }
   source_recording_ids: string[]
   generated_at: string

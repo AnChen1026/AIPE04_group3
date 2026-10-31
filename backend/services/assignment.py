@@ -5,13 +5,15 @@
 
 import uuid
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from backend.core.uploads import ASSIGNMENT_UPLOAD_DIR, resolve_stored_path, stored_path
+from backend.core.uploads import ASSIGNMENT_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
 from backend.models.assignment import Assignment, AssignmentMaterial
 from backend.models.student import Course, CourseBinding, PracticeRecording
 from backend.models.user import User
@@ -30,20 +32,19 @@ def _clean_filename(filename: str, fallback: str) -> str:
     return filename.replace("\\", "/").rsplit("/", 1)[-1][-255:] or fallback
 
 
-def _write(teacher_id: uuid.UUID, suffix: str, content: bytes) -> Path:
+def _write(teacher_id: uuid.UUID, suffix: str, content: bytes) -> str:
     folder = ASSIGNMENT_UPLOAD_DIR / str(teacher_id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{uuid.uuid4()}{suffix}"
-    path.write_bytes(content)
-    return path
+    return save_file(path, content)
 
 
-def _midi_bpm(path: Path) -> float | None:
+def _midi_bpm(content: bytes) -> float | None:
     """參考 MIDI 開頭的速度。讀不到時回傳 None，前端就用 120。"""
     try:
         import pretty_midi
 
-        _, tempos = pretty_midi.PrettyMIDI(str(path)).get_tempo_changes()
+        _, tempos = pretty_midi.PrettyMIDI(BytesIO(content)).get_tempo_changes()
         return round(float(tempos[0]), 1) if len(tempos) else None
     except Exception:
         return None
@@ -105,7 +106,7 @@ def create_assignment(
     if practice_bpm is not None and not MIN_BPM <= practice_bpm <= MAX_BPM:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"練習速度請填 {MIN_BPM}～{MAX_BPM} BPM。")
 
-    written: list[Path] = []
+    written: list[str] = []
     try:
         assignment = Assignment(
             id=uuid.uuid4(),
@@ -121,9 +122,9 @@ def create_assignment(
         if midi is not None:
             path = _write(teacher_id, ".mid", midi[1])
             written.append(path)
-            assignment.midi_path = stored_path(path)
+            assignment.midi_path = path
             assignment.midi_filename = _clean_filename(midi[0], "reference.mid")
-            assignment.midi_bpm = _midi_bpm(path)
+            assignment.midi_bpm = _midi_bpm(midi[1])
         db.add(assignment)
         db.flush()
         for name, content_type, content in materials:
@@ -134,15 +135,14 @@ def create_assignment(
                     assignment_id=assignment.id,
                     filename=_clean_filename(name, "material"),
                     content_type=(content_type or None) and content_type[:255],
-                    file_path=stored_path(path),
+                    file_path=path,
                     file_size_bytes=len(content),
                 )
             )
         _commit(db)
     except Exception:
         db.rollback()
-        for path in written:
-            path.unlink(missing_ok=True)
+        cleanup_files(written)
         raise
     db.refresh(assignment)
     return assignment
@@ -154,9 +154,8 @@ def delete_assignment(db: Session, teacher_id: uuid.UUID, assignment_id: uuid.UU
     paths = [assignment.midi_path] + [item.file_path for item in materials_of(db, [assignment.id])[assignment.id]]
     db.delete(assignment)
     _commit(db)
-    for value in paths:
-        if value:
-            resolve_stored_path(value).unlink(missing_ok=True)
+    from backend.services.storage_files import is_file_referenced
+    cleanup_files([value for value in paths if value and not is_file_referenced(db, value)])
 
 
 def own_assignment(db: Session, teacher_id: uuid.UUID, assignment_id: uuid.UUID) -> Assignment:

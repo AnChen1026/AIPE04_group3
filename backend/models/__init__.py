@@ -28,3 +28,5 @@ __all__ = [
     "TeacherDB",
     "User",
 ]
+
+from backend.models.storage_cleanup import StorageCleanup  # noqa: F401

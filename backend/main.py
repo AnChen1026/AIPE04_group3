@@ -3,7 +3,7 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from backend.core.config import get_session_secret_key
+from backend.core.config import get_session_secret_key, read_env_value
 from backend.core.database import SessionLocal
 from backend.routers.admin import router as admin_router
 from backend.routers.assignments import router as assignments_router
@@ -18,6 +18,7 @@ from backend.routers.chat_ws import router as chat_ws_router
 from backend.routers.teacher_chat import router as teacher_chat_router
 from backend.routers.teacher_courses import router as teacher_courses_router
 from backend.routers.teacher_inquiries import router as teacher_inquiries_router
+from backend.routers.teacher_availability import router as teacher_availability_router
 from backend.routers.teacher_lessons import router as teacher_lessons_router
 from backend.routers.teacher_materials import router as teacher_materials_router
 from backend.routers.teacher_practice import router as teacher_practice_router
@@ -34,7 +35,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=get_session_secret_key(),
     same_site="lax",
-    https_only=False,
+    https_only=(read_env_value("SESSION_HTTPS_ONLY") or "false").lower() == "true",
 )
 
 app.include_router(health_router)
@@ -56,6 +57,7 @@ for teacher_module in (
     teacher_courses_router,
     teacher_inquiries_router,
     teacher_lessons_router,
+    teacher_availability_router,
     teacher_materials_router,
     teacher_practice_router,
     teacher_quizzes_router,
