@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path(".env.cloud.json"))
     parser.add_argument(
-        "command", choices=["validate", "migrate", "seed", "migrate-files", "cleanup"]
+        "command", choices=["validate", "migrate", "seed", "migrate-files", "cleanup", "index-courses"]
     )
     parser.add_argument("arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -66,6 +66,7 @@ def main():
         "seed": "scripts.import_demo_data",
         "migrate-files": "scripts.migrate_uploads",
         "cleanup": "scripts.retry_storage_cleanup",
+        "index-courses": "scripts.index_course_embeddings",
     }[args.command]
     sys.argv = [module, *args.arguments]
     runpy.run_module(module, run_name="__main__")

@@ -13,11 +13,16 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.models.student import RecommendationItem as StoredRecommendationItem
 from backend.models.student import RecommendationSession
+from backend.services.ai_model_planner import AIPlannerUnclear, AIPlannerUnavailable, is_configured
+from backend.services.ai_rate_limit import RateLimiter
 from backend.services.recommendation import (
+    RecommendationConflict,
     RecommendationNotFound,
     answer_recommendation,
     read_recommendation,
@@ -26,6 +31,13 @@ from backend.services.recommendation import (
 )
 
 router = APIRouter(prefix="/api/recommendations", tags=["首頁推薦"])
+ai_limiter = RateLimiter()
+
+
+def _limit_ai(owner):
+    if is_configured() and not ai_limiter.allow(owner):
+        raise HTTPException(status_code=429, detail="找課請求太頻繁，請稍後再試。", headers={"Retry-After": "60"})
+
 
 class RecommendationMessage(BaseModel):
     """訪客說的話：第一次的描述，或回答追問。"""
@@ -87,21 +99,34 @@ def _owner_hash(request: Request) -> str:
 
 
 def _response(db: Session, row: RecommendationSession) -> RecommendationResponse:
+    items = recommendation_items(db, row)
+    expected_count = db.scalar(select(func.count()).select_from(StoredRecommendationItem).where(StoredRecommendationItem.session_id == row.id)) or 0
+    message = row.result_message
+    if len(items) < expected_count:
+        message = "部分課程已更新或下架，請重新搜尋。"
     return RecommendationResponse(
         session_id=row.id,
         status=row.status,
         question=row.question,
         questions_asked=row.question_count,
-        criteria=row.criteria,
-        message=row.result_message,
-        results=recommendation_items(db, row),
+        criteria={**{key: value for key, value in row.criteria.items() if not key.startswith("_")}, **({"learning_goal": row.criteria["_semantic_query"]} if row.criteria.get("_semantic_query") else {})},
+        message=message,
+        results=items,
     )
 
 
 @router.post("", response_model=RecommendationResponse)
 def start(data: RecommendationMessage, request: Request, db: Session = Depends(get_db)):
     """訪客第一次描述需求。body：RecommendationMessage。回傳追問或推薦結果。"""
-    return _response(db, start_recommendation(db, _owner_hash(request), data.message))
+    try:
+        owner = _owner_hash(request)
+        _limit_ai(owner)
+        return _response(db, start_recommendation(db, owner, data.message))
+    except AIPlannerUnavailable:
+        raise HTTPException(status_code=503, detail="AI 找課暫時無法使用，請稍後再試。") from None
+    except AIPlannerUnclear:
+        db.rollback()
+        raise HTTPException(status_code=422, detail="我還無法確認你的條件，請換個方式說明。") from None
 
 
 @router.post("/{session_id}/answer", response_model=RecommendationResponse)
@@ -113,9 +138,18 @@ def answer(
 ):
     """回答追問。body：RecommendationMessage。整次最多兩題，回答完就給結果。"""
     try:
-        row = answer_recommendation(db, _owner_hash(request), session_id, data.message)
+        owner = _owner_hash(request)
+        _limit_ai(owner)
+        row = answer_recommendation(db, owner, session_id, data.message)
     except RecommendationNotFound:
         raise HTTPException(status_code=404, detail="找不到這次找課對談，請重新開始。") from None
+    except RecommendationConflict:
+        raise HTTPException(status_code=409, detail="上一則訊息仍在處理，請稍後重試。") from None
+    except AIPlannerUnavailable:
+        raise HTTPException(status_code=503, detail="AI 找課暫時無法使用，請稍後再試。") from None
+    except AIPlannerUnclear:
+        db.rollback()
+        raise HTTPException(status_code=422, detail="我還無法確認你的條件，請換個方式說明。") from None
     return _response(db, row)
 
 

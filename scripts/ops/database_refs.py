@@ -23,6 +23,11 @@ def file_columns(revision):
 
     if revision == "016_storage_cleanup":
         return list(FILE_COLUMNS)
-    if revision == "017_merge_storage_audio":
+    if revision in {
+        "017_merge_storage_audio",
+        "018_merge_availability_storage",
+        "019_weekly_schedule",
+        "020_course_embeddings",
+    }:
         return [*FILE_COLUMNS, ("practice_feedbacks", "score_sheet_path")]
     raise OpsError("unsupported_application_schema_revision")
