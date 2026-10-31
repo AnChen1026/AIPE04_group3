@@ -24,6 +24,15 @@ services:
       - .env # 自動讀取外層的 .env 環境變數
     networks:
       - app-network
+    restart: unless-stopped # 程式崩潰或 Docker 重開時自動重啟；手動 docker stop 的不會被叫回來
+    # 每 30 秒在容器裡打一次 /health；資料庫連不上時 /health 回 503，連續 3 次失敗就標成 unhealthy
+    # slim 映像沒有 curl，所以用 Python 內建的 urllib
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s # 啟動時要跑 migration、載入音訊套件，前 40 秒失敗不算
     # #  日誌大小限制
     # logging:
     #   driver: "json-file"
@@ -42,7 +51,8 @@ services:
       - "80:80" # 將本機的 80 埠對應到容器內 Nginx 的 80 埠
     restart: always
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy # 等後端健康檢查通過才啟動，避免 Nginx 找不到 backend 一直重啟
     networks:
       - app-network
     # # 日誌大小限制
@@ -66,6 +76,7 @@ services:
       - postgres17_data:/var/lib/postgresql/data
     networks:
       - app-network
+    restart: unless-stopped # Docker 重開後自動把資料庫叫回來
     # 每 5 秒檢查一次資料庫是不是真的活著
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U aipe04 -d aipe04" ]

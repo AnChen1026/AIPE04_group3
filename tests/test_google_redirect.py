@@ -44,4 +44,4 @@ def test_模板頁與表單路由都已移除(db):
     client = TestClient(app, follow_redirects=False)
     for path in ("/", "/login", "/register", "/profile", "/teacher", "/student", "/admin", "/test", "/teacher/learning"):
         assert client.get(path).status_code == 404, path
-    assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/health").json() == {"status": "ok", "database": "ok"}
