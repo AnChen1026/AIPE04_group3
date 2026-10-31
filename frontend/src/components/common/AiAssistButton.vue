@@ -18,12 +18,12 @@ const messages = ref<ChatMessage[]>([
 ])
 const inputElement = ref<HTMLInputElement | null>(null)
 
-const canSubmit = computed(() => input.value.trim().length > 0 && !loading.value && response.value?.status !== 'done')
+const canSubmit = computed(() => input.value.trim().length > 0 && !loading.value && response.value?.status !== 'unsupported')
 const criteriaSummary = computed(() => {
   const criteria = response.value?.criteria
   if (!criteria) return []
   const labels: Record<string, string> = {
-    level: '程度', style: '曲風', delivery_mode: '方式', region: '地區', max_price: '預算', time_slot: '時段',
+    learning_goal: '學習目標', level: '程度', style: '曲風', delivery_mode: '方式', region: '地區', max_price: '預算', time_slot: '時段',
   }
   return Object.entries(criteria)
     .filter(([, value]) => value !== null)
@@ -52,6 +52,8 @@ async function submit() {
     response.value = next
     messages.value.push({ role: 'assistant', text: next.question ?? next.message })
   } catch (caught) {
+    messages.value.pop()
+    input.value = text
     error.value = caught instanceof Error ? caught.message : '系統忙碌中，請稍後再試。'
   } finally {
     loading.value = false
@@ -105,7 +107,7 @@ function restart() {
         <p v-if="error" class="error" role="alert">{{ error }}</p>
       </div>
 
-      <form v-if="response?.status !== 'done' && response?.status !== 'unsupported'" class="composer" @submit.prevent="submit">
+      <form v-if="response?.status !== 'unsupported'" class="composer" @submit.prevent="submit">
         <label class="sr-only" for="course-request">描述找課需求</label>
         <input
           id="course-request"
@@ -113,11 +115,11 @@ function restart() {
           v-model="input"
           maxlength="1000"
           :disabled="loading"
-          :placeholder="response ? '回答上面的問題…' : '例如：零基礎，想學流行鋼琴'"
+          :placeholder="response?.status === 'done' ? '補充或修改找課條件…' : response ? '回答上面的問題…' : '例如：零基礎，想學流行鋼琴'"
         />
         <button type="submit" :disabled="!canSubmit">送出</button>
       </form>
-      <button v-else class="restart" type="button" @click="restart">重新找一次</button>
+      <button v-if="response" class="restart" type="button" @click="restart">重新找一次</button>
       <p v-if="response?.status === 'asking'" class="question-count">已追問 {{ response.questions_asked }} / 2 題</p>
     </section>
 

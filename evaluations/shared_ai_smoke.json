@@ -1,0 +1,6 @@
+[
+ {"query":"我想彈電影配樂", "candidates":[{"id":"a","description":"適合初學者，循序練習鋼琴"},{"id":"b","description":"學習電影與影集的主題曲鋼琴演奏"},{"id":"c","description":"流行歌曲和弦與伴奏"}],"relevant":["b"]},
+ {"query":"想學爵士即興", "candidates":[{"id":"d","description":"爵士即興與和弦演奏"},{"id":"e","description":"古典鋼琴技巧與視譜"},{"id":"f","description":"陪伴兒童建立練習習慣"}],"relevant":["d"]},
+ {"query":"週末線上上課", "candidates":[{"id":"g","description":"週六上午提供線上課程"},{"id":"h","description":"週二在台北實體上課"},{"id":"i","description":"課程介紹未提供時段"}],"relevant":["g"]},
+ {"query":"有沒有試上課", "candidates":[{"id":"j","description":"老師提供一堂試上課"},{"id":"k","description":"循序漸進建立基本功"},{"id":"l","description":"教授古典和流行歌曲"}],"relevant":["j"]}
+]

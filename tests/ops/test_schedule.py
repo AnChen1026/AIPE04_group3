@@ -14,7 +14,7 @@ def test_schedule_contains_paths_but_no_credentials(tmp_path):
         "password" not in str(backup).lower()
         and "supabase_secret" not in str(backup).lower()
     )
-    assert Path(backup["WorkingDirectory"]).name == "AIPE04_group3"
+    assert Path(backup["WorkingDirectory"]) == Path(__file__).resolve().parents[2]
 
 
 def test_failed_uninstall_preserves_definition(tmp_path, monkeypatch):
