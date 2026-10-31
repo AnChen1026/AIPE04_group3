@@ -481,14 +481,6 @@ watch(
         <p class="muted lesson__range">
           範圍：{{ summary.window_start ? formatDateTime(summary.window_start) : '開始上課以來' }} ～ {{ formatDateTime(summary.window_end) }}
         </p>
-        <div class="lesson__stats">
-          <span>練習 <strong>{{ summary.stats.recording_count }}</strong> 次</span>
-          <span>完成 <strong>{{ summary.stats.completed_count }}</strong></span>
-          <span>失敗 <strong>{{ summary.stats.failed_count }}</strong></span>
-          <span>分析中 <strong>{{ summary.stats.waiting_count }}</strong></span>
-          <span v-if="summary.stats.average_pitch_score !== undefined">平均音高 <strong>{{ summary.stats.average_pitch_score }}</strong></span>
-          <span v-if="summary.stats.average_rhythm_score !== undefined">平均節奏 <strong>{{ summary.stats.average_rhythm_score }}</strong></span>
-        </div>
         <p class="lesson__summary">{{ summary.summary_text }}</p>
         <p class="lesson__meta">
           {{ summary.written_by === 'llm' ? 'AI 撰寫' : '依統計自動產生' }}・{{ formatDateTime(summary.generated_at) }}
@@ -671,22 +663,8 @@ watch(
   font-size: 13px;
 }
 
-.lesson__stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0;
-}
-
-.lesson__stats span {
-  padding: 4px 12px;
-  border-radius: var(--radius-pill);
-  background: var(--home-cream);
-  font-size: 13px;
-}
-
 .lesson__summary {
-  margin: 0;
+  margin: 12px 0 0;
   padding: 14px 16px;
   border-radius: 16px;
   background: var(--home-bg);

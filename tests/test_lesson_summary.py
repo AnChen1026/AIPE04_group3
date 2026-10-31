@@ -7,6 +7,7 @@ import pytest
 
 import backend.services.llm as llm
 from backend.models.student import PracticeFeedback, PracticeRecording
+from backend.services import lesson_summary
 from backend.services.lesson_summary import NO_RECORD_TEXT
 from tests.conftest import bind, issue_code, next_week, start_conversation
 
@@ -116,7 +117,8 @@ def test_同一首曲子才比較前後分數(setup, add_recording, make_lesson)
     add_recording(course, student, start + timedelta(hours=2), pitch=60, rhythm=20)
     data = summary(teacher_client, target)
     assert data["stats"]["comparable"] is True
-    assert "多 30.0 分" in data["summary_text"]
+    assert "有進步" in data["summary_text"]
+    assert "分" not in data["summary_text"].replace("分析", "")
 
     add_recording(course, student, start + timedelta(hours=3), pitch=70, rhythm=30, midi="uploads/midi/b.mid")
     data = summary(teacher_client, target)
@@ -189,3 +191,16 @@ def test_沒有上一堂時從頭算(make_user, make_course, login, make_lesson,
     data = summary(teacher_client, first_lesson)
     assert data["window_start"] is None
     assert data["source_recording_ids"] == [str(early.id)]
+
+
+def test_LLM失敗時_重點寫出小節_不寫分數():
+    stats = {
+        "recording_count": 1,
+        "completed_count": 1,
+        "failed_count": 0,
+        "waiting_count": 0,
+        "comparable": False,
+        "completed": [{"pitch_score": 61.5, "rhythm_score": 24.0, "feedback_text": "可以先回頭練第 3、6 小節。"}],
+    }
+    text = lesson_summary._rules_text(stats)
+    assert text == "這堂課的重點可以先確認學生在第 3、6 小節的表現，特別是音符和節奏的準確性。"

@@ -151,8 +151,6 @@ export interface LessonSummary {
     completed_count: number
     failed_count: number
     waiting_count: number
-    average_pitch_score?: number
-    average_rhythm_score?: number
   }
   source_recording_ids: string[]
   generated_at: string
