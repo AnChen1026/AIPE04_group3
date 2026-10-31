@@ -22,7 +22,7 @@ def test_both_existing_heads_upgrade_to_merged_head(migration_database):
     for previous in ("016_storage_cleanup", "016_metronome_score"):
         command.upgrade(config, previous)
         command.upgrade(config, "head")
-        assert ScriptDirectory.from_config(config).get_current_head() == "018_merge_availability_storage"
+        assert ScriptDirectory.from_config(config).get_current_head() == "019_weekly_schedule"
         inspector = inspect(engine)
         assert "storage_cleanup_jobs" in inspector.get_table_names()
         assert "availability_slots" in inspector.get_table_names()

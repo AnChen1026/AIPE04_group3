@@ -5,19 +5,23 @@
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -270,6 +274,60 @@ class LessonSession(Base):
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
+    # 由哪個固定上課時間排出來的；單獨排的課是空的
+    recurring_lesson_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("recurring_lessons.id", ondelete="SET NULL", name="fk_lesson_sessions_recurring_lesson_id"),
+        nullable=True,
+    )
+
+
+class WeeklyAvailability(Base):
+    """老師每週固定可上課的一段時間，例如週一 18:00-21:00。時間是台灣時間當天的第幾分鐘。"""
+
+    __tablename__ = "weekly_availability"
+    __table_args__ = (
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="ck_weekly_availability_weekday"),
+        CheckConstraint(
+            "start_minute >= 0 AND end_minute <= 1440 AND end_minute > start_minute",
+            name="ck_weekly_availability_time",
+        ),
+        Index("ix_weekly_availability_teacher", "teacher_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # 0 是週一
+    weekday: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    start_minute: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    end_minute: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    generated_through: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class RecurringLesson(Base):
+    """老師和學生談好的固定上課時間，例如每週二 19:15-20:15。時間是台灣時間當天的第幾分鐘。"""
+
+    __tablename__ = "recurring_lessons"
+    __table_args__ = (
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="ck_recurring_lessons_weekday"),
+        CheckConstraint(
+            "start_minute >= 0 AND end_minute <= 1440 AND end_minute > start_minute",
+            name="ck_recurring_lessons_time",
+        ),
+        Index("ix_recurring_lessons_teacher", "teacher_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    teacher_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    course_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False)
+    # 0 是週一
+    weekday: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    start_minute: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    end_minute: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    generated_through: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
 class AvailabilitySlot(Base):
@@ -301,6 +359,8 @@ class AvailabilitySlot(Base):
         UUID(as_uuid=True), ForeignKey("lesson_sessions.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    # 由每週可上課時間產生的；老師改每週時間時，只有這些且還沒人預約的會重算
+    from_weekly: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
 
     def reopen(self) -> None:
         """取消預約：回到可預約，誰預約過不再保留。"""

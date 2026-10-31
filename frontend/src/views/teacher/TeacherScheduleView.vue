@@ -9,6 +9,8 @@ import MonthCalendar from '@/components/console/MonthCalendar.vue'
 import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
+import RecurringLessonDialog from '@/components/console/RecurringLessonDialog.vue'
+import WeeklyAvailabilityDialog from '@/components/console/WeeklyAvailabilityDialog.vue'
 import {
   cancelTeacherLesson,
   createSlot,
@@ -24,7 +26,19 @@ import {
   releaseSlot,
 } from '@/api/teacher'
 import type { BoundStudent, LessonSummary, TeacherAvailabilitySlot, TeacherChangeRequest, TeacherLesson } from '@/types/api'
-import { CHANGE_TYPE_LABELS, addDays, formatDateTime, formatRange, formatTime, sameDay, startOfWeek, toneClass } from '@/utils/format'
+import {
+  CHANGE_TYPE_LABELS,
+  QUARTER_OPTIONS,
+  addDays,
+  formatDate,
+  formatDateTime,
+  formatRange,
+  formatTime,
+  minuteLabel,
+  sameDay,
+  startOfWeek,
+  toneClass,
+} from '@/utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,11 +123,14 @@ async function load() {
 }
 
 // ---------- 編輯時段：把上方三種框拖到週課表上
-// 可預約：拖到空格新增一小時的時段；已有的可預約框可以拖到別的格子
-// 已預約：拖到空格或可預約框，選學生後直接排進課表；拖到待完成約課的框就是完成約課
+// 可預約：拖到空格新增一小時的時段；已有的可預約框可以拖到別的格子。放下的位置對齊 15 分鐘
+// 已預約：拖到空格或可預約框，選學生和時間後直接排進課表；拖到待完成約課的框就是完成約課
 // 取消預約：拖到框上。可預約的刪掉；待完成約課的退回；已排的課取消，來自時段的話時段回到可預約
+// 另外兩個按鈕：設定老師每週固定可上課的時間、設定學生的固定上課時間
 const editing = ref(false)
 const editError = ref('')
+const weeklyOpen = ref(false)
+const recurringOpen = ref(false)
 const PALETTE_ITEMS = [
   { data: 'new:open', label: '可預約', className: 'palette__item--open' },
   { data: 'new:booked', label: '已預約', className: 'palette__item--booked' },
@@ -176,8 +193,14 @@ function onDropOnItem(itemId: string, data: string, at: Date) {
   } else if (data === 'new:open') {
     editError.value = '這段時間已經有時段或課了。'
   } else if (data === 'new:booked') {
-    if (slot?.status === 'open') openPicker(new Date(slot.starts_at), new Date(slot.ends_at), slot)
-    else if (slot?.status === 'held' && slot.change_request_id) {
+    // 放在長時段裡：從放下的位置排一小時，超出時段結尾就往前挪
+    if (slot?.status === 'open') {
+      const slotStart = new Date(slot.starts_at)
+      const slotEnd = new Date(slot.ends_at)
+      const latest = new Date(Math.max(slotStart.getTime(), slotEnd.getTime() - 3_600_000))
+      const starts = at < slotStart ? slotStart : at > latest ? latest : at
+      openPicker(starts, new Date(Math.min(slotEnd.getTime(), hourLater(starts).getTime())), slot)
+    } else if (slot?.status === 'held' && slot.change_request_id) {
       const requestId = slot.change_request_id
       ask(`完成 ${slot.student_name ?? '學生'} 的約課？`, formatRange(slot.starts_at, slot.ends_at), () => decideChangeRequest(requestId, true))
     } else editError.value = '這堂課已經排好了。'
@@ -212,8 +235,10 @@ function confirmAction() {
 
 // 「已預約」拖下去後選是哪位學生、哪門課
 const students = ref<BoundStudent[]>([])
-const picker = ref<{ starts: Date; ends: Date; slot: TeacherAvailabilitySlot | null } | null>(null)
+const picker = ref<{ day: Date; slot: TeacherAvailabilitySlot | null } | null>(null)
 const pickerChoice = ref('')
+const pickerStart = ref(0)
+const pickerEnd = ref(0)
 const pickerError = ref('')
 const pickerSaving = ref(false)
 const pickerOptions = computed(() =>
@@ -226,7 +251,10 @@ const pickerOptions = computed(() =>
 )
 
 async function openPicker(starts: Date, ends: Date, slot: TeacherAvailabilitySlot | null) {
-  picker.value = { starts, ends, slot }
+  const minuteOfDay = (at: Date) => at.getHours() * 60 + at.getMinutes()
+  picker.value = { day: starts, slot }
+  pickerStart.value = minuteOfDay(starts)
+  pickerEnd.value = minuteOfDay(ends)
   pickerChoice.value = ''
   pickerError.value = ''
   try {
@@ -244,14 +272,23 @@ async function savePicker() {
     pickerError.value = '請選擇學生。'
     return
   }
+  if (pickerEnd.value <= pickerStart.value) {
+    pickerError.value = '結束時間要晚於開始時間。'
+    return
+  }
+  const timeOnDay = (minute: number) => {
+    const at = new Date(target.day)
+    at.setHours(0, minute, 0, 0)
+    return at.toISOString()
+  }
   pickerSaving.value = true
   pickerError.value = ''
   try {
     await createTeacherLesson({
       student_id: studentId,
       course_id: courseId,
-      starts_at: target.starts.toISOString(),
-      ends_at: target.ends.toISOString(),
+      starts_at: timeOnDay(pickerStart.value),
+      ends_at: timeOnDay(pickerEnd.value),
       slot_id: target.slot?.id ?? null,
     })
     picker.value = null
@@ -351,9 +388,14 @@ watch(
         {{ item.label }}
       </span>
     </div>
+    <div class="palette__buttons">
+      <button type="button" class="btn btn--ghost btn--small" @click="weeklyOpen = true">設定固定時間</button>
+      <button type="button" class="btn btn--ghost btn--small" @click="recurringOpen = true">固定上課時間</button>
+    </div>
     <p class="muted palette__hint">
-      把「可預約」拖到格子開放一小時，可預約的框也能直接拖到別的格子；
+      把「可預約」拖到格子開放一小時，時間以 15 分鐘為單位，可預約的框也能直接拖到別的格子；
       和學生約好了就把「已預約」拖過去選學生；「取消預約」拖到框上取消。
+      每週都一樣的時間用「設定固定時間」；學生每週固定的課用「固定上課時間」。
     </p>
     <p v-if="editError" class="error-text" role="alert">{{ editError }}</p>
   </section>
@@ -437,7 +479,21 @@ watch(
 
   <ModalPanel :open="picker !== null" title="排課給哪位學生？" @close="picker = null">
     <template v-if="picker">
-      <p class="lesson__time">{{ formatRange(picker.starts.toISOString(), picker.ends.toISOString()) }}</p>
+      <p class="lesson__time">{{ formatDate(picker.day) }}</p>
+      <div class="picker__times">
+        <label class="field">
+          <span>開始</span>
+          <select v-model.number="pickerStart" class="select">
+            <option v-for="minute in QUARTER_OPTIONS" :key="minute" :value="minute">{{ minuteLabel(minute) }}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>結束</span>
+          <select v-model.number="pickerEnd" class="select">
+            <option v-for="minute in QUARTER_OPTIONS" :key="minute" :value="minute">{{ minuteLabel(minute) }}</option>
+          </select>
+        </label>
+      </div>
       <label class="field picker__field">
         <span>學生與課程</span>
         <select v-model="pickerChoice" class="input">
@@ -455,6 +511,9 @@ watch(
       </button>
     </template>
   </ModalPanel>
+
+  <WeeklyAvailabilityDialog :open="weeklyOpen" @close="weeklyOpen = false" @saved="load" />
+  <RecurringLessonDialog :open="recurringOpen" @close="recurringOpen = false" @saved="load" />
 
   <NoticeDialog
     :open="confirming !== null"
@@ -551,6 +610,25 @@ watch(
 .palette__hint {
   margin: 0;
   font-size: 13px;
+}
+
+.palette__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picker__times {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.picker__times .field {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+  margin: 0;
 }
 
 .picker__field {

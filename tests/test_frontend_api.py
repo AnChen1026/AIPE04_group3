@@ -68,15 +68,13 @@ def test_老師用JSON處理課務申請(db, make_user, make_course, login, make
     lesson = make_lesson(course, student, next_week(10))
 
     target = next_week(15)
+    slot_id = teacher_client.post(
+        "/teacher/availability",
+        json={"starts_at": target.isoformat(), "ends_at": (target + timedelta(hours=1)).isoformat()},
+    ).json()["id"]
     created = student_client.post(
-        f"/api/student/courses/{course.id}/change-requests",
-        params={
-            "request_type": "reschedule",
-            "session_id": str(lesson.id),
-            "proposed_starts_at": target.isoformat(),
-            "proposed_ends_at": (target + timedelta(hours=1)).isoformat(),
-            "reason": "週一要加班",
-        },
+        f"/api/student/courses/{course.id}/availability/{slot_id}/reschedule",
+        json={"session_id": str(lesson.id), "starts_at": target.isoformat(), "reason": "週一要加班"},
     ).json()
 
     pending = teacher_client.get("/teacher/change-requests").json()

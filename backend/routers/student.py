@@ -1,7 +1,6 @@
 """學生 JSON API。正式 Vue 之後也呼叫這裡。"""
 
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
@@ -17,6 +16,8 @@ from backend.schemas.student import (
     BindIn,
     MessageIn,
     ChangeRequestResponse,
+    SlotBookingIn,
+    SlotRescheduleIn,
     ConversationResponse,
     CourseResponse,
     FeedbackResponse,
@@ -24,7 +25,8 @@ from backend.schemas.student import (
     MessageResponse,
     RecordingResponse,
 )
-from backend.services.availability import book_slot, list_open_slots
+from backend.services.availability import book_slot, list_open_slots, reschedule_to_slot
+from backend.services.weekly_schedule import extend_teacher_schedule
 from backend.services.practice import run_recording_analysis
 from backend.services.student import (
     MAX_RECORDING_BYTES,
@@ -157,9 +159,10 @@ def api_schedule(
     db: Session = Depends(get_db),
 ):
     try:
-        require_bound(db, current_user.id, course_id)
+        course = require_bound(db, current_user.id, course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
+    extend_teacher_schedule(db, course.teacher_id)
     return StudentRepository.list_schedule(db, current_user.id, course_id)
 
 
@@ -182,23 +185,13 @@ def api_change_request(
     course_id: uuid.UUID,
     request_type: str,
     session_id: uuid.UUID | None = None,
-    proposed_starts_at: datetime | None = None,
-    proposed_ends_at: datetime | None = None,
     reason: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """請假。約課與調課要從老師開放的時段選，走下面的 book、reschedule。"""
     try:
-        return create_change_request(
-            db,
-            current_user,
-            course_id,
-            request_type,
-            session_id,
-            proposed_starts_at,
-            proposed_ends_at,
-            reason,
-        )
+        return create_change_request(db, current_user, course_id, request_type, session_id, reason)
     except StudentBusinessError as error:
         _raise_business_error(error)
 
@@ -211,6 +204,8 @@ def api_teacher_availability(
 ):
     """這門課老師還沒被預約的可上課時段。要先綁定。"""
     try:
+        course = require_bound(db, current_user.id, course_id)
+        extend_teacher_schedule(db, course.teacher_id)
         return list_open_slots(db, current_user, course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
@@ -220,12 +215,29 @@ def api_teacher_availability(
 def api_book_slot(
     course_id: uuid.UUID,
     slot_id: uuid.UUID,
+    data: SlotBookingIn | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """點選時段送出約課，時段先保留給自己；別人已預約回 409。老師完成約課才進正式課表。"""
+    """在時段內選時間送出約課，那段先保留給自己；別人已預約回 409。老師完成約課才進正式課表。"""
+    data = data or SlotBookingIn()
     try:
-        return book_slot(db, current_user, course_id, slot_id)
+        return book_slot(db, current_user, course_id, slot_id, data.starts_at, data.minutes, data.reason)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+
+
+@router.post("/courses/{course_id}/availability/{slot_id}/reschedule", response_model=ChangeRequestResponse)
+def api_reschedule_to_slot(
+    course_id: uuid.UUID,
+    slot_id: uuid.UUID,
+    data: SlotRescheduleIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """把一堂課調到開放時段內，長度沿用原本那堂。老師同意前原本的課不變。"""
+    try:
+        return reschedule_to_slot(db, current_user, course_id, data.session_id, slot_id, data.starts_at, data.reason)
     except StudentBusinessError as error:
         _raise_business_error(error)
 

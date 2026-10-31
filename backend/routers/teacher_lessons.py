@@ -19,6 +19,7 @@ from backend.schemas.student import (
 from backend.services.availability import cancel_teacher_lesson, create_teacher_lesson
 from backend.services.lesson_summary import get_lesson_summary
 from backend.services.student import StudentBusinessError, decide_change_request
+from backend.services.weekly_schedule import extend_teacher_schedule
 
 router = APIRouter()
 
@@ -28,6 +29,7 @@ def get_my_lessons(
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
     """正式課表，含已取消的課。學生與課程名稱一起帶回，前端不用再查。"""
+    extend_teacher_schedule(db, teacher.user_id)
     rows = (
         db.query(LessonSession, User.name, Course.title)
         .join(User, User.id == LessonSession.student_id)

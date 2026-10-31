@@ -9,7 +9,15 @@ import MonthCalendar from '@/components/console/MonthCalendar.vue'
 import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { bookSlot, createChangeRequest, fetchMyChangeRequests, fetchStudentSchedule, fetchTeacherAvailability } from '@/api/student'
+import SlotTimeFields, { type SlotChoice } from '@/components/console/SlotTimeFields.vue'
+import {
+  bookSlot,
+  createChangeRequest,
+  fetchMyChangeRequests,
+  fetchStudentSchedule,
+  fetchTeacherAvailability,
+  rescheduleToSlot,
+} from '@/api/student'
 import { useBoundCourses } from '@/composables/useBoundCourses'
 import type { AvailabilitySlot, ChangeRequest, ChangeRequestType, Conversation, Lesson } from '@/types/api'
 import {
@@ -21,7 +29,6 @@ import {
   formatTime,
   sameDay,
   startOfWeek,
-  toLocalInput,
   toneClass,
 } from '@/utils/format'
 
@@ -78,16 +85,13 @@ const dayCards = computed(() =>
     .filter((card) => sameDay(new Date(card.starts_at), anchor.value))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
 )
-// 選一門已綁定的課，就把那位老師還開放的時段疊在自己的課表上，點一下就能預約。
+// 選一門已綁定的課，就把那位老師還開放的時段疊在自己的課表上，點一下就能選時間預約。
 // 只能透過自己已綁定的課看那位老師的時段（ADR 0009）
 const SLOT_PREFIX = 'slot:'
 const slotCourseId = ref('')
 const slotCourse = computed(() => courses.bound.value.find((item) => item.course_id === slotCourseId.value) ?? null)
 const slots = ref<AvailabilitySlot[]>([])
 const slotError = ref('')
-const picking = ref<AvailabilitySlot | null>(null)
-const booking = ref(false)
-const booked = ref('')
 
 async function loadSlots() {
   slotError.value = ''
@@ -109,27 +113,12 @@ const daySlots = computed(() =>
   slots.value.filter((slot) => sameDay(new Date(slot.starts_at), anchor.value)),
 )
 
+// 點課表上的開放時段：打開約課表單，並先選好這個時段的開始時間
 function pickSlot(id: string) {
-  picking.value = slots.value.find((slot) => `${SLOT_PREFIX}${slot.id}` === id || slot.id === id) ?? null
-}
-
-async function confirmBooking() {
-  const slot = picking.value
-  const courseId = slotCourseId.value
-  picking.value = null
-  if (!slot || !courseId) return
-  booking.value = true
-  slotError.value = ''
-  try {
-    await bookSlot(courseId, slot.id)
-    booked.value = formatRange(slot.starts_at, slot.ends_at)
-  } catch (problem) {
-    // 被別的同學搶先預約時後端回 409
-    slotError.value = problem instanceof Error ? problem.message : '預約失敗，請再試一次。'
-  } finally {
-    booking.value = false
-    await Promise.all([load(), loadSlots()])
-  }
+  const slot = slots.value.find((item) => `${SLOT_PREFIX}${item.id}` === id || item.id === id)
+  if (!slot) return
+  openForm('booking', null, slotCourseId.value)
+  form.choice = { slot_id: slot.id, starts_at: slot.starts_at }
 }
 
 const items = computed<TimetableItem[]>(() => [
@@ -148,7 +137,7 @@ const items = computed<TimetableItem[]>(() => [
     starts_at: slot.starts_at,
     ends_at: slot.ends_at,
     title: '可預約',
-    subtitle: slotCourse.value ? `${slotCourse.value.teacher_name}老師・點一下預約` : '點一下預約',
+    subtitle: slotCourse.value ? `${slotCourse.value.teacher_name}老師・點一下選時間` : '點一下選時間',
     colorKey: 'availability',
     slot: 'open' as const,
   })),
@@ -186,19 +175,37 @@ function showCard(key: string) {
   if (card) showDay(new Date(card.starts_at))
 }
 
-// 申請表單：約課（新的一堂）、請假、調課
+// 申請表單：約課（新的一堂）、請假、調課。約課和調課只能從老師開放的時段選；
+// 調課沿用原本那堂的長度，約課因為還沒有原本的長度，選 60 或 90 分鐘
+const BOOKING_MINUTES = [60, 90]
 const form = reactive({
   open: false,
   type: 'booking' as ChangeRequestType,
   courseId: '',
   lesson: null as Lesson | null,
-  start: '',
+  slots: [] as AvailabilitySlot[],
+  slotsLoaded: false,
+  choice: null as SlotChoice | null,
   minutes: 60,
   reason: '',
   error: '',
   sending: false,
 })
 const sent = ref(false)
+
+async function loadFormSlots() {
+  form.slotsLoaded = false
+  if (form.type === 'leave' || !form.courseId) return
+  try {
+    form.slots = await fetchTeacherAvailability(form.courseId)
+  } catch (problem) {
+    form.slots = []
+    form.error = problem instanceof Error ? problem.message : '讀不到老師的時段。'
+  }
+  form.slotsLoaded = true
+}
+
+watch(() => form.courseId, loadFormSlots)
 
 async function load() {
   error.value = ''
@@ -217,43 +224,50 @@ async function load() {
   }
 }
 
-function openForm(type: ChangeRequestType, lesson: Lesson | null = null) {
-  const start = lesson ? new Date(lesson.starts_at) : new Date(Date.now() + 7 * 86_400_000)
-  if (!lesson) start.setMinutes(0, 0, 0)
+function openForm(type: ChangeRequestType, lesson: Lesson | null = null, courseId = '') {
+  const nextCourse = lesson?.course_id ?? (courseId || courses.courseId.value)
+  const sameCourse = nextCourse === form.courseId
   Object.assign(form, {
     open: true,
     type,
-    courseId: lesson?.course_id ?? courses.courseId.value,
+    courseId: nextCourse,
     lesson,
-    start: toLocalInput(start),
-    minutes: lesson ? Math.round((new Date(lesson.ends_at).getTime() - start.getTime()) / 60_000) : 60,
+    choice: null,
+    minutes: lesson ? Math.round((new Date(lesson.ends_at).getTime() - new Date(lesson.starts_at).getTime()) / 60_000) : 60,
     reason: '',
     error: '',
   })
+  // 換了課程時由 watch 重新讀；同一門課也要重讀，時段可能被別的同學選走
+  if (sameCourse) loadFormSlots()
 }
 
 async function submit() {
   form.error = ''
-  const needsTime = form.type !== 'leave'
-  const start = new Date(form.start)
-  if (needsTime && (Number.isNaN(start.getTime()) || start <= new Date())) {
-    form.error = '請選擇之後的時間。'
+  const reason = form.reason.trim() || null
+  if (form.type !== 'leave' && !form.choice) {
+    form.error = '請選擇老師開放的時間。'
     return
   }
   form.sending = true
   try {
-    await createChangeRequest(form.courseId, {
-      request_type: form.type,
-      session_id: form.lesson?.id ?? null,
-      proposed_starts_at: needsTime ? start.toISOString() : null,
-      proposed_ends_at: needsTime ? new Date(start.getTime() + form.minutes * 60_000).toISOString() : null,
-      reason: form.reason.trim() || null,
-    })
+    if (form.type === 'leave') {
+      await createChangeRequest(form.courseId, { request_type: 'leave', session_id: form.lesson?.id ?? null, reason })
+    } else if (form.type === 'reschedule') {
+      await rescheduleToSlot(form.courseId, form.choice!.slot_id, {
+        session_id: form.lesson!.id,
+        starts_at: form.choice!.starts_at,
+        reason,
+      })
+    } else {
+      await bookSlot(form.courseId, form.choice!.slot_id, { starts_at: form.choice!.starts_at, minutes: form.minutes, reason })
+    }
     form.open = false
     sent.value = true
-    await load()
+    await Promise.all([load(), loadSlots()])
   } catch (problem) {
+    // 被別的同學搶先預約時後端回 409，重新讀一次時段
     form.error = problem instanceof Error ? problem.message : '申請沒有送出。'
+    await loadFormSlots()
   } finally {
     form.sending = false
   }
@@ -269,7 +283,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="課表" description="請假、調課或約新的一堂課，要等老師同意後課表才會改。">
+  <PageHeader title="課表" description="約課和調課請從老師開放的時段選，要等老師同意後課表才會改。">
     <CalendarPager v-model="anchor" v-model:mode="mode" />
     <button v-if="courses.bound.value.length" type="button" class="btn btn--primary" @click="openForm('booking')">新增申請</button>
   </PageHeader>
@@ -302,10 +316,10 @@ onMounted(async () => {
     <template v-else>
     <DayStrip v-model="anchor" :week-start="weekStart" :marked="weekDates" />
 
-    <div v-if="dayCards.length === 0 && daySlots.length === 0" class="card empty">這天沒有課，可以按「新增申請」向老師提出時間。</div>
+    <div v-if="dayCards.length === 0 && daySlots.length === 0" class="card empty">這天沒有課，可以按「新增申請」從老師開放的時段選時間。</div>
     <div v-if="daySlots.length" class="card day-slots">
       <span class="muted">{{ slotCourse?.teacher_name }}老師這天可預約：</span>
-      <button v-for="slot in daySlots" :key="slot.id" type="button" class="chip" :disabled="booking" @click="pickSlot(slot.id)">
+      <button v-for="slot in daySlots" :key="slot.id" type="button" class="chip" @click="pickSlot(slot.id)">
         {{ formatTime(slot.starts_at) }}－{{ formatTime(slot.ends_at) }}
       </button>
     </div>
@@ -367,20 +381,16 @@ onMounted(async () => {
       </div>
       <p v-if="form.lesson" class="muted">原本：{{ formatRange(form.lesson.starts_at, form.lesson.ends_at) }}</p>
       <template v-if="form.type !== 'leave'">
-        <div class="field">
-          <label class="field__label" for="change-start">{{ form.type === 'booking' ? '想上課的時間' : '改到' }}</label>
-          <input id="change-start" v-model="form.start" class="input" type="datetime-local" />
-        </div>
-        <div class="field">
+        <div v-if="form.type === 'booking'" class="field">
           <label class="field__label" for="change-minutes">上課長度</label>
           <select id="change-minutes" v-model.number="form.minutes" class="select">
-            <option :value="30">30 分鐘</option>
-            <option :value="45">45 分鐘</option>
-            <option :value="50">50 分鐘</option>
-            <option :value="60">60 分鐘</option>
-            <option :value="90">90 分鐘</option>
+            <option v-for="minutes in BOOKING_MINUTES" :key="minutes" :value="minutes">{{ minutes }} 分鐘</option>
           </select>
         </div>
+        <p v-else class="muted">上課長度不變（{{ form.minutes }} 分鐘），請選要調到老師開放的哪個時間。</p>
+        <p v-if="!form.slotsLoaded" class="muted">讀取老師的時段中…</p>
+        <SlotTimeFields v-else v-model="form.choice" :slots="form.slots" :minutes="form.minutes" id-prefix="change" />
+        <p class="change-hint">想調到老師沒開放的時間，請自行向老師聯繫。</p>
       </template>
       <div class="field">
         <label class="field__label" for="change-reason">{{ form.type === 'leave' ? '請假原因' : '想跟老師說的話（選填）' }}</label>
@@ -395,33 +405,23 @@ onMounted(async () => {
   </ModalPanel>
 
   <NoticeDialog
-    :open="picking !== null"
-    :message="picking ? `預約 ${formatRange(picking.starts_at, picking.ends_at)}？` : ''"
-    :detail="`${slotCourse?.course_title ?? ''}・${slotCourse?.teacher_name ?? ''}老師。送出後時段先保留給你，老師完成約課才會排進課表。`"
-    confirm-text="預約"
-    cancel-text="再想想"
-    @confirm="confirmBooking"
-    @cancel="picking = null"
-  />
-
-  <NoticeDialog
-    :open="booked !== ''"
-    message="已送出預約"
-    :detail="`${booked}，等老師完成約課後會變成正式的課。`"
-    @confirm="booked = ''"
-    @cancel="booked = ''"
-  />
-
-  <NoticeDialog
     :open="sent"
     message="申請已送出"
-    detail="老師同意之前，正式課表還不會改變。"
+    detail="選的時間先保留給你；老師同意之前，正式課表還不會改變。"
     @confirm="sent = false"
     @cancel="sent = false"
   />
 </template>
 
 <style scoped>
+.change-hint {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--home-cream);
+  font-size: 14px;
+}
+
 .slot-bar {
   display: flex;
   align-items: center;

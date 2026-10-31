@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from backend.models.assignment import Assignment
@@ -309,6 +309,24 @@ def redeem_course_join_code(db: Session, student: User, code: str) -> InquiryCon
     return conversation
 
 
+def reopen_slot(db: Session, slot: AvailabilitySlot) -> None:
+    """時段回到可預約，並和前後相連的可預約時段併回一段，之後才放得下較長的課。"""
+    slot.reopen()
+    neighbours = db.scalars(
+        select(AvailabilitySlot).where(
+            AvailabilitySlot.teacher_id == slot.teacher_id,
+            AvailabilitySlot.status == "open",
+            AvailabilitySlot.id != slot.id,
+            or_(AvailabilitySlot.ends_at == slot.starts_at, AvailabilitySlot.starts_at == slot.ends_at),
+        )
+    ).all()
+    for neighbour in neighbours:
+        slot.starts_at = min(slot.starts_at, neighbour.starts_at)
+        slot.ends_at = max(slot.ends_at, neighbour.ends_at)
+        slot.from_weekly = slot.from_weekly and neighbour.from_weekly
+        db.delete(neighbour)
+
+
 def require_bound(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> Course:
     course = StudentRepository.get_course(db, course_id)
     if course is None:
@@ -324,22 +342,21 @@ def create_change_request(
     course_id: uuid.UUID,
     request_type: str,
     session_id: uuid.UUID | None,
-    proposed_starts_at: datetime | None,
-    proposed_ends_at: datetime | None,
     reason: str | None,
 ) -> ChangeRequest:
+    """請假。約課與調課要從老師開放的時段選（見 availability.py），不能自己填時間。"""
     course = require_bound(db, student.id, course_id)
-    if request_type not in ("booking", "leave", "reschedule"):
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "申請種類不正確。")
-    if request_type in ("leave", "reschedule"):
-        if session_id is None:
-            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請假或調課要指定原本的課堂。")
-        lesson = StudentRepository.get_session(db, session_id)
-        if lesson is None or lesson.student_id != student.id or lesson.course_id != course.id:
-            raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "不能對這堂課提出申請。")
     if request_type in ("booking", "reschedule"):
-        if proposed_starts_at is None or proposed_ends_at is None or proposed_ends_at <= proposed_starts_at:
-            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請填開始和結束時間，結束要晚於開始。")
+        raise StudentBusinessError(
+            status.HTTP_400_BAD_REQUEST, "請從老師開放的可上課時段選擇；想要其他時間請自行向老師聯繫。"
+        )
+    if request_type != "leave":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "申請種類不正確。")
+    if session_id is None:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請假要指定原本的課堂。")
+    lesson = StudentRepository.get_session(db, session_id)
+    if lesson is None or lesson.student_id != student.id or lesson.course_id != course.id:
+        raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "不能對這堂課提出申請。")
 
     change_request = ChangeRequest(
         course_id=course.id,
@@ -347,8 +364,6 @@ def create_change_request(
         student_id=student.id,
         session_id=session_id,
         request_type=request_type,
-        proposed_starts_at=proposed_starts_at,
-        proposed_ends_at=proposed_ends_at,
         reason=reason,
         status="pending",
     )
@@ -469,7 +484,7 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
     if not approve:
         change_request.status = "rejected"
         if slot is not None:
-            slot.reopen()
+            reopen_slot(db, slot)
         _commit(db)
         db.refresh(change_request)
         return change_request
@@ -481,7 +496,7 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
         lesson.status = "cancelled"
         booked_slot = db.scalar(select(AvailabilitySlot).where(AvailabilitySlot.lesson_id == lesson.id))
         if booked_slot is not None:
-            booked_slot.reopen()
+            reopen_slot(db, booked_slot)
     else:
         ignore_id = change_request.session_id if change_request.request_type == "reschedule" else None
         taken = StudentRepository.slot_is_taken(
@@ -495,7 +510,7 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
         if taken:
             change_request.status = "rejected"
             if slot is not None:
-                slot.reopen()
+                reopen_slot(db, slot)
             _commit(db)
             db.refresh(change_request)
             raise StudentBusinessError(status.HTTP_409_CONFLICT, "時段已被占用，正式課表沒有改變。")
@@ -517,8 +532,15 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
             lesson = StudentRepository.get_session(db, change_request.session_id)
             if lesson is None:
                 raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到原本的課堂。")
+            # 原本那堂若來自開放時段，舊時間回到可預約；選的時段標成已排
+            old_slot = db.scalar(select(AvailabilitySlot).where(AvailabilitySlot.lesson_id == lesson.id))
+            if old_slot is not None:
+                reopen_slot(db, old_slot)
             lesson.starts_at = change_request.proposed_starts_at
             lesson.ends_at = change_request.proposed_ends_at
+            if slot is not None:
+                slot.status = "booked"
+                slot.lesson_id = lesson.id
 
     change_request.status = "approved"
     _commit(db)

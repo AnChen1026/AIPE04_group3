@@ -10,6 +10,9 @@ import type {
   Message,
   Studio,
   StudioInput,
+  RecurringLesson,
+  RecurringLessonResult,
+  WeeklyWindow,
   TeacherAvailabilitySlot,
   TeacherChangeRequest,
   TeacherLesson,
@@ -87,6 +90,20 @@ export const deleteSlot = (id: string) => request<void>(`/teacher/availability/$
 // 取消預約：待確認的約課退回、已排的課取消，時段回到可預約
 export const releaseSlot = (id: string) =>
   request<TeacherAvailabilitySlot>(`/teacher/availability/${id}/release`, { method: 'POST' })
+
+// 每週固定可上課時間：整份換掉，還沒人預約的固定時段會重算
+export const fetchWeeklyAvailability = () => request<WeeklyWindow[]>('/teacher/availability/weekly')
+export const saveWeeklyAvailability = (windows: WeeklyWindow[]) =>
+  request<WeeklyWindow[]>('/teacher/availability/weekly', { method: 'PUT', body: { windows } })
+
+// 學生的固定上課時間：已排的課只有勾選的才一起改或取消
+export const fetchRecurringLessons = () => request<RecurringLesson[]>('/teacher/recurring-lessons')
+export const createRecurringLesson = (input: WeeklyWindow & { student_id: string; course_id: string }) =>
+  request<RecurringLessonResult>('/teacher/recurring-lessons', { method: 'POST', body: { ...input } })
+export const updateRecurringLesson = (id: string, input: WeeklyWindow & { move_lesson_ids: string[] }) =>
+  request<RecurringLessonResult>(`/teacher/recurring-lessons/${id}`, { method: 'PATCH', body: { ...input } })
+export const stopRecurringLesson = (id: string, cancelLessonIds: string[]) =>
+  request<void>(`/teacher/recurring-lessons/${id}/stop`, { method: 'POST', body: { cancel_lesson_ids: cancelLessonIds } })
 
 export const fetchChangeRequests = (status: 'pending' | 'all' = 'pending') =>
   request<TeacherChangeRequest[]>('/teacher/change-requests', { query: { status } })

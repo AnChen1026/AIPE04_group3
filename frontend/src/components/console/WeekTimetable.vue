@@ -4,7 +4,7 @@ import { addDays, formatTime, sameDay } from '@/utils/format'
 import { lessonColor, type TimetableItem } from './timetable'
 
 // 一週課表（設計稿 Frame 4／5）：左邊時間，上面星期，課堂依時間畫成色塊。
-// editable 時可以把東西拖到格子或色塊上：drop 帶放下的整點時間與拖曳的資料，色塊上另外帶色塊 id
+// editable 時可以把東西拖到格子或色塊上：drop 帶放下的時間（對齊 15 分鐘）與拖曳的資料，色塊上另外帶色塊 id
 const props = defineProps<{ weekStart: Date; items: TimetableItem[]; editable?: boolean }>()
 const emit = defineEmits<{
   select: [id: string]
@@ -52,11 +52,12 @@ function blockStyle(item: TimetableItem) {
   return { top: `${top}px`, height: `${height}px`, background: palette.bg, color: palette.ink }
 }
 
-// 拖曳資料都放在 text/plain；放下的位置換成那一欄、那一格的整點
+// 拖曳資料都放在 text/plain；放下的位置換成那一欄的時間，以 15 分鐘為單位
 function dropTime(event: DragEvent, day: Date, column: HTMLElement) {
   const offset = event.clientY - column.getBoundingClientRect().top
   const at = new Date(day)
-  at.setHours((hours.value[0] ?? 9) + Math.max(0, Math.floor(offset / HOUR_HEIGHT)), 0, 0, 0)
+  const quarters = Math.max(0, Math.floor(offset / (HOUR_HEIGHT / 4)))
+  at.setHours(hours.value[0] ?? 9, quarters * 15, 0, 0)
   return at
 }
 
@@ -237,8 +238,13 @@ function allowDrop(event: DragEvent) {
   font-weight: 500;
 }
 
+/* 編輯時多畫淡淡的 15 分鐘線，拖放時看得出會落在哪裡 */
 .week__column--editable {
   background-color: color-mix(in srgb, var(--home-cream) 35%, transparent);
+  background-image:
+    linear-gradient(to bottom, var(--home-line) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--home-line) 45%, transparent) 1px, transparent 1px);
+  background-size: 100% var(--hour), 100% calc(var(--hour) / 4);
 }
 
 .week__block--open,

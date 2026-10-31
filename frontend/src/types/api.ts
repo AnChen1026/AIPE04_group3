@@ -91,6 +91,34 @@ export interface TeacherAvailabilitySlot extends AvailabilitySlot {
   change_request_id: string | null
 }
 
+// 每週的一段時間。weekday 0 是週一；分鐘是當天的第幾分鐘，例如 18:00 是 1080
+export interface WeeklyWindow {
+  weekday: number
+  start_minute: number
+  end_minute: number
+}
+
+export interface RecurringLesson extends WeeklyWindow {
+  id: string
+  student_id: string
+  student_name: string
+  course_id: string
+  course_title: string
+  future_lessons: { id: string; starts_at: string; ends_at: string }[]
+}
+
+export interface RecurringSkippedWeek {
+  starts_at: string
+  ends_at: string
+  reason: string
+}
+
+export interface RecurringLessonResult {
+  rule: RecurringLesson
+  created: number
+  skipped: RecurringSkippedWeek[]
+}
+
 export interface ChangeRequest {
   id: string
   course_id: string

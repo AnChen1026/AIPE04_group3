@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import NoticeDialog from '@/components/console/NoticeDialog.vue'
+import ModalPanel from '@/components/console/ModalPanel.vue'
+import SlotTimeFields, { type SlotChoice } from '@/components/console/SlotTimeFields.vue'
 import { bookSlot, fetchTeacherAvailability } from '@/api/student'
 import type { AvailabilitySlot, ChangeRequest } from '@/types/api'
 import { formatDate, formatRange, formatTime } from '@/utils/format'
 
-// 老師還沒被預約的可上課時段，依日期分組。學生點一個時段送出約課，老師完成約課才進正式課表。
-// 課程資訊頁和聊天室共用
+// 老師還沒被預約的可上課時段，依日期分組。學生點一個時段、選開始時間與長度送出約課，
+// 老師完成約課才進正式課表。課程資訊頁和聊天室共用
 const props = defineProps<{ courseId: string }>()
 const emit = defineEmits<{ booked: [request: ChangeRequest, slot: AvailabilitySlot] }>()
 
@@ -14,8 +15,16 @@ const slots = ref<AvailabilitySlot[]>([])
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
-const picking = ref<AvailabilitySlot | null>(null)
+const picking = ref(false)
+const choice = ref<SlotChoice | null>(null)
+const minutes = ref(60)
 const booking = ref(false)
+
+function pick(slot: AvailabilitySlot) {
+  choice.value = { slot_id: slot.id, starts_at: slot.starts_at }
+  minutes.value = 60
+  picking.value = true
+}
 
 const days = computed(() => {
   const groups: { label: string; slots: AvailabilitySlot[] }[] = []
@@ -41,16 +50,19 @@ async function load() {
 }
 
 async function confirm() {
-  const slot = picking.value
-  if (!slot) return
-  picking.value = null
+  const chosen = choice.value
+  const slot = slots.value.find((item) => item.id === chosen?.slot_id)
+  if (!chosen || !slot) return
+  picking.value = false
   booking.value = true
   error.value = ''
   notice.value = ''
   try {
-    const request = await bookSlot(props.courseId, slot.id)
-    notice.value = `已預約 ${formatRange(slot.starts_at, slot.ends_at)}，等老師完成約課後會出現在課表上。`
-    emit('booked', request, slot)
+    const request = await bookSlot(props.courseId, slot.id, { starts_at: chosen.starts_at, minutes: minutes.value })
+    const startsAt = request.proposed_starts_at ?? chosen.starts_at
+    const endsAt = request.proposed_ends_at ?? slot.ends_at
+    notice.value = `已預約 ${formatRange(startsAt, endsAt)}，等老師完成約課後會出現在課表上。`
+    emit('booked', request, { ...slot, starts_at: startsAt, ends_at: endsAt })
   } catch (problem) {
     // 被別的同學搶先預約時後端回 409，重新整理清單
     error.value = problem instanceof Error ? problem.message : '預約失敗，請再試一次。'
@@ -78,7 +90,7 @@ watch(() => props.courseId, load, { immediate: true })
           type="button"
           class="chip"
           :disabled="booking"
-          @click="picking = slot"
+          @click="pick(slot)"
         >
           {{ formatTime(slot.starts_at) }}－{{ formatTime(slot.ends_at) }}
         </button>
@@ -86,15 +98,21 @@ watch(() => props.courseId, load, { immediate: true })
     </div>
   </div>
 
-  <NoticeDialog
-    :open="picking !== null"
-    :message="picking ? `預約 ${formatRange(picking.starts_at, picking.ends_at)}？` : ''"
-    detail="送出後這個時段會先保留給你，老師完成約課就會排進課表。"
-    confirm-text="預約"
-    cancel-text="再想想"
-    @confirm="confirm"
-    @cancel="picking = null"
-  />
+  <ModalPanel :open="picking" title="預約時段" @close="picking = false">
+    <div class="field">
+      <label class="field__label" for="slot-minutes">上課長度</label>
+      <select id="slot-minutes" v-model.number="minutes" class="select">
+        <option :value="60">60 分鐘</option>
+        <option :value="90">90 分鐘</option>
+      </select>
+    </div>
+    <SlotTimeFields v-if="picking" v-model="choice" :slots="slots" :minutes="minutes" id-prefix="slot" />
+    <p class="muted">送出後這段時間會先保留給你，老師完成約課就會排進課表。想要其他時間請自行向老師聯繫。</p>
+    <template #footer>
+      <button type="button" class="btn btn--ghost" @click="picking = false">再想想</button>
+      <button type="button" class="btn btn--primary" :disabled="!choice" @click="confirm">預約</button>
+    </template>
+  </ModalPanel>
 </template>
 
 <style scoped>
