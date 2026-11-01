@@ -10,7 +10,7 @@
 - 設定範本：[.env.ops.example.json](../.env.ops.example.json)。更改收件人後可執行一次 `notify-test` 驗證。
 - 備份：`db-backups/managed/263aee2fd1f82c8f/`。
 - 狀態與報告：`db-backups/managed/state/263aee2fd1f82c8f/`，含 `latest-report.json`、`backup-status.json`、`restore-status.json`、`notification-outbox.json` 與排程日誌。
-- 排程執行碼及獨立 Python 環境：`~/Library/Application Support/AIPE04Ops/`。切換 Git 分支不會移除已安裝程式，但私密設定檔與原路徑仍須保留。修改維運程式後須重新執行 `install-schedule` 發布新版本。
+- 排程執行碼及獨立 Python 環境：`~/Library/Application Support/AIPE04Ops/`。切換 Git 分支不會移除已安裝程式，但私密設定檔與原路徑仍須保留。修改維運程式後須重新執行 `install-schedule` 發布新版本；排程跑的是發布當時的程式，schema 契約也要這樣更新。
 
 ## 操作指令
 
@@ -48,10 +48,10 @@ PostgreSQL 使用同一個唯讀 snapshot 備份 `public` schema、資料、資�
 
 探測失敗會標示未知，不會假裝零用量或錯誤解除既有警報。同嚴重度條件每 24 小時最多新增一次提醒；升級與恢復立即產生事件。Gmail 使用固定 SMTP 465 及完整 TLS 憑證驗證，僅寄維運摘要，不附加備份或憑證。寄送失敗保留待送事件，下次監控重試；極端情況可能重複寄送。
 
-## 已驗證
+## 已驗證（2026-10-28）
 
 26 個維運測試通過；實際備份與隔離還原核對 28 張表、5 個物件及 5 筆檔案引用。已人工觸發 launchd 工作驗證。這一階段沒有變更共用站 schema 或部署應用程式；獨立音訊評分 worker 仍留待下一階段。
 
 ## CI 與 schema 升級
 
-CI／PR 合併順序見 [CI 與 PR 手冊](ci-and-pr.md)。備份欄位契約明確支援現有 `016_storage_cleanup` 與合併後的 `017_merge_storage_audio`；後者納入 `practice_feedbacks.score_sheet_path`。未知 revision 或多個 migration head 會拒絕備份，避免漏驗檔案引用。升級其他 schema 前需先更新此契約。
+CI／PR 合併順序見 [CI 與 PR 手冊](ci-and-pr.md)。備份欄位契約（`scripts/ops/database_refs.py`）明確支援 `016_storage_cleanup` 到 `020_course_embeddings`；`017_merge_storage_audio` 起納入 `practice_feedbacks.score_sheet_path`。未知 revision 或多個 migration head 會拒絕備份，避免漏驗檔案引用。升級其他 schema 前需先更新此契約。

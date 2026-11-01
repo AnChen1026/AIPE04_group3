@@ -1,3 +1,5 @@
+> 歷史紀錄：這是當時的設計或實作計畫，內容不一定符合目前程式。現況以 `README.md`、`docs/` 其他文件與程式碼為準。
+
 # AICourse Full Stack Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

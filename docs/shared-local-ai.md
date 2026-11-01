@@ -1,10 +1,10 @@
 # 共用本機 AI 找課：測試環境操作
 
-本功能供小規模測試：瀏覽器 → Render 後端 → 臨時 HTTPS 通道 → Mac 上的受限閘道 → Ollama。模型不在組員的電腦執行。Mac 必須開機、保持網路及服務運作；休眠或網路中斷會使 AI 找課失敗。未設定模型時保留原本的找課方式；已設定但模型無法連線時，介面顯示錯誤並保留輸入，其他一般課程頁面仍可使用。
+本功能供小規模測試：瀏覽器 → Render 後端 → 臨時 HTTPS 通道 → Mac 上的受限閘道 → Ollama。模型不在其他使用者的電腦執行。Mac 必須開機、保持網路及服務運作；休眠或網路中斷會使 AI 找課失敗。未設定模型時保留原本的找課方式；已設定但模型無法連線時，介面顯示錯誤並保留輸入，其他一般課程頁面仍可使用。
 
 ## 啟動本機模型與閘道
 
-以下在取得此功能分支、安裝後端依賴及 Ollama 後操作。首次執行需下載模型，磁碟與記憶體空間依 Ollama 模型版本而定。
+以下在取得最新 `main`、安裝後端依賴及 Ollama 後操作。首次執行需下載模型，磁碟與記憶體空間依 Ollama 模型版本而定。
 
 ```sh
 ollama pull qwen3:4b-instruct-2507-q4_K_M
@@ -14,7 +14,7 @@ chmod 700 .scratch/shared-ai
 python -c 'import os,secrets; p=".scratch/shared-ai/gateway-token"; f=os.open(p, os.O_CREAT|os.O_EXCL|os.O_WRONLY, 0o600); os.write(f,secrets.token_urlsafe(48).encode()); os.close(f)'
 ```
 
-最後一行只在首次建立金鑰時執行；檔案已存在會安全地報錯，不會覆蓋舊金鑰。妥善保管此檔案，不要放進 Git 或提供給組員。請確認 Ollama 正在執行，接著在專案根目錄開啟一個終端機：
+最後一行只在首次建立金鑰時執行；檔案已存在會安全地報錯，不會覆蓋舊金鑰。妥善保管此檔案，不要放進 Git 或提供給其他人。請確認 Ollama 正在執行，接著在專案根目錄開啟一個終端機：
 
 ```sh
 export AI_GATEWAY_TOKEN="$(cat .scratch/shared-ai/gateway-token)"
@@ -39,7 +39,7 @@ cloudflared tunnel --url http://127.0.0.1:18763
 - `AI_COURSE_GATEWAY_TOKEN`：本機 `.scratch/shared-ai/gateway-token` 的完整內容。
 - `AI_COURSE_EMBEDDING_VERSION`：本機 Ollama 的 `bge-m3:567m` 模型完整 digest（64 個十六進位字元）；本機可用 `curl -s http://127.0.0.1:11434/api/tags` 取得對應 `digest`。
 
-這些是後端設定，不是 `VITE_` 前端變數；網址改變後必須更新 Render 並重新部署服務。不要在未先部署本分支程式與完成遷移前啟用。若金鑰疑似外洩，停止通道與閘道、刪除舊金鑰後重新建立，並同步更新 Render。
+這些是後端設定，不是 `VITE_` 前端變數；網址改變後必須更新 Render 並重新部署服務。不要在部署含此功能的程式並完成遷移前啟用。若金鑰疑似外洩，停止通道與閘道、刪除舊金鑰後重新建立，並同步更新 Render。
 
 ## 資料庫與索引
 

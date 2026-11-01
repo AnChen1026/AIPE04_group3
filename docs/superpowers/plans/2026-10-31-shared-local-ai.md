@@ -1,3 +1,5 @@
+> 歷史紀錄：這是當時的設計或實作計畫，內容不一定符合目前程式。現況以 `README.md`、`docs/` 其他文件與程式碼為準。
+
 # Shared Local AI Implementation Plan
 
 **Goal:** 以本機 Qwen、BGE-M3 為共享測試站提供有根據的多輪找課。

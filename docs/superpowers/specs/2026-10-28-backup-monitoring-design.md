@@ -1,3 +1,5 @@
+> 歷史紀錄：這是當時的設計或實作計畫，內容不一定符合目前程式。現況以 `README.md`、`docs/` 其他文件與程式碼為準。
+
 # 共用測試站自動備份與監控設計
 
 使用者已批准前一則藍圖並要求開始實作。本輪交付第一、二階段，獨立評分 worker 留到下一階段。不新增付費服務，不更改網站行為或雲端資料表。
@@ -34,6 +36,6 @@
 
 Mock 測試覆蓋 nested/paginated objects、unsafe key、下載/DB failure 不形成成功備份、不觸發 retention、未知資料夾不刪、同來源篩選、hash corruption、告警去重/升級/恢復、獨立 probe failure、秘密不出現在報告或排程。
 
-實際執行一次雲端備份、隔離還原、監控；核對現有共用站 426 published courses 不變；安裝兩個 launchd jobs，print 狀態與人工 kickstart 驗證。記錄首次成功 backup、restore、report 位置與本機依賴限制。
+實際執行一次雲端備份、隔離還原、監控；核對現有共用站已發布課程數不變；安裝兩個 launchd jobs，print 狀態與人工 kickstart 驗證。記錄首次成功 backup、restore、report 位置與本機依賴限制。
 
 排程使用 ~/Library/Application Support/AIPE04Ops 下的版本化程式與獨立 Python 環境，避免切換 Git 分支移除執行模組；私密設定仍由原工作目錄讀取。檔案欄位契約維護於 scripts/ops/database_refs.py，新增資料庫檔案欄位時須同步更新。

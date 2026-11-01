@@ -2,12 +2,11 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 版本 | V1.4 |
 | 文件類型 | Software Architecture Document |
-| 最後更新 | 2026-10-19 |
-| 對應文件 | PRD、SRS、User Flow、資料表設計、功能製作與分工說明 |
+| 最後更新 | 2026-11-01 |
+| 對應文件 | PRD、SRS、User Flow、資料表設計、功能範圍與規則說明 |
 
-本文件以 PRD／SRS／User Flow V1.4 為準，說明系統分層與呼叫方式。畫面都在 Vue（`frontend/`），後端只提供 API，已不再有 Jinja 測試頁。本文中的 Worker 與 Object Storage 是目標架構，不代表已完整實作。
+本文件以 PRD／SRS／User Flow 為準，說明系統分層與呼叫方式。畫面都在 Vue（`frontend/`），後端只提供 API，已不再有 Jinja 測試頁。本文中的獨立 Worker 是目標架構，目前還沒有；AI 測驗也還沒有實作。
 
 ## 1. 架構目標
 
@@ -37,23 +36,23 @@ flowchart TD
     WORKER --> OBJ
 ```
 
-平台維運管理員第一版只做必要帳號／異常與稽核，完整管理員介面延後。
+平台管理員目前有老師審核、師生名單、忘記密碼處理與對話，沒有獨立的稽核功能。
 
-目前可執行版本由 `backend/main.py` 啟動 FastAPI API，畫面由 Vue（`frontend/`）負責，檔案存在本機 `uploads/`。目前錄音評分用 FastAPI 的 BackgroundTasks 在同一個服務背景執行；獨立的 Background Worker 與 Object Storage 仍是目標狀態。
+上圖是目標架構。目前可執行版本由 `backend/main.py` 啟動 FastAPI API，畫面由 Vue（`frontend/`）負責。檔案本機放 `uploads/`，`STORAGE_BACKEND=supabase` 時放 Supabase 私有 bucket。錄音評分用 FastAPI 的 BackgroundTasks 在同一個服務背景執行；獨立的 Background Worker 仍是目標狀態。
 
 ## 3. 目標容器與責任
 
 | 元件 | 主要責任 |
 | --- | --- |
-| Vue | 公開課程／推薦、老師／學生頁面、錄音 UI、接洽對話 |
-| FastAPI | 登入、REST API、權限、狀態機、WebSocket 驗證、建立背景任務 |
-| PostgreSQL | 帳號、課務、洽詢、訊息、練習結果、課前摘要、測驗與稽核 |
-| Object Storage | 教材、參考 MIDI、學生錄音 |
-| Background Worker | 音訊轉音符、MIDI 對齊、規則評分、LLM 回饋、課前摘要、出題草稿 |
-| LLM | 推薦條件抽取、推薦理由、學生回饋文字、課前摘要文字、測驗題目草稿 |
+| Vue | 公開課程／推薦、老師／學生／管理員頁面、錄音 UI、接洽對話 |
+| FastAPI | 登入、REST API、權限、狀態機、WebSocket 驗證、建立背景任務（目前也執行音訊評分） |
+| PostgreSQL | 帳號、課務、接洽對話、訊息、作業、練習結果、課前摘要、首頁推薦與語意向量 |
+| 檔案儲存 | 教材、參考 MIDI、學生錄音、對照樂譜、圖片與證明文件。本機 `uploads/`，共用測試站 Supabase Storage |
+| Background Worker（目標，尚未建立） | 音訊轉音符、MIDI 對齊、規則評分、LLM 回饋、課前摘要、出題草稿 |
+| LLM | 學生回饋文字、課前摘要文字（Gemini 或 OpenAI，失敗時改用規則文字）。首頁推薦可選用共用本機模型 |
 | 音訊／評分 | Basic Pitch 轉音符事件，再與參考 MIDI 對齊並計算音高／節奏 |
 
-MVP 可先同一個 FastAPI 服務，但程式仍維持模組邊界；音訊處理不得長時間佔用一般 API worker。
+目前同一個 FastAPI 服務，程式維持模組邊界。音訊評分用 BackgroundTasks，不擋住送出請求，但仍佔用同一個服務的資源。
 
 ## 4. 後端模組
 
@@ -63,16 +62,20 @@ MVP 可先同一個 FastAPI 服務，但程式仍維持模組邊界；音訊處�
 backend/
 ├── main.py              建立 FastAPI、掛 Session／CORS、載入 router
 ├── routers/
-│   ├── auth.py          註冊、登入、Google 驗證
-│   ├── admin.py         老師審核、師生名單
+│   ├── auth.py          註冊、登入、密碼、Google 驗證
+│   ├── admin.py         老師審核、師生名單、忘記密碼處理
 │   ├── public_courses.py、images.py、recommendations.py
 │   ├── student.py       學生 API
+│   ├── assignments.py   作業（老師與學生）
+│   ├── support.py       管理員對話
 │   ├── chat_ws.py       接洽對話 WebSocket
 │   ├── health.py
 │   └── teacher_*.py     老師端 API
 ├── services/
 │   ├── practice.py      錄音評分流程
-│   ├── lesson_summary.py
+│   ├── assignment.py、availability.py、weekly_schedule.py
+│   ├── recommendation.py、ai_*.py
+│   ├── lesson_summary.py、llm.py
 │   └── teacher_sync.py
 ├── audio_scoring/       錄音與參考 MIDI 比對評分
 ├── repositories/
@@ -82,7 +85,8 @@ backend/
 │   ├── common.py
 │   └── teacher.py
 └── core/
-    └── uploads.py
+    ├── uploads.py
+    └── storage.py       本機與 Supabase 共用的檔案存取
 ```
 
 新功能應延續 Router → Service → Repository → Model 的分層。背景工作可在需要時新增 `workers/`，不把規劃中的資料夾誤寫成已完成。
@@ -97,13 +101,13 @@ REST / WebSocket Endpoint
   → SQLAlchemy / PostgreSQL
 ```
 
-慢速工作：
+慢速工作（目前用 BackgroundTasks，還沒有獨立 Worker）：
 
 ```text
-Service 建立提交／任務並 Commit
-  → Worker 取得任務
-  → Object Storage / 音訊分析 / LLM
-  → 驗證 Structured Result
+Service 建立練習錄音並 Commit
+  → Router 排一個背景工作
+  → 檔案儲存 / 音訊分析 / LLM
+  → 驗證結構化結果
   → 更新 pending → processing → completed／failed
 ```
 
@@ -122,18 +126,18 @@ Service 建立提交／任務並 Commit
 
 ```text
 訪客描述需求
-  → LLM 抽取條件與程度證據（未知不臆造，最多追問兩題）
-  → 後端驗證並寫入 recommendation_sessions／preferences
-  → DB 只篩已發布的鋼琴課
-  → 產生推薦結果
+  → 後端用規則解析條件（未知不臆造，最多追問兩題）；設定共用本機模型時，模型提出的條件也由後端驗證
+  → 寫入 recommendation_sessions
+  → DB 只篩已發布的鋼琴課；有索引時再做語意排序
+  → 寫入 recommendation_items，理由只由實際命中的欄位組成
   → 訪客查看詳情；洽詢前先註冊／登入
   → 學生按洽詢建立接洽對話
-  → 老師貼綁定碼，學生輸入後進入該課
+  → 老師貼綁定碼（或給限時綁定碼），學生輸入後進入該課
 ```
 
-LLM 不編造不存在的課程，也不把一次練習分數當成正式鋼琴程度。
+LLM 不編造不存在的課程，也不把一次練習分數當成正式鋼琴程度。細節見 `docs/智慧課程推薦系統流程設計.md`。
 
-## 8. 即時聊天架構
+## 8. 接洽對話的即時傳遞
 
 1. Client 用 REST 取得對話列表與歷史。
 2. Client 以已驗證 Session 建立 WebSocket。
@@ -153,35 +157,34 @@ LLM 不編造不存在的課程，也不把一次練習分數當成正式鋼琴�
 
 ```mermaid
 flowchart TD
-    A[老師發布參考 MIDI 作業] --> B[學生麥克風錄音並送出]
+    A[老師發演奏作業，附參考 MIDI] --> B[學生錄音或上傳音檔並送出]
     B --> C[保存檔案，狀態 pending]
     C --> D[Basic Pitch 轉音符事件]
     D --> E[與參考 MIDI 做 DTW 對齊]
-    E --> F[規則計算音高／漏音／多彈／節奏]
+    E --> F[規則計算音高／漏音／多彈／節奏／休止符]
     F --> G[Pydantic 結構化結果]
     G --> H[LLM 只根據 JSON 寫學生回饋]
-    H --> I[completed；LLM 失敗仍保留分數]
+    H --> I[產生對照樂譜；completed；LLM 失敗仍保留分數]
 ```
 
 規則：
 
 - 音高與節奏分開計分；音對但拍不齊要分開說明。
-- Extra Note 先記錄，MVP 可不直接扣總分。
+- 音高滿分 70、節奏滿分 30。
 - 分析失敗不能顯示 0 分。
 - LLM 不直接聽原始音訊自由打分，也不編造 JSON 沒有的小節或音符。
 - 低信心時縮小主張範圍或請學生重錄。
 
-目前原型在 `backend/audio_scoring/midi_test.py`，正式功能再搬進 service／worker。
+程式在 `backend/services/practice.py`、`backend/audio_scoring/`；檔案路徑與步驟見 `docs/音訊上傳與評分資料流程.md`。
 
 ## 10. 老師課前摘要
 
-老師開啟課堂頁時產生或更新，不要求固定排程。
+老師在課表開啟一堂課時產生或更新（`GET /teacher/lessons/{lesson_id}/summary`），不用固定排程。
 
 ```text
 驗證老師權限與本次課堂學生
-  → 時間窗口：同修課上一堂已完成課 ends_at
-    到 min(現在, 本堂 starts_at)
-  → 只使用該學生、該老師、該修課的練習資料
+  → 時間窗口：同一位學生、同一門課上一堂的結束時間到這一堂開始
+  → 只使用該學生、該老師、該門課的練習資料
   → 後端統計次數、完成／失敗、可比較的差異
   → LLM 寫教學摘要
   → 寫入 lesson_preparation_summaries
@@ -189,10 +192,12 @@ flowchart TD
 
 - 沒有平台紀錄時寫「此期間沒有平台練習紀錄」，不能說學生沒練習。
 - 不同曲目不能直接比較總分來宣稱進步或退步。
-- 新分析完成或課堂改期時，標記摘要需要更新。
+- 新分析完成或課堂改期時，來源指紋會變，下次開啟時重寫摘要。
 - 摘要只給老師看，不向學生自動公開。
 
-## 11. AI 測驗
+## 11. AI 測驗（尚未實作）
+
+目前只有教材上傳與測驗列表的原型 API。下面是應有行為：
 
 - 教材先驗證檔案類型與歸屬，再抽取文字。
 - 出題 Context 只含老師指定教材。
@@ -203,12 +208,13 @@ flowchart TD
 
 ## 12. 檔案處理
 
-1. Client 向 API 申請上傳。
-2. API 驗證用途、角色、大小與允許類型（作業參考以 MIDI 為主）。
-3. 檔案進私有儲存，狀態 pending。
-4. 後端驗證檔頭／MIME。
-5. Clean 後才建立分析或出題任務。
-6. 下載用短效授權 URL 或受控串流，檔案不永久公開。
+1. Client 把檔案送到 API。
+2. API 驗證角色、歸屬、大小與類型（MIDI 與圖片檢查檔頭，錄音檢查副檔名）。
+3. `backend/core/storage.py` 把檔案存進本機 `uploads/` 或 Supabase 私有 bucket，資料庫只存位置。
+4. 資料庫提交失敗時清掉這次的新檔案；雲端刪除失敗記進 `storage_cleanup_jobs` 等重試。
+5. 下載一律經後端檢查權限，檔案不永久公開。
+
+檔案內容掃描還沒有實作。
 
 ## 13. 交易與冪等
 
@@ -217,45 +223,44 @@ flowchart TD
 - 接受洽詢與建立正式師生／修課。
 - 老師核准課表異動。
 - 建立聊天訊息。
-- 提交測驗。
-- 建立練習分析與課前摘要任務。
+- 建立練習分析與課前摘要。
 
-課表異動在單一資料庫交易中執行；申請核准不等於已改課，成功寫入後才是 executed。背景處理失敗不得把正式課表變成未知狀態。
+課表異動在單一資料庫交易中執行。背景處理失敗不得把正式課表變成未知狀態。
 
 ## 14. Deployment
 
+本機：`docker-compose.yml` 啟動 Nginx＋Vue、FastAPI、PostgreSQL 三個容器。共用測試站：
+
 ```mermaid
 flowchart TD
-    Browser --> V[Vue]
-    V --> C[Cloud Run / FastAPI]
-    Browser <--> C
-    C --> P[(Managed PostgreSQL)]
-    C --> O[Object Storage]
-    C --> W[Worker Service]
-    W --> P
-    W --> O
+    Browser --> C[Render：FastAPI 同時提供 Vue 與 /backend]
+    C --> P[(Supabase PostgreSQL)]
+    C --> O[Supabase 私有 Storage]
 ```
 
 - 前端只保存公開設定。
-- Backend、Worker 使用環境變數／Secret Manager；`.env` 不進 Git。
+- 後端使用環境變數；`.env` 不進 Git。
+- 細節見 `docs/deployment.md`、`docs/維運工作紀錄.md`。
 - WebSocket 若多 Instance，需要共享訊息機制。
 
 ## 15. 可觀測性
 
+目前有：`/health` 檢查資料庫、Docker 健康檢查、共用測試站的排程監控（見 `docs/operations.md`）。錄音保存送出當下的參考 MIDI 位置，課前摘要保存來源錄音與指紋。
+
+目標，尚未實作：
+
 - 每個 Request／Job 使用 `request_id`／`job_id`。
 - 記錄 API latency、任務 queue time、分析時長、AI 失敗、WebSocket 失敗。
 - Log 遮罩 Email、聊天內容、檔案路徑與 prompt 原文。
-- 練習與摘要保存分析版本、參考 MIDI 版本與來源提交，方便重試與追溯。
 
 ## 16. 架構待決策
 
-已決定：正式畫面使用 Vue；後端使用 FastAPI；登入使用 Session Cookie。Google 登入程式已在，金鑰本輪不要求。
+已決定：正式畫面使用 Vue；後端使用 FastAPI；登入使用 Session Cookie；共用測試站的檔案放 Supabase Storage。Google 登入程式已在，金鑰依環境設定。
 
 仍待決定：
 
-1. Object Storage 供應商與上傳流程。
-2. Background Job／Queue 技術。
-3. WebSocket 多 Instance 的廣播方式。
-4. 錄音長度上限、評分容許誤差與回饋延遲目標。
+1. Background Job／Queue 技術。
+2. WebSocket 多 Instance 的廣播方式。
+3. 錄音長度上限、評分容許誤差與回饋延遲目標。
 
-以上不改變已定方向：僅鋼琴、網站雙端、MIDI 參考、錄完後快速回饋、課前摘要、站內洽詢與老師審核後發布的 AI 測驗。
+以上不改變已定方向：僅鋼琴、網站雙端、MIDI 參考、錄完後快速回饋、課前摘要、接洽對話與老師審核後發布的 AI 測驗。
