@@ -103,6 +103,12 @@ SOUNDING_EARLY_SECONDS = 0.05
 TEMPO_CHANGE_FACTOR = 1.35
 TEMPO_CHANGE_MIN_INTERVALS = 3
 
+# 休止符沒休滿或休太久：答案至少空這麼多拍，而且前後幾顆音的時間差跳了這麼多拍，才算數
+REST_MIN_BEATS = 0.4
+REST_CHANGE_MIN_BEATS = 0.4
+# 看休止符前後各幾顆音，用中位數判斷，一顆配錯的音不影響
+REST_CHECK_NOTES = 3
+
 
 
 # ======================================================
@@ -125,6 +131,17 @@ class TempoChange(BaseModel):
     end_measure: int
     direction: str  # "faster" 或 "slower"
     factor: float
+
+
+class RestChange(BaseModel):
+    """一個沒休滿（beats 是負的）或休太久（正的）的休止符，之後的音都跟著提早或延後。"""
+
+    measure_number: int
+    beats: float
+    # 休止符後面第一顆音的學生音編號；對照樂譜從這顆重新對齊答案
+    student_index: int
+    # 重新對齊後，這一段「學生拍子 - 答案拍子」的差
+    drift_beats: float
 
 
 class MeasureSummary(BaseModel):
@@ -167,6 +184,7 @@ class ScoreReport(BaseModel):
     # 學生這次整體大約彈幾 BPM（依音和音的間隔推算）
     played_bpm: float | None = None
     tempo_changes: list[TempoChange] = []
+    rest_changes: list[RestChange] = []
     # 程式整理好的「這次真正的問題」，LLM 回饋只能提到這裡面的事；空的代表全對
     problems: list[str] = []
     raw_total: float
@@ -760,6 +778,7 @@ def score_performance(standard_midi, student_midi, alignment, metronome_bpm=None
         "metronome_bpm": metronome_bpm,
         "played_bpm": round(standard_midi["tempo_bpm"] / played_ratio, 1) if played_ratio > 0 else None,
         "tempo_changes": find_tempo_changes(standard_midi, ioi_details, tempo_ratio),
+        "rest_changes": find_rest_changes(standard_midi, student_notes, standard_to_student, tempo_ratio),
         "ioi_details": ioi_details,
         "ioi_count": ioi_count,
         "raw_total": round(raw_total, 2),
@@ -811,6 +830,57 @@ def find_tempo_changes(standard_midi, ioi_details, tempo_ratio):
         run = [{**detail, "local": local}] if direction else []
         run_direction = direction
     close_run()
+    return changes
+
+
+def find_rest_changes(standard_midi, student_notes, standard_to_student, tempo_ratio):
+    """找出沒休滿或休太久的休止符：休止符前後的音各自都穩，只有時間差在休止符這裡跳一段。
+
+    只是提醒與對照樂譜用，節奏分數還是照音和音的間隔算。
+    """
+    standard_notes = standard_midi["notes"]
+    seconds_per_beat = 60.0 / standard_midi["tempo_bpm"]
+    student_seconds_per_beat = seconds_per_beat * tempo_ratio
+    if student_seconds_per_beat <= 0:
+        return []
+
+    first_note_start = standard_notes[0]["start"] if standard_notes else 0.0
+    measure_seconds = get_measure_duration_seconds(
+        standard_midi["beats_per_bar"],
+        standard_midi["beat_unit"],
+        standard_midi["tempo_bpm"],
+    )
+    matched = [
+        (standard_index, student_index)
+        for standard_index, student_index in enumerate(standard_to_student)
+        if student_index != -1
+    ]
+    drifts = [
+        student_notes[student_index]["start"] / student_seconds_per_beat
+        - standard_notes[standard_index]["start"] / seconds_per_beat
+        for standard_index, student_index in matched
+    ]
+
+    changes = []
+    for position in range(1, len(matched)):
+        standard_index, student_index = matched[position]
+        rest_start = max(item["end"] for item in standard_notes[:standard_index])
+        rest_end = standard_notes[standard_index]["start"]
+        if (rest_end - rest_start) / seconds_per_beat < REST_MIN_BEATS:
+            continue
+        drift_before = get_median(drifts[max(0, position - REST_CHECK_NOTES):position])
+        drift_after = get_median(drifts[position:position + REST_CHECK_NOTES])
+        if abs(drift_after - drift_before) < REST_CHANGE_MIN_BEATS:
+            continue
+        changes.append(
+            RestChange(
+                # 用休止符的中間算小節：前一顆音常常在小節線前一點點就放開
+                measure_number=get_measure_number((rest_start + rest_end) / 2, first_note_start, measure_seconds),
+                beats=round(drift_after - drift_before, 2),
+                student_index=student_index,
+                drift_beats=drift_after,
+            )
+        )
     return changes
 
 
@@ -1103,6 +1173,7 @@ def build_score_report(midi_path, audio_path, standard_midi, student_midi, score
         metronome_bpm=score_result["metronome_bpm"],
         played_bpm=score_result["played_bpm"],
         tempo_changes=score_result["tempo_changes"],
+        rest_changes=score_result["rest_changes"],
         raw_total=score_result["raw_total"],
         final_score=score_result["final_score"],
         measures=score_result["measures"],
@@ -1117,12 +1188,19 @@ def join_measures(numbers):
     return "第 " + "、".join(str(number) for number in numbers) + " 小節"
 
 
+def rest_change_text(change):
+    if change.beats < 0:
+        return f"第 {change.measure_number} 小節的休止符沒有休滿，下一段提早進來了"
+    return f"第 {change.measure_number} 小節的休止符休太久，下一段晚進來了"
+
+
 def list_problems(report):
     """把評分結果整理成幾句話，給 LLM 當成「只能講這些」的清單。"""
     problems = []
     missing = [item.measure_number for item in report.measures if item.missing_notes]
     if missing:
         problems.append(join_measures(missing[:5]) + "有漏掉或彈錯的音")
+    problems.extend(rest_change_text(change) for change in report.rest_changes[:3])
     if report.extra_notes:
         problems.append(f"有 {report.extra_notes} 個多彈的音（不扣分）")
     rhythm = [item.measure_number for item in report.measures if item.rhythm_issue]
@@ -1152,6 +1230,7 @@ FEEDBACK_SYSTEM_PROMPT = """你是一位溫柔、簡潔、清楚的鋼琴老師�
 2. 問題只能從 problems 裡挑，最多挑 1～2 個最明顯的，用概括的方式說（例如「第 5、7 小節有幾個音要再確認」）。
 3. problems 是空的，代表音高和節奏都對：只稱讚和鼓勵，不可以說任何地方要改進、不穩或得分低。
 4. 有「突然變快／變慢」的問題時優先提醒，請學生那裡保持跟前後一樣的速度。
+   有「休止符沒有休滿／休太久」的問題時也要優先提醒，請學生在那裡數滿休止符的拍子再進來。
 5. 有多彈的音時只要簡單提醒「有幾個地方多彈了，可以再注意一下」，不要猜原因。
 6. 不要編造沒有給你的小節、音符、錯誤或進步，也不要提到「上次」。
 7. 最後一句給一個簡單、實際的練習建議或鼓勵。

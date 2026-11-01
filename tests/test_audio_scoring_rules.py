@@ -127,7 +127,7 @@ def test_對照樂譜上下兩行_顏色標出彈錯多彈與節奏_不會出現
     standard = _scale(count=8)
     student = [dict(item) for item in standard]
     student[2] = _note(63, student[2]["start"])  # 彈錯音高（E 彈成 Eb）
-    student[5] = _note(student[5]["pitch"], student[5]["start"] + 0.27)  # 晚了大約半拍
+    student[5] = _note(student[5]["pitch"], student[5]["start"] + 0.35)  # 晚了大半拍，對齊格子會落到下一拍
     student.append(_note(84, 1.06, duration=0.05, amplitude=0.9))  # 多彈、又很短
     student.sort(key=midi_test.note_sort_key)
 
@@ -140,6 +140,94 @@ def test_對照樂譜上下兩行_顏色標出彈錯多彈與節奏_不會出現
     # 答案都是四分音符，學生的譜也只對齊到四分音符（跟答案一樣細）
     assert "<type>16th</type>" not in xml
     assert "<type>eighth</type>" not in xml
+
+
+def test_對照樂譜畫出看得到的休止符_音長略短不會多出假休止符():
+    standard = [
+        _note(60, 0 * BEAT, duration=0.95 * BEAT),
+        _note(62, 1 * BEAT, duration=0.95 * BEAT),  # 接著空兩拍
+        _note(64, 4 * BEAT, duration=3.8 * BEAT),  # 全音符，MIDI 只有 3.8 拍
+    ]
+    xml = build_comparison_musicxml(*_score(standard, [dict(item) for item in standard]))
+    answer = xml.split("</part>")[0]
+    assert 'print-object="no"' not in xml
+    assert answer.count("<rest") == 1
+    assert "<type>half</type>" in answer
+    assert "<type>whole</type>" in answer
+    assert "<type>16th</type>" not in answer
+
+
+def test_跨小節的長音會用連結線():
+    standard = [
+        _note(60, 0 * BEAT, duration=3 * BEAT),
+        _note(62, 3 * BEAT, duration=2 * BEAT),  # 從第 4 拍延伸到下一小節
+        _note(64, 5 * BEAT, duration=BEAT),
+    ]
+    xml = build_comparison_musicxml(*_score(standard, [dict(item) for item in standard]))
+    assert '<tie type="start"' in xml and '<tie type="stop"' in xml
+    assert 'print-object="no"' not in xml
+
+
+def test_對照樂譜以學生第一個音對齊答案第一個音():
+    standard = _scale(count=8)
+    student = [dict(standard[0])] + [_note(item["pitch"], item["start"] + BEAT) for item in standard[1:]]
+    student_part = build_comparison_musicxml(*_score(standard, student)).split("</part>")[1]
+    # 第一個音對齊沒有顏色；後面整段晚一拍，要標成節奏不對，不能被起點吸收掉
+    assert "color" not in re.search(r"<note[^>]*>", student_part).group()
+    assert COLOR_RHYTHM.upper() in student_part
+
+
+def _piece_with_rest(shift_beats):
+    """第 1 小節 4 顆四分音符，第 2 小節空著，第 3 小節再 4 顆；學生第 3 小節提早或延後 shift_beats 拍。"""
+    pitches = [60, 62, 64, 65, 67, 69, 71, 72]
+    beats = [0, 1, 2, 3, 8, 9, 10, 11]
+    standard = [_note(pitch, beat * BEAT) for pitch, beat in zip(pitches, beats)]
+    student = [_note(pitch, (beat + (shift_beats if beat >= 8 else 0)) * BEAT) for pitch, beat in zip(pitches, beats)]
+    return standard, student
+
+
+def test_休止符沒休滿_只提醒休止符_後面重新對齊答案():
+    standard, student = _piece_with_rest(-2)
+    args = _score(standard, student)
+    changes = args[3]["rest_changes"]
+    assert [(change.measure_number, change.beats) for change in changes] == [(2, -2)]
+
+    report = midi_test.build_score_report("a.mid", "b.wav", args[0], args[1], args[3])
+    assert "第 2 小節的休止符沒有休滿，下一段提早進來了" in report.problems
+
+    # 第 3 小節重新對齊：只有休止符後第一顆音標藍色，後面彈對的音不標顏色
+    student_part = build_comparison_musicxml(*args).split("</part>")[1]
+    assert student_part.count(f'<note color="{COLOR_RHYTHM.upper()}"') == 1
+
+
+def test_同一段慢慢變快不會把彈對的音標成時間不對():
+    pitches = [60, 62, 64, 65, 67, 69, 71, 72] * 2
+    standard = [_note(pitch, index * BEAT) for index, pitch in enumerate(pitches)]
+    # 整體速度由另一段決定時也一樣：這裡每顆都略快一點，累積到最後差將近一拍
+    student = [_note(pitch, index * BEAT * 0.94) for index, pitch in enumerate(pitches)]
+    args = _score(standard, student, metronome_bpm=None)
+    args[3]["tempo_ratio"] = 1.0
+    student_part = build_comparison_musicxml(*args).split("</part>")[1]
+    assert f'<note color="{COLOR_RHYTHM.upper()}"' not in student_part
+
+
+def test_休止符休太久也會提醒():
+    standard, student = _piece_with_rest(2)
+    args = _score(standard, student)
+    report = midi_test.build_score_report("a.mid", "b.wav", args[0], args[1], args[3])
+    assert "第 2 小節的休止符休太久，下一段晚進來了" in report.problems
+
+
+def test_休止符有休滿就不提醒():
+    standard, student = _piece_with_rest(0)
+    assert _score(standard, student)[3]["rest_changes"] == []
+
+
+def test_沒有休止符的地方不算休止符問題():
+    # 對照用：答案沒有休止符，學生中間整段提早，不能說成休止符沒休滿
+    standard = _scale(count=8)
+    student = [_note(item["pitch"], item["start"] - (BEAT if index >= 4 else 0)) for index, item in enumerate(standard)]
+    assert _score(standard, student)[3]["rest_changes"] == []
 
 
 def test_交給LLM的內容_全對時沒有問題_滿分寫清楚():

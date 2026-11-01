@@ -85,6 +85,12 @@ def _score_sheet(standard_midi, student_midi, alignment, score_result) -> str | 
         return None
 
 
+def midi_test_rest_text(change) -> str:
+    from backend.audio_scoring import midi_test
+
+    return midi_test.rest_change_text(change)
+
+
 def _plain_feedback(report) -> str:
     """沒有設定 LLM 或呼叫失敗時，只用這次評分結果寫一段簡短說明。分數不給學生和老師看。"""
     lines = [
@@ -96,6 +102,8 @@ def _plain_feedback(report) -> str:
         speed = "變快" if change.direction == "faster" else "變慢"
         lines.append(f"{where}突然{speed}約 {change.factor} 倍，那裡要保持跟前後一樣的速度。")
         break
+    for change in report.rest_changes[:2]:
+        lines.append(f"{midi_test_rest_text(change)}，那裡要數滿拍子再進來。")
     if report.tempo_source == "metronome" and report.metronome_bpm:
         lines.append(f"這次有開節拍器（{round(report.metronome_bpm)} BPM），節奏是照節拍器的速度算的。")
     problem_measures = [

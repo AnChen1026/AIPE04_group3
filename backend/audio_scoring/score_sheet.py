@@ -21,6 +21,10 @@ COLOR_RHYTHM = "#2f6fd0"  # 音高對，但時間跟答案不一樣
 GRID_CHOICES = (1.0, 0.5, 0.25)
 GRID_TOLERANCE = 0.15
 
+# 分段對齊：一段至少有幾顆配對到的音才算自己的速度，跟整體速度最多差多少
+SEGMENT_MIN_NOTES = 4
+SEGMENT_MAX_RATE_CHANGE = 0.15
+
 
 def _choose_grid(values):
     for grid in GRID_CHOICES:
@@ -33,14 +37,15 @@ def _snap(value, grid):
     return round(value / grid) * grid
 
 
-def _median(numbers):
-    ordered = sorted(numbers)
-    if not ordered:
-        return 0.0
-    middle = len(ordered) // 2
-    if len(ordered) % 2:
-        return ordered[middle]
-    return (ordered[middle - 1] + ordered[middle]) / 2
+def _segment_rate(pairs, anchor_time, anchor_beat, default_rate):
+    """這一段每秒幾拍：通過段落起點的最小平方法。音太少或差太多（真的忽快忽慢）就用整體速度。"""
+    if len(pairs) < SEGMENT_MIN_NOTES:
+        return default_rate
+    seconds = sum((time - anchor_time) ** 2 for time, _beat in pairs)
+    if seconds <= 0:
+        return default_rate
+    rate = sum((time - anchor_time) * (beat - anchor_beat) for time, beat in pairs) / seconds
+    return rate if abs(rate / default_rate - 1) <= SEGMENT_MAX_RATE_CHANGE else default_rate
 
 
 def _build_part(events, name, time_signature, key_signature, best_clef, grid):
@@ -72,6 +77,10 @@ def _build_part(events, name, time_signature, key_signature, best_clef, grid):
             element.style.color = notes[0].style.color
         element.quarterLength = length
         part.insert(offset, element)
+    # 自己分好小節、補休止符。交給匯出時才補的話，music21 會把休止符標成隱藏，譜上看不到
+    part.makeMeasures(inPlace=True)
+    part.makeTies(inPlace=True)  # 要先切開跨小節的長音，不然後半段的位置會被當成空的補上休止符
+    part.makeRests(fillGaps=True, timeRangeFromBarDuration=True, inPlace=True)
     return part
 
 
@@ -94,21 +103,45 @@ def build_comparison_musicxml(standard_midi, student_midi, alignment, score_resu
     first_start = standard_notes[0]["start"]
     standard_offsets = [(item["start"] - first_start) / seconds_per_beat for item in standard_notes]
     standard_lengths = [max(item["duration"] / seconds_per_beat, 0.01) for item in standard_notes]
-    grid = _choose_grid(standard_offsets + standard_lengths)
+    # 格子只看音的起點。MIDI 的音長常比記譜短一點（例如 3.8 拍），拿來選格子會變太細，多出假的休止符
+    grid = _choose_grid(standard_offsets)
 
-    # 學生的秒數換成答案的拍子：除以評分用的速度比例，再對齊起點（用已配對的音取中位數，少數錯音不影響）
+    # 學生的秒數換成答案的拍子：除以評分用的速度比例，再分段對齊。
+    # 第一段從第一組配對到的音開始，學生第一個音就落在答案第一個音上；開頭多彈的雜音不會把整行推走。
+    # 休止符沒休滿或休太久時，從下一顆音開新的一段，後面彈對的音才不會整段被標成錯
     tempo_ratio = score_result.get("tempo_ratio") or 1.0
     student_seconds_per_beat = seconds_per_beat * tempo_ratio
     standard_to_student = alignment["standard_to_student"]
-    origins = [
-        student_notes[student_index]["start"] - standard_offsets[standard_index] * student_seconds_per_beat
-        for standard_index, student_index in enumerate(standard_to_student)
-        if student_index != -1
-    ]
-    origin = _median(origins) if origins else student_notes[0]["start"]
+    student_to_standard = {student_index: standard_index for standard_index, student_index in enumerate(standard_to_student)}
+    student_to_standard.pop(-1, None)
+    rest_changes = score_result.get("rest_changes") or []
+    realign_notes = {change.student_index for change in rest_changes}
+
+    matched = sorted(
+        (student_notes[student_index]["start"], standard_offsets[standard_index])
+        for student_index, standard_index in student_to_standard.items()
+    )
+    anchors = [matched[0] if matched else (student_notes[0]["start"], 0.0)]
+    for change in rest_changes:
+        standard_index = student_to_standard[change.student_index]
+        anchor_time = (standard_notes[standard_index]["start"] / seconds_per_beat + change.drift_beats) * student_seconds_per_beat
+        anchors.append((anchor_time, standard_offsets[standard_index]))
+
+    # 沒開節拍器時，每段照學生那段自己的速度換算，整段慢慢偏快或偏慢不會被標成時間不對
+    follow_student = score_result.get("tempo_source") != "metronome"
+    segments = []
+    for position, (anchor_time, anchor_beat) in enumerate(anchors):
+        next_time = anchors[position + 1][0] if position + 1 < len(anchors) else float("inf")
+        pairs = [item for item in matched if anchor_time <= item[0] < next_time]
+        rate = _segment_rate(pairs, anchor_time, anchor_beat, 1 / student_seconds_per_beat) if follow_student else 1 / student_seconds_per_beat
+        segments.append((anchor_time, anchor_beat, rate))
 
     def student_offset(item):
-        return max(0.0, _snap((item["start"] - origin) / student_seconds_per_beat, grid))
+        anchor_time, anchor_beat, rate = segments[0]
+        for segment in segments:
+            if item["start"] >= segment[0]:
+                anchor_time, anchor_beat, rate = segment
+        return max(0.0, _snap(anchor_beat + (item["start"] - anchor_time) * rate, grid))
 
     standard_snapped = [_snap(value, grid) for value in standard_offsets]
 
@@ -132,12 +165,12 @@ def build_comparison_musicxml(standard_midi, student_midi, alignment, score_resu
         standard_events.append((standard_snapped[index], _snap(standard_lengths[index], grid) or grid, item["pitch"], color))
 
     student_events = []
-    student_to_standard = {student_index: standard_index for standard_index, student_index in enumerate(standard_to_student)}
     for index, item in enumerate(student_notes):
         offset = student_offset(item)
         length = _snap(item["duration"] / student_seconds_per_beat, grid) or grid
         if index in student_to_standard:
-            color = None if offset == standard_snapped[student_to_standard[index]] else COLOR_RHYTHM
+            on_time = offset == standard_snapped[student_to_standard[index]] and index not in realign_notes
+            color = None if on_time else COLOR_RHYTHM
         elif index in wrong_student:
             color = COLOR_WRONG
         else:
