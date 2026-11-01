@@ -9,7 +9,7 @@
 3. SQLAlchemy Model 把 Python 物件轉成 SQL。
 4. PostgreSQL 保存資料並執行外鍵、唯一值與檢查限制。
 
-`backend/models/*.py` 是目前資料表的 Python 對照；`alembic/versions/*.py` 是資料庫從舊版走到新版的正式紀錄。所有正式資料表由 Alembic 建立，應用程式啟動時不使用 `create_all()`。
+`backend/models/*.py` 是目前資料表的 Python 對照；`backend/alembic/versions/*.py` 是資料庫從舊版走到新版的正式紀錄。所有正式資料表由 Alembic 建立，應用程式啟動時不使用 `create_all()`。
 
 ## Migration 版本鏈
 
@@ -25,9 +25,18 @@
   → 009 images / optional teacher profile
   → 010 reference MIDI metadata
   → 011 recommendation sessions / items
+  → 012 password reset requests
+  → 013 assignments / support chat
+  → 014 course join codes
+  → 015 studios
+  → 016_storage_cleanup ─┐
+  → 016_metronome_score ─┼→ 017_merge_storage_audio ─┐
+       └→ 017_availability_slots ────────────────────┴→ 018_merge_availability_storage
+  → 019 weekly schedule
+  → 020 course embeddings
 ```
 
-目前只有一個 head：`011_recommendations`。
+`015` 之後有兩次分支，由 `017_merge_storage_audio` 與 `018_merge_availability_storage` 合併。目前只有一個 head：`020_course_embeddings`。所有資料表的用途見 `docs/資料表設計.md`，這裡只寫需要細節的表。
 
 ## `recommendation_sessions`
 
@@ -64,11 +73,11 @@
 
 `courses` 是課程的權威資料表。每門課只能由自己的老師管理，狀態為 `draft`、`published` 或 `archived`；只有 `published` 可以公開顯示及建立接洽。
 
-過渡期間，`courses.reference_midi_path` 繼續供現有下載、評分與摘要功能讀取。新的上傳同時寫入這個欄位及 `reference_midis`。
+過渡期間，`courses.reference_midi_path` 繼續供課程 MIDI 下載，以及作業沒有 MIDI 時的評分讀取。課程 MIDI 新上傳同時寫入這個欄位及 `reference_midis`。演奏作業的 MIDI 存在 `assignments.midi_path`，不經過 `reference_midis`。
 
 ## `reference_midis`
 
-一筆代表一門課目前使用的參考 MIDI。資料庫保存 metadata，MIDI 內容目前仍放在應用程式主機的 `uploads/midi/`。
+一筆代表一門課目前使用的參考 MIDI。資料庫保存 metadata，MIDI 內容本機放 `uploads/midi/`，共用測試站放 Supabase 私有 bucket。
 
 | 欄位 | 可空 | 說明 |
 | --- | --- | --- |
@@ -114,10 +123,26 @@
 4. 正式資料完成筆數與路徑比對。
 5. 已完成備份及還原演練。
 
+## `course_embeddings`
+
+一門課一筆語意向量，只用來排序已篩好的已發布課程。課程事實仍以 `courses` 為準。
+
+| 欄位 | 可空 | 說明 |
+| --- | --- | --- |
+| `course_id` | 否 | 所屬課程 |
+| `model_version` | 否 | 模型 digest。和設定不同時向量不使用 |
+| `content_hash` | 否 | 課程內容雜湊。課程編輯後舊向量失效，需重跑索引工具 |
+| `embedding` | 否 | 向量（JSONB） |
+| `updated_at` | 否 | 更新時間 |
+
+## `storage_cleanup_jobs`
+
+雲端檔案刪除失敗時記下 `storage_key` 與 `attempts`，由 `python -m scripts.retry_storage_cleanup` 重試，成功後移除。
+
 ## 資料治理待辦
 
-- 將 MIDI、錄音與圖片移到具備權限、版本、備份及生命週期政策的物件儲存。
-- 建立每日自動備份、跨主機保存與定期還原演練。
+- 正式環境的檔案儲存要有權限、版本、備份及生命週期政策（共用測試站已用 Supabase 私有 bucket）。
+- 把共用測試站的備份從單一維運電腦移到常駐主機，並保存第二份副本（現況見 `docs/operations.md`）。
 - 分開應用程式、Migration 與唯讀分析帳號。
 - 定義個資保存期限、使用者刪除與操作稽核政策。
 - 在後續 Migration 強化老師、課程與學生的複合歸屬一致性。

@@ -2,35 +2,23 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 版本 | V1.4 |
 | 適用專案 | AIPE04_group3 |
-| 最後更新 | 2026-10-15 |
+| 最後更新 | 2026-11-01 |
 
 ## 1. 核心規則
 
 1. 不直接在 `main` 寫程式。
 2. `main` 是唯一長期正式主線；每次新功能都從最新 `main` 建立新分支。
-3. 只在自己的功能分支修改自己負責的模組。
+3. 只在這次工作的功能分支修改，不順手改無關的模組。
 4. 不要動到別人的程式碼與未提交內容。
 5. `.env`、API Key、Password、Token、真實個資與錄音不可 Push。
-6. 功能完成後開 Pull Request，由組長或指定 Reviewer 合併。
+6. 功能完成後開 Pull Request，經 Review 與 CI 通過後合併。
 
-完整架構、資料來源、開發步驟與驗收標準以 `docs/專案架構與開發驗證手冊.md` 為準。舊 `feature/AICourseFinder` 只作研究參考，未來正式搜尋與 RAG 不在該分支繼續開發。
+完整架構、資料來源、開發步驟與驗收標準以 `docs/專案架構與開發驗證手冊.md` 為準。CI 檢查項目見 `docs/ci-and-pr.md`。舊 `feature/AICourseFinder` 只作研究參考，未來正式搜尋與 RAG 不在該分支繼續開發。
 
 ## 2. 分支
 
-以 2026-10-19 分工（Ken 離開小隊，前端由禹銨接手）、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 為準。
-
-| 負責人 | 負責範圍 | 建議分支 |
-| --- | --- | --- |
-| 姿彣 | UI/UX | 依該次介面工作指定 |
-| 禹銨 | 後端、Vue 前端與語音 | `feature/backend`、`feature/frontend`、`feature/ai-practice` |
-| 宇鈞 | AI 測驗協作與 Review | 依該次工作指定 |
-| 雄 | DevOps | 依該次部署工作指定 |
-| Ollie | 資料庫與 AI | `feature/database`、`feature/ai-support` |
-| 永富 | AI 測驗流程 | `feature/ai-quiz` |
-
-接洽對話的畫面由姿彣設計、禹銨以 Vue 實作，API 也由禹銨負責。不要把 `feature/messaging` 當成已指定的負責人分支。AI 測驗由永富依 [Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 實作，宇鈞依 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25) 協助並 Review。
+每次工作都從最新 `main` 建立分支，用名稱說明這次做什麼，例如 `feature/course-search-v1`、`docs/update-project-docs`。合併後就不再使用。遠端舊有的 `feature/backend`、`feature/frontend` 不是長期開發基地。
 
 ## 3. 第一次加入
 
@@ -38,14 +26,14 @@
 git clone <GitHub 專案網址>
 cd AIPE04_group3
 git branch -a
-git switch feature/自己的功能
+git switch -c feature/這次的功能 origin/main
 git branch --show-current
 ```
 
-若遠端已有分支但本機沒有：
+若要接續遠端已有的分支：
 
 ```bash
-git switch --track origin/feature/自己的功能
+git switch --track origin/feature/這次的功能
 ```
 
 ## 4. 每天開始
@@ -61,11 +49,11 @@ git fetch origin
 ```bash
 git switch main
 git pull origin main
-git switch feature/自己的功能
+git switch feature/這次的功能
 git merge main
 ```
 
-發生衝突時先確認每一段屬於誰；不確定就停止並詢問，不要直接選「全部採用目前版本」。
+發生衝突時先確認每一段的來源與用意；不確定就停止並詢問，不要直接選「全部採用目前版本」。
 
 ## 5. 開發完成
 
@@ -87,7 +75,7 @@ Commit 與 Push：
 
 ```bash
 git commit -m "用繁體中文說明實際完成內容"
-git push -u origin feature/自己的功能
+git push -u origin feature/這次的功能
 ```
 
 不要無腦使用 `git add .`，避免把 `.env`、錄音、測試教材或其他人的修改一起送出。
@@ -115,16 +103,16 @@ PR 內容至少包含：
 
 Reviewer 檢查：
 
-- 是否超出負責範圍。
+- 是否超出這次 PR 說明的範圍。
 - 是否改到共用 API／Schema。
 - 是否具角色、租戶與對話權限驗證。
 - 是否含 Migration 與測試。
 - 是否提交 Secret、測試個資、大型音訊或教材。
 - 文件是否需要同步。
 
-## 7. 組長合併原則
+## 7. 合併原則
 
-- 組長也不建議直接在 `main` 開發。
+- 任何人都不直接在 `main` 開發。
 - 使用 GitHub PR 合併，保留 Review 與 CI 紀錄。
 - PR 未通過測試、文件不一致或存在未解決衝突時不合併。
 - 合併後通知其他分支同步 `main`。
@@ -134,9 +122,9 @@ Reviewer 檢查：
 正確：
 
 ```text
-新增站內聊天訊息分頁與未讀數 API
+新增接洽對話訊息分頁與未讀數 API
 修正學生可讀取其他對話的權限漏洞
-建立測驗與題目資料表 Migration
+建立工作室資料表 Migration
 ```
 
 避免：
@@ -163,13 +151,13 @@ fix
 ```text
 確認分支與狀態
 → 同步 main
-→ 只修改自己的模組
+→ 只修改這次相關的模組
 → 執行測試
 → 檢查 diff
 → 中文 Commit
 → Push 功能分支
 → 開 PR
 → Review 與 CI 通過
-→ 由組長合併 main
+→ 合併 main
 ```
 

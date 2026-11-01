@@ -1,3 +1,5 @@
+> 歷史紀錄：這是當時的設計或實作計畫，內容不一定符合目前程式。現況以 `README.md`、`docs/` 其他文件與程式碼為準。
+
 > 歷史紀錄：本文件是 2026-10-15 的早期設計，`007_database_foundation`、`lesson_summaries` 未採用。現行資料表以 `alembic/versions/`（`008_lesson_summaries` 的 `lesson_preparation_summaries`、`010_reference_midis`）與 `docs/database/data-dictionary.md` 為準。
 
 # Issue #18 Database Foundation Implementation Plan

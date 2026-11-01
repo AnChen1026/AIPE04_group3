@@ -1,3 +1,5 @@
+> 歷史紀錄：這是合併 `010_reference_midis` 時的 PR 說明，內容是當時的狀態。目前狀態見 `docs/database/migration-runbook.md`。
+
 目前 main 僅有 Alembic 009，參考 MIDI 缺少獨立 metadata。本變更新增 010，回填既有 MIDI 路徑，並讓上傳同一交易同步保存課程路徑、原始檔名、SHA-256 與大小；既有下載及評分沿用舊欄位。
 
 已整合 main `2fa1a28` 並解決資料表文件衝突。修正 migration 降版測試污染後續 API 測試，以及 metadata 查詢失敗遺留新檔案的問題。補上 PostgreSQL CI、資料字典及新功能接續 migration 的交接規則。

@@ -1,3 +1,5 @@
+> 歷史紀錄：這是當時的設計或實作計畫，內容不一定符合目前程式。現況以 `README.md`、`docs/` 其他文件與程式碼為準。
+
 # CI 與相依 PR 設計
 
 依使用者同意的順序：補基本 CI、提交功能分支、建立 PR，讓團隊審查後合併。採用既有 GitHub Actions，沿用 PostgreSQL/API 測試，新增前端 lint/type/build、維運 lint/unit tests，以及追蹤檔案防護。替代方案是只開 PR 或立即開 CD；前者缺少自動驗證，後者在分支與 migration 尚未整合前容易部署未驗證版本，因此此輪不採用。

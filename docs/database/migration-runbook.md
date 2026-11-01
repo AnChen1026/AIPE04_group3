@@ -16,13 +16,13 @@ alembic -c backend/alembic.ini heads
 alembic -c backend/alembic.ini history --verbose
 ```
 
-本資料庫整合分支的預期 head（不包含另一功能分支的首頁推薦 011）：
+目前 `main` 的預期 head：
 
 ```text
-011_recommendations (head)
+020_course_embeddings (head)
 ```
 
-首頁推薦 `011_recommendations` 合併後，以 `alembic heads` 的實際唯一 head 為準。
+之後一律以 `alembic heads` 的實際唯一 head 為準。兩條功能分支各自新增 Migration 造成多個 head 時，用 merge revision 合併（前例是 `017_merge_storage_audio`、`018_merge_availability_storage`）。
 
 建立新版本前，先同步主分支並確認目前 head。新 Migration 的 `down_revision` 必須指向當下唯一 head。
 
@@ -38,12 +38,12 @@ alembic -c backend/alembic.ini upgrade head
 
 ## 可重現的隔離驗收
 
-先安裝 `backend/requirements.txt`。下面使用獨立、無持久化 volume 的 PostgreSQL 16 容器，不使用開發資料庫：
+先安裝 `backend/requirements.txt`。下面使用獨立、無持久化 volume 的 PostgreSQL 17 容器，不使用開發資料庫：
 
 ```bash
 docker run -d --name aipe04-db-test \
   -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_password \
-  -e POSTGRES_DB=aipe04_test -p 127.0.0.1:55432:5432 postgres:16
+  -e POSTGRES_DB=aipe04_test -p 127.0.0.1:55432:5432 postgres:17
 docker exec aipe04-db-test pg_isready -U test_user -d aipe04_test
 ```
 
@@ -66,7 +66,7 @@ Windows PowerShell 用 `$env:DATABASE_URL = "..."` 設定相同環境變數。�
 docker rm -f aipe04-db-test
 ```
 
-測試涵蓋空庫 001→010、009 舊路徑回填、010→009→010、單一 head、MIDI metadata 雙寫與失敗清理，以及完整 API 回歸。`.github/workflows/database.yml` 在 PR 與 main push 執行相同驗收；音訊評分和 LLM 在測試中使用替身。
+測試涵蓋空庫升級到 head、009 舊路徑回填、010→009→010、推薦與檔案清理 Migration、單一 head、MIDI metadata 雙寫與失敗清理，以及完整 API 回歸。`.github/workflows/database.yml` 在 PR 與 main push 執行相同驗收；音訊評分和 LLM 在測試中使用替身。
 
 ## Migration 整合測試
 
@@ -134,10 +134,10 @@ pg_restore --dbname=restore_drill backup-before-migration.dump
 
 ## Rollback 原則
 
-010 可執行：
+下面以 `010` 為例。目前 head 是 `020`，要回到 `009` 會連同 `011`～`020` 一起降版，新表的資料會消失，所以只適合沒有重要資料的環境。`010` 本身可執行：
 
 ```bash
-alembic downgrade 009_images_profile
+alembic -c backend/alembic.ini downgrade 009_images_profile
 ```
 
 這會刪除 `reference_midis`，但保留 `courses.reference_midi_path`，所以舊版下載與評分仍能使用。降級前仍要備份；新上傳的 SHA-256、原始檔名與大小只存在 metadata，降級後會失去。
