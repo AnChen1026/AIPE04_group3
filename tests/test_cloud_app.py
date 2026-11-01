@@ -10,7 +10,7 @@ def test_cloud_serves_spa_and_prefixed_api(tmp_path):
     assert client.get("/").text == "<html>melo</html>"
     assert client.head("/").status_code == 200
     assert client.get("/courses").text == "<html>melo</html>"
-    assert client.get("/backend/health").json() == {"status": "ok"}
+    assert client.get("/backend/health").json() == {"status": "ok", "database": "ok"}
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/backend/does-not-exist").status_code == 404
     assert client.get("/api/not-a-route").status_code == 404
