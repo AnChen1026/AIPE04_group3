@@ -24,3 +24,20 @@ def test_reference_contract_matches_all_application_file_fields():
 def test_unknown_schema_is_rejected_instead_of_omitting_new_references():
     with pytest.raises(OpsError, match="unsupported_application_schema_revision"):
         file_columns("018_unknown")
+
+
+@pytest.mark.parametrize(
+    "revision",
+    [
+        "017_merge_storage_audio",
+        "018_merge_availability_storage",
+        "019_weekly_schedule",
+        "020_course_embeddings",
+    ],
+)
+def test_later_revisions_keep_same_file_reference_contract(revision):
+    from backend.services.storage_files import FILE_FIELDS
+
+    assert set(file_columns(revision)) == {
+        (model.__tablename__, field) for model, field in FILE_FIELDS
+    }

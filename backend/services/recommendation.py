@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from backend.models.student import Course, RecommendationItem, RecommendationSession
@@ -35,6 +36,10 @@ UNSUPPORTED_INSTRUMENTS = ("吉他", "小提琴", "大提琴", "爵士鼓", "打
 
 class RecommendationNotFound(Exception):
     """對談不存在、過期或不屬於目前瀏覽器。"""
+
+
+class RecommendationConflict(Exception):
+    """A different request is updating this conversation."""
 
 
 def empty_criteria() -> dict[str, object | None]:
@@ -107,14 +112,21 @@ def _unsupported(text: str) -> bool:
     return any(instrument in text for instrument in UNSUPPORTED_INSTRUMENTS) and "鋼琴" not in text
 
 
-def _load_owned(db: Session, session_id: uuid.UUID, owner_hash: str) -> RecommendationSession:
-    row = db.scalar(
-        select(RecommendationSession).where(
+def _load_owned(db: Session, session_id: uuid.UUID, owner_hash: str, lock: bool = False) -> RecommendationSession:
+    statement = select(RecommendationSession).where(
             RecommendationSession.id == session_id,
             RecommendationSession.owner_hash == owner_hash,
             RecommendationSession.expires_at > datetime.now(timezone.utc),
         )
-    )
+    if lock:
+        statement = statement.with_for_update(nowait=True)
+    try:
+        row = db.scalar(statement)
+    except OperationalError as exc:
+        if getattr(exc.orig, "sqlstate", None) == "55P03":
+            db.rollback()
+            raise RecommendationConflict from None
+        raise
     if row is None:
         raise RecommendationNotFound
     return row
@@ -124,8 +136,8 @@ def _append_message(row: RecommendationSession, role: str, content: str) -> None
     row.messages = [*row.messages, {"role": role, "content": content}]
 
 
-def _ask(row: RecommendationSession, field: str) -> None:
-    question = QUESTIONS[field]
+def _ask(row: RecommendationSession, field: str, question: str | None = None) -> None:
+    question = question or QUESTIONS[field]
     row.asked_fields = [*row.asked_fields, field]
     row.question_count += 1
     row.status = "asking"
@@ -134,13 +146,7 @@ def _ask(row: RecommendationSession, field: str) -> None:
     _append_message(row, "assistant", question)
 
 
-def _matching_rows(db: Session, criteria: dict[str, object | None]):
-    statement = (
-        select(Course, User.name, TeacherDB.photo_path)
-        .join(User, User.id == Course.teacher_id)
-        .outerjoin(TeacherDB, TeacherDB.user_id == Course.teacher_id)
-        .where(Course.status == "published")
-    )
+def _apply_required_filters(statement, criteria):
     if criteria.get("level"):
         statement = statement.where(Course.level == criteria["level"])
     if criteria.get("style"):
@@ -158,12 +164,33 @@ def _matching_rows(db: Session, criteria: dict[str, object | None]):
         statement = statement.where(
             Course.time_slots.is_not(None), Course.time_slots.ilike(f"%{criteria['time_slot']}%")
         )
-    return db.execute(statement.order_by(Course.created_at.desc(), Course.id).limit(3)).all()
+    return statement
+
+
+def _matching_rows(db: Session, criteria: dict[str, object | None]):
+    statement = (
+        select(Course, User.name, TeacherDB.photo_path)
+        .join(User, User.id == Course.teacher_id)
+        .outerjoin(TeacherDB, TeacherDB.user_id == Course.teacher_id)
+        .where(Course.status == "published")
+    )
+    statement = _apply_required_filters(statement, criteria)
+    query = criteria.get("_semantic_query")
+    ordered = statement.order_by(Course.created_at.desc(), Course.id)
+    if query:
+        from backend.services.ai_semantic import rank_public_courses_with_status
+
+        candidates = db.execute(ordered.limit(1001)).all()
+        ranked, status = rank_public_courses_with_status(db, candidates[:1000], str(query))
+        if len(candidates) > 1000:
+            status = "truncated" if status == "ready" else "truncated_partial"
+        return ranked[:3], status
+    return db.execute(ordered.limit(3)).all(), "ready"
 
 
 def _finish(db: Session, row: RecommendationSession) -> None:
     db.execute(delete(RecommendationItem).where(RecommendationItem.session_id == row.id))
-    results = _matching_rows(db, row.criteria)
+    results, semantic_status = _matching_rows(db, row.criteria)
     for position, (course, _teacher_name, _photo_path) in enumerate(results):
         matched = [FIELD_LABELS[field] for field in CRITERIA_FIELDS if row.criteria.get(field) is not None]
         unknown = [
@@ -187,10 +214,26 @@ def _finish(db: Session, row: RecommendationSession) -> None:
     row.status = "done"
     row.question = None
     row.result_message = "找到以下符合條件的課程。" if results else "目前沒有符合這些條件的已發布課程。"
+    if semantic_status == "unavailable":
+        row.result_message += "語意排序暫時無法使用，目前以一般順序顯示。"
+    elif semantic_status == "partial":
+        row.result_message += "部分課程尚未建立語意索引，其他課程以一般順序顯示。"
+    elif semantic_status in {"truncated", "truncated_partial"}:
+        row.result_message += "目前僅搜尋最新的 1000 門符合條件課程。"
+        if semantic_status == "truncated_partial":
+            row.result_message += "部分課程的語意排序暫不可用。"
     _append_message(row, "assistant", row.result_message)
 
 
-def _advance(db: Session, row: RecommendationSession) -> None:
+def _advance(db: Session, row: RecommendationSession, suggested_question: str = "", model_used: bool = False) -> None:
+    if row.question_count < 2 and suggested_question:
+        prior_questions = {m["content"] for m in row.messages if m["role"] == "assistant"}
+        if suggested_question not in prior_questions:
+            _ask(row, "ai_followup", suggested_question)
+            return
+    if model_used:
+        _finish(db, row)
+        return
     if row.question_count < 2:
         for field in ("level", "delivery_mode"):
             if row.criteria.get(field) is None and field not in row.asked_fields:
@@ -200,10 +243,14 @@ def _advance(db: Session, row: RecommendationSession) -> None:
 
 
 def start_recommendation(db: Session, owner_hash: str, message: str) -> RecommendationSession:
+    from backend.services import ai_model_planner
+
+    # Expiry denies access immediately; physical deletion runs on new requests.
+    db.execute(delete(RecommendationSession).where(RecommendationSession.expires_at <= datetime.now(timezone.utc)))
     row = RecommendationSession(
         owner_hash=owner_hash,
         messages=[{"role": "user", "content": message}],
-        criteria={**empty_criteria(), **parse_criteria(message)},
+        criteria={**empty_criteria(), **({} if ai_model_planner.is_configured() else parse_criteria(message))},
         asked_fields=[],
         question_count=0,
         status="asking",
@@ -217,7 +264,15 @@ def start_recommendation(db: Session, owner_hash: str, message: str) -> Recommen
         row.result_message = "目前只能協助尋找鋼琴課程。"
         _append_message(row, "assistant", row.result_message)
     else:
-        _advance(db, row)
+        planned = ai_model_planner.plan_turn(message, row.criteria)
+        if planned is None and ai_model_planner.is_configured():
+            db.rollback()
+            raise ai_model_planner.AIPlannerUnavailable()
+        if planned is not None:
+            row.criteria, question = planned
+        else:
+            question = ""
+        _advance(db, row, question, model_used=planned is not None)
     db.commit()
     db.refresh(row)
     return row
@@ -226,16 +281,41 @@ def start_recommendation(db: Session, owner_hash: str, message: str) -> Recommen
 def answer_recommendation(
     db: Session, owner_hash: str, session_id: uuid.UUID, message: str
 ) -> RecommendationSession:
-    row = _load_owned(db, session_id, owner_hash)
-    if row.status != "asking":
+    from backend.services import ai_model_planner
+
+    row = _load_owned(db, session_id, owner_hash, lock=True)
+    if row.status not in ("asking", "done"):
         return row
+    previous_question = row.question if row.status == "asking" else None
     _append_message(row, "user", message)
     criteria = dict(row.criteria)
-    parsed = parse_criteria(message)
-    criteria.update(parsed)
+    if not ai_model_planner.is_configured():
+        criteria.update(parse_criteria(message))
     # 「不確定」代表這題已回答，但值仍是未知；asked_fields 可避免重問。
     row.criteria = criteria
-    _advance(db, row)
+    ordinal = message.strip().rstrip("。！!")
+    if ordinal in {"前者", "後者"}:
+        match = re.fullmatch(r"(?:你希望|你偏好|你想要|想要|你比較想)?(線上|實體)(?:上課)?(?:還是|或是)(線上|實體)(?:上課)?[?？]", previous_question or "")
+        if not match or match.group(1) == match.group(2):
+            db.rollback()
+            raise ai_model_planner.AIPlannerUnclear()
+        selected = match.group(1 if ordinal == "前者" else 2)
+        criteria["delivery_mode"] = "online" if selected == "線上" else "in_person"
+        planned = (criteria, "")
+    elif re.fullmatch(r"(?:取消|清除)(?:曲風|風格)(?:限制|偏好)?|(?:曲風|風格)(?:不限|不限制)", ordinal):
+        criteria["style"] = None
+        criteria.pop("_semantic_query", None)
+        planned = (criteria, "")
+    else:
+        planned = ai_model_planner.plan_turn(message, criteria, previous_question=previous_question)
+    if planned is None and ai_model_planner.is_configured():
+        db.rollback()
+        raise ai_model_planner.AIPlannerUnavailable()
+    if planned is not None:
+        row.criteria, question = planned
+    else:
+        question = ""
+    _advance(db, row, question, model_used=planned is not None)
     db.commit()
     db.refresh(row)
     return row
@@ -246,14 +326,15 @@ def read_recommendation(db: Session, owner_hash: str, session_id: uuid.UUID) -> 
 
 
 def recommendation_items(db: Session, row: RecommendationSession) -> list[dict]:
-    records = db.execute(
+    statement = (
         select(RecommendationItem, Course, User.name, TeacherDB.photo_path)
         .join(Course, Course.id == RecommendationItem.course_id)
         .join(User, User.id == Course.teacher_id)
         .outerjoin(TeacherDB, TeacherDB.user_id == Course.teacher_id)
         .where(RecommendationItem.session_id == row.id, Course.status == "published")
-        .order_by(RecommendationItem.position)
-    ).all()
+    )
+    statement = _apply_required_filters(statement, row.criteria)
+    records = db.execute(statement.order_by(RecommendationItem.position)).all()
     return [
         {
             "course": {
