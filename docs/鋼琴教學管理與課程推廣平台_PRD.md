@@ -7,7 +7,7 @@
 | 主要對象 | 鋼琴老師、鋼琴學生、未註冊訪客 |
 | 使用入口 | Vue 畫面。後端只提供 API，不再有 Jinja 測試頁 |
 
-本版整合 2026-10-12 的流程決策、[Issue #24](https://github.com/AnChen1026/AIPE04_group3/issues/24) 與 [Issue #25](https://github.com/AnChen1026/AIPE04_group3/issues/25)。與舊版文件衝突時，以本文件為準。
+本版整合 2026-10-12 的流程決策、[Issue #24](https://github.com/AnChen1026/melo-piano-platform/issues/24) 與 [Issue #25](https://github.com/AnChen1026/melo-piano-platform/issues/25)。與舊版文件衝突時，以本文件為準。
 
 ## 1. 專題方向
 

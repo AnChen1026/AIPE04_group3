@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 適用專案 | AIPE04_group3 |
+| 適用專案 | melo-piano-platform |
 | 最後更新 | 2026-11-01 |
 
 ## 1. 核心規則
@@ -24,7 +24,7 @@
 
 ```bash
 git clone <GitHub 專案網址>
-cd AIPE04_group3
+cd melo-piano-platform
 git branch -a
 git switch -c feature/這次的功能 origin/main
 git branch --show-current
