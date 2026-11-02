@@ -1,5 +1,5 @@
 """Import the fictional AICourseFinder catalog into local/staging only.
-Stable UUIDs preserve identities; optional refresh updates demo presentation only.
+Stable UUIDs preserve identities; optional refresh updates known versions of the demo catalog.
 """
 
 import argparse
@@ -15,6 +15,11 @@ from backend.models.teacher_application import TeacherApplication
 from backend.models.user import User
 from backend.services.course import check_course_fields
 
+from scripts.demo_catalog import (
+    REFRESH_FIELDS, PROFILE_FIELDS, content_fingerprint, profile_fingerprint,
+    course_description, course_fields, teacher_fields,
+)
+
 namespace = uuid.uuid5(uuid.NAMESPACE_URL, "aipe04/local/aicourse-demo-import/v1")
 
 
@@ -22,41 +27,17 @@ def identity(kind, key):
     return uuid.uuid5(namespace, kind + ":" + key)
 
 
-levels = {
-    "intro": "入門",
-    "beginner": "初階",
-    "intermediate": "中階",
-    "advanced": "進階",
-}
-slots = {
-    "weekday_day": "平日白天",
-    "weekday_evening": "平日晚上",
-    "weekend_morning": "週末上午",
-    "weekend_afternoon": "週末下午",
-    "weekend_evening": "週末晚上",
-}
-goals = {
-    "classical": "古典",
-    "pop": "流行",
-    "accompaniment": "伴奏",
-    "exam": "檢定",
-    "interest": "興趣",
-}
 
 
-def course_description(course):
-    audience = {"adult": "成人", "child": "兒童"}.get(course["audience"], course["audience"])
-    return "\n".join(
-        filter(None, [
-            course["description"],
-            course["teaching_profile"],
-            f"對象：{audience}；每堂 {course['duration_minutes']} 分鐘。",
-            "上課方式：線上／實體皆可。" if course["delivery_mode"] == "hybrid" else "",
-        ])
-    )
+def _snapshot(record, names):
+    return {name: getattr(record, name) for name in names}
 
 
-def import_demo(db, source, *, refresh_existing=False):
+def _known_versions():
+    return json.loads((Path(__file__).parent / "data/aicourse-demo-versions.json").read_text())
+
+
+def import_demo(db, source, *, refresh_existing=False, known_versions=None):
     if any(not r.get("is_demo") for r in source["teachers"] + source["courses"]):
         raise ValueError("Only fictional demo records are allowed")
     for group in ("teachers", "courses"):
@@ -86,37 +67,55 @@ def import_demo(db, source, *, refresh_existing=False):
     ))
     course_ids = [identity("course", c["id"]) for c in source["courses"]]
     courses = {c.id: c for c in db.scalars(select(Course).where(Course.id.in_(course_ids)))}
+    versions = known_versions if known_versions is not None else _known_versions()
+    # Validate every existing row before making any change. A collision must not
+    # leave half a refresh in the caller's session, even before rollback.
+    for key, teacher in teachers.items():
+        uid = identity("teacher", key)
+        existing = users.get(uid)
+        if existing is not None:
+            allowed_names = {teacher["display_name"]}
+            if refresh_existing:
+                allowed_names.update(versions["teachers"].get(key, []))
+            if (
+                existing.email != f"aicourse-{uid.hex}@example.invalid"
+                or existing.name not in allowed_names
+                or existing.role != "teacher"
+                or existing.password_hash is not None
+            ):
+                raise ValueError("Demo user ID collision; nothing should be committed")
+        profile = profiles.get(uid)
+        if refresh_existing and profile is not None:
+            current = profile_fingerprint(_snapshot(profile, PROFILE_FIELDS))
+            allowed = set(versions.get("profiles", {}).get(key, []))
+            allowed.add(profile_fingerprint(teacher_fields(teacher)))
+            if current not in allowed:
+                raise ValueError("Demo profile ID collision; nothing should be committed")
+    for course in source["courses"]:
+        if course["instrument"] != "piano" or not course["is_demo"]:
+            raise ValueError("Unexpected non-demo or non-piano record")
+        fields = check_course_fields(course_fields(course))
+        existing = courses.get(identity("course", course["id"]))
+        if existing is not None:
+            current = content_fingerprint(_snapshot(existing, REFRESH_FIELDS))
+            allowed = {content_fingerprint(fields)}
+            if refresh_existing:
+                allowed.update(versions["courses"].get(course["id"], []))
+            key = course["public_teacher_id"] or course["teacher_id"]
+            if existing.teacher_id != identity("teacher", key) or current not in allowed:
+                raise ValueError("Demo course ID collision; nothing should be committed")
     created = {"users": 0, "profiles": 0, "applications": 0, "courses": 0}
     for key, t in teachers.items():
         uid = identity("teacher", key)
         existing = users.get(uid)
-        if existing is not None and (
-            existing.email != f"aicourse-{uid.hex}@example.invalid"
-            or (
-                existing.name != t["display_name"]
-                and not (
-                    refresh_existing
-                    and existing.name.startswith(("示範老師", "示範教師"))
-                )
-            )
-            or existing.role != "teacher"
-            or existing.password_hash is not None
-        ):
-            raise ValueError("Demo user ID collision; nothing should be committed")
         if existing is not None and refresh_existing:
             existing.name = t["display_name"]
         if existing is None:
-            db.execute(
-                insert(User).values(
-                    id=uid,
-                    email=f"aicourse-{uid.hex}@example.invalid",
-                    name=t["display_name"],
-                    role="teacher",
-                    is_active=True,
-                    auth_provider="password",
-                    password_hash=None,
-                )
-            )
+            db.execute(insert(User).values(
+                id=uid, email=f"aicourse-{uid.hex}@example.invalid",
+                name=t["display_name"], role="teacher", is_active=True,
+                auth_provider="password", password_hash=None,
+            ))
             created["users"] += 1
     db.flush()
     for key, t in teachers.items():
@@ -126,20 +125,20 @@ def import_demo(db, source, *, refresh_existing=False):
                 TeacherDB(
                     id=identity("profile", key),
                     user_id=uid,
-                    name=t["display_name"],
                     gender="未提供",
                     seniority=t["years_experience"],
-                    expertise="、".join(goals.get(g, g) for g in t["specialties"]),
-                    short_intros=t["biography"][:200],
-                    teaching_method=t["teaching_style"][:255],
+                    **teacher_fields(t),
+                    target_learning=t.get("target_learning"),
                     status="active",
                 )
             )
             created["profiles"] += 1
         if refresh_existing and uid in profiles:
             profile = profiles[uid]
-            profile.name = t["display_name"]
-            profile.short_intros = t["biography"][:200]
+            for name, value in teacher_fields(t).items():
+                setattr(profile, name, value)
+            if profile.target_learning is None:
+                profile.target_learning = t.get("target_learning")
         if uid not in applications:
             db.add(
                 TeacherApplication(
@@ -155,44 +154,15 @@ def import_demo(db, source, *, refresh_existing=False):
             created["applications"] += 1
     db.flush()
     for c in source["courses"]:
-        if c["instrument"] != "piano" or not c["is_demo"]:
-            raise ValueError("Unexpected non-demo or non-piano record")
         cid = identity("course", c["id"])
+        fields = check_course_fields(course_fields(c))
         existing = courses.get(cid)
         if existing is not None:
-            if (
-                existing.teacher_id
-                != identity("teacher", c["public_teacher_id"] or c["teacher_id"])
-                or existing.title != c["title"]
-                or not (
-                    (existing.description or "").startswith("[虛構測試資料・AICourseFinder]")
-                    or (existing.description or "") == course_description(c)
-                )
-            ):
-                raise ValueError(
-                    "Demo course ID collision; nothing should be committed"
-                )
             if refresh_existing:
-                existing.description = course_description(c)
+                for name in REFRESH_FIELDS:
+                    setattr(existing, name, fields[name])
             continue
         key = c["public_teacher_id"] or c["teacher_id"]
-        mode = {"online": "online", "onsite": "in_person", "hybrid": None}[
-            c["delivery_mode"]
-        ]
-        desc = course_description(c)
-        fields = check_course_fields(
-            {
-                "title": c["title"],
-                "level": levels[c["level"]],
-                "style": "、".join(goals[g] for g in c["goals"]),
-                "delivery_mode": mode,
-                "region": c["area"],
-                "price_per_lesson": c["price_amount"],
-                "time_slots": "、".join(slots[s] for s in c["slots"]),
-                "status": c["status"],
-                "description": desc,
-            }
-        )
         db.add(Course(id=cid, teacher_id=identity("teacher", key), **fields))
         created["courses"] += 1
     db.flush()
@@ -211,7 +181,7 @@ def main():
     parser.add_argument("--apply", action="store_true")
     parser.add_argument(
         "--refresh-existing", action="store_true",
-        help="Refresh imported demo names and public descriptions",
+        help="Refresh known demo catalog versions (names, profiles, titles, levels, styles, descriptions)",
     )
     parser.add_argument("--confirm-database")
     args = parser.parse_args()

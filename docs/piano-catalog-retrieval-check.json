@@ -1,0 +1,410 @@
+{
+  "date": "2026-11-02",
+  "method": "BGE-M3 cosine ranking among published courses at the stated level; not end-to-end conversation testing",
+  "courses": 426,
+  "cases": 16,
+  "top3_hits": 16,
+  "results": [
+    {
+      "level": "intro",
+      "query": "我退休了，想慢慢彈一些以前熟悉的老歌",
+      "expected_themes": [
+        "intro-04"
+      ],
+      "top3": [
+        {
+          "title": "懷念老歌：單手旋律慢慢彈",
+          "theme": "intro-04",
+          "score": 0.6671
+        },
+        {
+          "title": "昔日小曲的新版本",
+          "theme": "intro-05",
+          "score": 0.602
+        },
+        {
+          "title": "停琴後的讀譜找回課",
+          "theme": "intro-05",
+          "score": 0.5839
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intro",
+      "query": "想和孩子一起在同一台琴合作，也想知道家長要怎麼陪練",
+      "expected_themes": [
+        "intro-03",
+        "intro-19"
+      ],
+      "top3": [
+        {
+          "title": "陪練不催促：把一首兒歌拆成小任務",
+          "theme": "intro-03",
+          "score": 0.7664
+        },
+        {
+          "title": "親子唱彈：先唱熟再找琴鍵",
+          "theme": "intro-03",
+          "score": 0.7361
+        },
+        {
+          "title": "親子四手第一課：同一台琴輪流說話",
+          "theme": "intro-03",
+          "score": 0.7335
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intro",
+      "query": "小時候學過鋼琴，停了十多年，想重新把讀譜和手感找回來",
+      "expected_themes": [
+        "intro-05"
+      ],
+      "top3": [
+        {
+          "title": "停琴後的讀譜找回課",
+          "theme": "intro-05",
+          "score": 0.7267
+        },
+        {
+          "title": "昔日小曲的新版本",
+          "theme": "intro-05",
+          "score": 0.6998
+        },
+        {
+          "title": "重拾手型：不靠手指硬撐",
+          "theme": "intro-05",
+          "score": 0.6846
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intro",
+      "query": "我不太想一開始就背五線譜，希望先靠耳朵聽旋律找琴鍵",
+      "expected_themes": [
+        "intro-09"
+      ],
+      "top3": [
+        {
+          "title": "靠耳朵找琴鍵：三音旋律聽奏",
+          "theme": "intro-09",
+          "score": 0.7421
+        },
+        {
+          "title": "同一段旋律換一個起音",
+          "theme": "intro-09",
+          "score": 0.7063
+        },
+        {
+          "title": "黑鍵上的五聲音樂：不用先背音名",
+          "theme": "intro-01",
+          "score": 0.7028
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "beginner",
+      "query": "我已經會吉他和弦，想把這些知識轉成雙手彈鋼琴",
+      "expected_themes": [
+        "beginner-11"
+      ],
+      "top3": [
+        {
+          "title": "吉他刷弦變成鋼琴節奏型",
+          "theme": "beginner-11",
+          "score": 0.7138
+        },
+        {
+          "title": "把封閉和弦放到鍵盤上",
+          "theme": "beginner-11",
+          "score": 0.6956
+        },
+        {
+          "title": "低音與和弦分手彈",
+          "theme": "beginner-11",
+          "score": 0.6659
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "beginner",
+      "query": "我想邊唱歌邊彈琴，但一唱就忘記換和弦",
+      "expected_themes": [
+        "beginner-02"
+      ],
+      "top3": [
+        {
+          "title": "換和弦不吃掉歌詞",
+          "theme": "beginner-02",
+          "score": 0.7084
+        },
+        {
+          "title": "把封閉和弦放到鍵盤上",
+          "theme": "beginner-11",
+          "score": 0.6808
+        },
+        {
+          "title": "低音與和弦分手彈",
+          "theme": "beginner-11",
+          "score": 0.6359
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "beginner",
+      "query": "想學幫教會小聚會伴奏，讓大家知道什麼時候開始唱",
+      "expected_themes": [
+        "beginner-12"
+      ],
+      "top3": [
+        {
+          "title": "前奏要讓大家知道何時唱",
+          "theme": "beginner-12",
+          "score": 0.7701
+        },
+        {
+          "title": "歌唱速度改變時的跟隨",
+          "theme": "beginner-12",
+          "score": 0.6989
+        },
+        {
+          "title": "詩歌四拍伴奏的穩定脈動",
+          "theme": "beginner-12",
+          "score": 0.6691
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "beginner",
+      "query": "孩子手掌太小，樂譜的大和弦和八度常常按不到",
+      "expected_themes": [
+        "beginner-19"
+      ],
+      "top3": [
+        {
+          "title": "大和弦拆開彈的方式",
+          "theme": "beginner-19",
+          "score": 0.6966
+        },
+        {
+          "title": "八度旋律改成單音",
+          "theme": "beginner-19",
+          "score": 0.6808
+        },
+        {
+          "title": "低音交給左手還是右手",
+          "theme": "beginner-19",
+          "score": 0.6596
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intermediate",
+      "query": "我想跟長笛或小提琴一起合奏，學會配合對方的音量與換氣",
+      "expected_themes": [
+        "intermediate-11"
+      ],
+      "top3": [
+        {
+          "title": "長笛換氣時的時間安排",
+          "theme": "intermediate-11",
+          "score": 0.7557
+        },
+        {
+          "title": "合奏起拍與收尾訊號",
+          "theme": "intermediate-11",
+          "score": 0.6802
+        },
+        {
+          "title": "小提琴旋律下的鋼琴音量",
+          "theme": "intermediate-11",
+          "score": 0.6732
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intermediate",
+      "query": "想學 R&B 和 Neo Soul 的後靠拍與九和弦，不只彈普通抒情歌",
+      "expected_themes": [
+        "intermediate-09"
+      ],
+      "top3": [
+        {
+          "title": "Neo Soul 的延後拍感",
+          "theme": "intermediate-09",
+          "score": 0.7393
+        },
+        {
+          "title": "R&B Ballad 的九和弦色彩",
+          "theme": "intermediate-09",
+          "score": 0.7299
+        },
+        {
+          "title": "左手低音與右手碎拍",
+          "theme": "intermediate-09",
+          "score": 0.6911
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intermediate",
+      "query": "想把電影的管弦樂原聲帶改成可以獨奏的鋼琴版本",
+      "expected_themes": [
+        "intermediate-15"
+      ],
+      "top3": [
+        {
+          "title": "管弦樂主題的鋼琴縮編",
+          "theme": "intermediate-15",
+          "score": 0.7335
+        },
+        {
+          "title": "角色主題的變奏串連",
+          "theme": "intermediate-15",
+          "score": 0.6792
+        },
+        {
+          "title": "情緒高峰的八度與和弦",
+          "theme": "intermediate-15",
+          "score": 0.656
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "intermediate",
+      "query": "我會七和弦，想學省略根音和四度堆疊的爵士配置",
+      "expected_themes": [
+        "intermediate-07"
+      ],
+      "top3": [
+        {
+          "title": "四度堆疊與調式聲響",
+          "theme": "intermediate-07",
+          "score": 0.7101
+        },
+        {
+          "title": "Rootless A 與 B 配置",
+          "theme": "intermediate-07",
+          "score": 0.7001
+        },
+        {
+          "title": "Shell Voicing 的三音與七音",
+          "theme": "intermediate-06",
+          "score": 0.6971
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "advanced",
+      "query": "已會二聲部創意曲，想挑戰三聲部賦格並讓每條線聽得清楚",
+      "expected_themes": [
+        "advanced-01"
+      ],
+      "top3": [
+        {
+          "title": "三聲部賦格的主題追蹤",
+          "theme": "advanced-01",
+          "score": 0.6866
+        },
+        {
+          "title": "平均律前奏曲的和聲長線",
+          "theme": "advanced-01",
+          "score": 0.6412
+        },
+        {
+          "title": "完整前奏曲與賦格的對照",
+          "theme": "advanced-01",
+          "score": 0.6225
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "advanced",
+      "query": "想跟貝斯和爵士鼓組成三重奏，練習交換四小節與互相回應",
+      "expected_themes": [
+        "advanced-13"
+      ],
+      "top3": [
+        {
+          "title": "與貝斯共享低音空間",
+          "theme": "advanced-13",
+          "score": 0.7646
+        },
+        {
+          "title": "Trading Fours 的短句構成",
+          "theme": "advanced-13",
+          "score": 0.7621
+        },
+        {
+          "title": "三人即興中的密度控制",
+          "theme": "advanced-13",
+          "score": 0.733
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "advanced",
+      "query": "準備婚宴現場演奏，需要配合進場長度、臨時點歌和歌手換調",
+      "expected_themes": [
+        "advanced-15"
+      ],
+      "top3": [
+        {
+          "title": "歌手臨時換調的處理",
+          "theme": "advanced-15",
+          "score": 0.7565
+        },
+        {
+          "title": "現場組曲的跨調轉場",
+          "theme": "advanced-15",
+          "score": 0.7449
+        },
+        {
+          "title": "長時間演出的歌單配置",
+          "theme": "advanced-15",
+          "score": 0.7386
+        }
+      ],
+      "hit": true
+    },
+    {
+      "level": "advanced",
+      "query": "想準備 ARSM 或 LRSM 的完整演奏節目與舞台模擬",
+      "expected_themes": [
+        "advanced-07"
+      ],
+      "top3": [
+        {
+          "title": "LRSM 準備：全程模擬與回顧",
+          "theme": "advanced-07",
+          "score": 0.7526
+        },
+        {
+          "title": "ARSM 演奏節目的曲目關係",
+          "theme": "advanced-07",
+          "score": 0.667
+        },
+        {
+          "title": "整場演奏的背譜地圖",
+          "theme": "advanced-07",
+          "score": 0.5793
+        }
+      ],
+      "hit": true
+    }
+  ]
+}
