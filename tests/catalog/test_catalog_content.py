@@ -31,6 +31,16 @@ def test_profiles_match_courses_and_have_unique_names():
     teachers = {t['id']: t for t in SOURCE['teachers']}
     assert len(teachers) == 226
     assert len({t['display_name'] for t in teachers.values()}) == 226
+    chinese_given_names = []
+    english_names = []
+    for teacher in teachers.values():
+        name = teacher['display_name'].removesuffix('老師')
+        if ' ' in name:
+            english_names.append(name.split()[0])
+        else:
+            chinese_given_names.append(name[1:])
+    assert len(chinese_given_names) == len(set(chinese_given_names)) == 170
+    assert len(english_names) == len(set(english_names)) == 56
     assert len({t['biography'] for t in teachers.values()}) == 226
     for course in SOURCE['courses']:
         teacher = teachers[course['public_teacher_id'] or course['teacher_id']]

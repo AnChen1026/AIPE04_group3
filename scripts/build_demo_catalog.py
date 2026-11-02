@@ -27,8 +27,32 @@ PRACTICE = {
     "advanced": "需固定練習，分開安排技術、分析與完整演奏；依曲目調整練習量",
 }
 SURNAMES = list("林陳張李王吳劉蔡楊許鄭謝郭洪邱曾廖賴徐周葉蘇莊呂江何蕭羅高潘簡朱游彭鍾胡施沈余趙盧梁顏柯孫黃温戴宋方杜丁姚傅程范汪唐馮石董")
-GIVEN = ["品妤", "柏宇", "雅涵", "承恩", "以安", "思穎", "宥廷", "芷晴", "冠霖", "昀庭", "婉甄", "子恆"]
-ENGLISH = ["Emily", "Jason", "Sophie", "Ryan", "Chloe", "Daniel", "Alice", "Kevin", "Emma", "Leo", "Ivy", "Lucas"]
+# Use a curated name once per teacher, rather than repeating a small set
+# for every surname. Stable ordering keeps rebuilds reproducible.
+GIVEN = """
+品妤 柏宇 雅涵 承恩 以安 思穎 宥廷 芷晴 冠霖 昀庭 婉甄 子恆
+怡君 志宏 佳蓉 宗翰 惠雯 建廷 詠心 敬文 淑芬 明哲 玉玲 俊傑
+淳雅 立群 采潔 彥廷 靜宜 世傑 美玲 維軒 馨予 孟軒 佩珊 祐誠
+若彤 智凱 韻如 致遠 曉雯 博翔 筱筑 季謙 文琪 振宇 姵瑜 宏毅
+婉婷 子謙 敏慧 逸凡 芸萱 昱辰 湘芸 家豪 玟伶 定邦 心怡 琮凱
+郁婷 景皓 芳瑜 紹文 依庭 允哲 苡晴 辰恩 姿吟 秉修 秀娟 哲安
+佳穎 宥均 昕妍 德威 怡萱 澤宇 羽柔 瑞麟 亭妤 昶佑 雅雯 昊倫
+映潔 尚恩 雨珊 亦辰 慧如 柏翰 沛蓉 廷軒 郁涵 奕翔 婕妤 宇恆
+欣儀 仲祺 思潔 信宏 柔安 皓鈞 芷涵 祈安 佑寧 璟文 憶如 允中
+宜珊 庭瑞 詠晴 維仁 宛臻 晉安 瑾瑜 睿哲 瀞文 仁傑 芸甄 震遠
+韻竹 克勤 蕙如 敦堯 佳璇 耀文 昭君 知遠 瑋庭 靖堯 婉如 東霖
+念慈 友誠 曼甯 恆毅 淑惠 昱丞 祐綺 育誠 雅筑 俊毅 沁儀 寬佑
+秋月 永和 芳宜 學謙 惠玲 旭東 佳音 遠志 令儀 崇恩 采薇 南星
+佩儀 伯鈞 素華 廷岳 鈺涵 源皓 書妍 冠廷 毓珊 澄宇 蘊如 行之
+婧怡 皓然 安琪 希文 詠絮 宸安 莉雯 喬安 悅寧 靖雅 芳華 晏如
+""".split()
+ENGLISH = """
+Emily Jason Sophie Ryan Chloe Daniel Alice Kevin Emma Leo Ivy Lucas
+Grace Ethan Claire Eric Olivia Sean Natalie David Audrey Simon Julia Aaron
+Wendy Oscar Vivian Henry Stella Brian Fiona Felix Iris Ian Rachel Owen
+Tina Patrick Zoe Victor Hannah Adrian Joyce Marcus Cindy Edward Nicole Colin
+Amber Evan Hazel Justin Vera Louis Nora Thomas
+""".split()
 
 
 def compile_catalog(source, curriculum):
@@ -48,9 +72,9 @@ def compile_catalog(source, curriculum):
         method_name, method = METHODS[(index // 4 + index // 80) % len(METHODS)]
         surname = SURNAMES[index % len(SURNAMES)]
         name = (
-            f"{ENGLISH[(index // 4) % len(ENGLISH)]} {surname}老師"
+            f"{ENGLISH[index // 4]} {surname}老師"
             if index % 4 == 3
-            else f"{surname}{GIVEN[(index // len(SURNAMES)) % len(GIVEN)]}老師"
+            else f"{surname}{GIVEN[index - index // 4]}老師"
         )
         selected = []
         for number, course in enumerate(by_teacher[key]):
