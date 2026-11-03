@@ -7,6 +7,7 @@ UPLOAD_ROOT = PROJECT_ROOT / "uploads"
 MATERIAL_UPLOAD_DIR = UPLOAD_ROOT / "materials"
 PRACTICE_UPLOAD_DIR = UPLOAD_ROOT / "practice"
 MIDI_UPLOAD_DIR = UPLOAD_ROOT / "midi"
+ASSIGNMENT_UPLOAD_DIR = UPLOAD_ROOT / "assignments"
 MATERIAL_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

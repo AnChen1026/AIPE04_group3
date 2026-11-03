@@ -12,19 +12,24 @@ const props = defineProps<{
   loading?: boolean
   error?: string
   connected?: boolean
+  // 管理員對話不走即時連線，不顯示連線狀態
+  hideStatus?: boolean
+  // 有給的話用它判斷是不是自己這一方的訊息（管理員之間共用一段對話）
+  isMine?: (message: Message) => boolean
 }>()
 
 const emit = defineEmits<{ send: [body: string] }>()
 const draft = ref('')
 const list = ref<HTMLElement | null>(null)
 
-watch(
-  () => props.messages.length,
-  async () => {
-    await nextTick()
-    list.value?.scrollTo({ top: list.value.scrollHeight })
-  },
-)
+async function scrollToEnd() {
+  await nextTick()
+  list.value?.scrollTo({ top: list.value.scrollHeight })
+}
+
+watch(() => props.messages.length, scrollToEnd)
+// 訊息下方另外放的內容（例如老師的可上課時段）出現時，外面呼叫它捲到底
+defineExpose({ scrollToEnd })
 
 function submit() {
   const text = draft.value.trim()
@@ -49,7 +54,7 @@ function onKeydown(event: KeyboardEvent) {
         <strong>{{ title }}</strong>
         <span v-if="subtitle" class="chat__subtitle">{{ subtitle }}</span>
       </div>
-      <span class="chat__status" :class="{ 'chat__status--on': connected }">{{ connected ? '即時連線中' : '重新連線中…' }}</span>
+      <span v-if="!hideStatus" class="chat__status" :class="{ 'chat__status--on': connected }">{{ connected ? '即時連線中' : '重新連線中…' }}</span>
     </header>
     <div v-if="$slots.actions" class="chat__actions"><slot name="actions" /></div>
 
@@ -61,13 +66,14 @@ function onKeydown(event: KeyboardEvent) {
         v-for="message in messages"
         :key="message.id"
         class="chat__row"
-        :class="{ 'chat__row--mine': message.sender_id === myId }"
+        :class="{ 'chat__row--mine': isMine ? isMine(message) : message.sender_id === myId }"
       >
         <div class="chat__bubble">
           <p>{{ message.body }}</p>
           <time :datetime="message.created_at">{{ formatDateTime(message.created_at) }}</time>
         </div>
       </div>
+      <slot name="after" />
     </div>
 
     <form class="chat__form" @submit.prevent="submit">

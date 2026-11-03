@@ -2,20 +2,35 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { fetchMyStudents, fetchTeacherConversations, issueBindingCode, unbindStudent } from '@/api/teacher'
-import type { BoundStudent, Conversation } from '@/types/api'
-import { formatDate } from '@/utils/format'
+import { fetchMyCourses, fetchMyStudents, fetchTeacherConversations, issueBindingCode, unbindStudent } from '@/api/teacher'
+import type { BoundStudent, Conversation, Course } from '@/types/api'
+import { formatDate, toneClass } from '@/utils/format'
 
 const students = ref<BoundStudent[]>([])
 const conversations = ref<Conversation[]>([])
+const courses = ref<Course[]>([])
 const keyword = ref('')
+// 設計稿上方每門課一張卡；按「查看詳細資訊」只看那門課的洽詢與學生
+const courseFilter = ref('')
 const error = ref('')
 const pendingUnbind = ref<{ student: BoundStudent; courseId: string; courseTitle: string } | null>(null)
 const issuing = ref('')
 const copied = ref('')
 
 // 還在洽詢、沒有加入課程的學生。老師決定收學生時，在這裡（或聊天裡）發綁定碼
-const inquiries = computed(() => conversations.value.filter((item) => !item.bound))
+const inquiries = computed(() =>
+  conversations.value.filter((item) => !item.bound && (!courseFilter.value || item.course_id === courseFilter.value)),
+)
+
+const courseKeys = computed(() => courses.value.map((course) => course.id))
+const courseSummaries = computed(() =>
+  courses.value.map((course) => ({
+    course,
+    studentCount: students.value.filter((student) => student.courses.some((item) => item.course_id === course.id)).length,
+    pendingCount: conversations.value.filter((item) => !item.bound && item.course_id === course.id).length,
+  })),
+)
+const filterTitle = computed(() => courses.value.find((course) => course.id === courseFilter.value)?.title ?? '')
 
 async function issue(conversation: Conversation) {
   issuing.value = conversation.id
@@ -38,8 +53,11 @@ async function copy(code: string) {
 
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  if (!text) return students.value
-  return students.value.filter((student) =>
+  const inCourse = courseFilter.value
+    ? students.value.filter((student) => student.courses.some((course) => course.course_id === courseFilter.value))
+    : students.value
+  if (!text) return inCourse
+  return inCourse.filter((student) =>
     [student.name, student.email, ...student.courses.map((course) => course.course_title)].some((value) =>
       value.toLowerCase().includes(text),
     ),
@@ -52,7 +70,11 @@ function conversationFor(studentId: string, courseId: string) {
 
 async function load() {
   try {
-    ;[students.value, conversations.value] = await Promise.all([fetchMyStudents(), fetchTeacherConversations()])
+    ;[students.value, conversations.value, courses.value] = await Promise.all([
+      fetchMyStudents(),
+      fetchTeacherConversations(),
+      fetchMyCourses().then((list) => list.filter((course) => course.status !== 'archived')),
+    ])
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到學生名單。'
   }
@@ -74,7 +96,7 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader title="學生管理" description="已用綁定碼進入你課程的學生。新的洽詢在「聊天」裡回覆並發綁定碼。">
+  <PageHeader title="所有學生人數" description="已用綁定碼進入你課程的學生。新的洽詢在「聊天」裡回覆並發綁定碼。">
     <label class="search-input">
       <span class="visually-hidden">搜尋學生</span>
       <input v-model="keyword" class="input" type="search" placeholder="搜尋學生或課程" />
@@ -85,10 +107,44 @@ onMounted(load)
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 
+  <section class="summaries" aria-label="各課程學生人數">
+    <article
+      v-for="item in courseSummaries"
+      :key="item.course.id"
+      class="tone-card summary"
+      :class="toneClass(item.course.id, courseKeys)"
+    >
+      <p class="tone-card__cell tone-card__title summary__title">{{ item.course.title }}</p>
+      <div class="tone-card__cell summary__counts">
+        <div>
+          <p class="tone-card__line">目前學生人數</p>
+          <strong>{{ item.studentCount }} 人</strong>
+        </div>
+        <div>
+          <p class="tone-card__line">待確認申請人數</p>
+          <strong>{{ item.pendingCount }} 人</strong>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="tone-btn"
+        :aria-pressed="courseFilter === item.course.id"
+        @click="courseFilter = courseFilter === item.course.id ? '' : item.course.id"
+      >
+        {{ courseFilter === item.course.id ? '收合詳細資訊' : '查看詳細資訊' }}
+      </button>
+    </article>
+  </section>
+
+  <p v-if="courseFilter" class="filter-note">
+    目前只看「{{ filterTitle }}」
+    <button type="button" class="btn btn--ghost btn--small" @click="courseFilter = ''">看全部課程</button>
+  </p>
+
   <section v-if="inquiries.length" class="card inquiries">
     <h2 class="card__title">洽詢中、還沒加入的學生</h2>
     <p class="muted inquiries__hint">
-      綁定碼只給這位學生的這門課。發出後也會貼進你們的聊天；學生可以在聊天或「我的課程」輸入。重發會讓舊碼失效。
+      綁定碼只給這位學生的這門課。發出後也會貼進你們的聊天；學生可以在聊天或學生專區的「老師」頁輸入。重發會讓舊碼失效。
     </p>
     <ul>
       <li v-for="item in inquiries" :key="item.id">
@@ -165,6 +221,39 @@ onMounted(load)
 <style scoped>
 .search-input {
   width: min(260px, 100%);
+}
+
+.summaries {
+  margin-bottom: 24px;
+}
+
+.summary {
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+}
+
+.summary__title {
+  text-align: center;
+}
+
+.summary__counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  text-align: center;
+}
+
+.summary__counts strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 17px;
+}
+
+.filter-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  color: var(--home-muted);
 }
 
 .inquiries {

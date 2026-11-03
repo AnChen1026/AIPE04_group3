@@ -7,11 +7,11 @@ FastAPI 後端，只提供 API；網站畫面都在 `frontend/`（Vue），不�
 入口是 `backend/main.py`。在專案根目錄執行：
 
 ```bash
-alembic upgrade head
+alembic -c backend/alembic.ini upgrade head
 python -m backend.main
 ```
 
-API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/health` 回 `{"status": "ok"}`。資料表一律由 Alembic 建立，網站啟動時不會自動建表。
+API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/health` 會檢查資料庫：正常回 200 `{"status": "ok", "database": "ok"}`，資料庫連不上回 503。資料表一律由 Alembic 建立，網站啟動時不會自動建表。
 
 `.env` 放在專案根目錄：
 
@@ -46,24 +46,27 @@ API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/heal
 
 | 檔案 | 網址 | 做什麼 |
 | --- | --- | --- |
-| `auth.py` | `/api/auth/...`、`/auth/google/callback` | 註冊、登入、登出、目前登入者、修改基本資料、Google 登入、Google 老師補送申請 |
-| `admin.py` | `/api/admin/...` | 審核老師申請、下載證明文件、老師與學生名單 |
+| `auth.py` | `/api/auth/...`、`/auth/google/callback` | 註冊、登入、登出、目前登入者、修改基本資料（老師的姓名會同步到老師個人資料）、修改密碼、Google 登入、Google 老師補送申請、忘記密碼送出申請 |
+| `admin.py` | `/api/admin/...` | 審核老師申請、下載證明文件、老師與學生名單、處理忘記密碼申請（重設成臨時密碼） |
 | `public_courses.py` | `/api/courses` | 訪客讀已發布課程，不用登入 |
 | `images.py` | `/api/images/...` | 已發布課程圖片與已核准老師照片，其他一律 404 |
-| `recommendations.py` | `/api/recommendations` | 首頁推薦端口，目前回 501，由負責首頁推薦的組員實作 |
-| `student.py` | `/api/student/...` | 學生：接洽對話、綁定碼、課表、課務申請、練習錄音與回饋 |
+| `recommendations.py` | `/api/recommendations` | 正式首頁推薦：最多追問兩題，只回傳已發布課程 |
+| `student.py` | `/api/student/...` | 學生：接洽對話、綁定碼、課表、課務申請、練習錄音與回饋、對照樂譜（`/recordings/{id}/score-sheet`） |
 | `chat_ws.py` | `/ws/conversations/{id}`（WebSocket） | 接洽對話即時訊息。先寫資料庫，再推給在線的人 |
 | `teacher_profile.py` | `/teacher/me`、`/teacher/profile`、`/teacher/photo` | 老師個人資料與照片 |
-| `teacher_courses.py` | `/courses/...`、`/teacher/courses` | 老師的課程：新增、修改、封存、課程圖片、參考 MIDI |
+| `teacher_courses.py` | `/courses/...`、`/teacher/courses` | 老師的課程：新增、修改、封存、課程圖片、參考 MIDI、限時綁定碼（`/teacher/courses/{id}/join-code`） |
+| `teacher_studio.py` | `/teacher/studio` | 老師自己的工作室資料：讀取、建立或修改（編號由系統產生） |
 | `teacher_students.py` | `/teacher/students`、`/teacher/courses/{id}/students/{id}/unbind` | 已綁定的學生、解除綁定 |
 | `teacher_chat.py` | `/teacher/conversations/...` | 老師的接洽對話：列表、讀寫訊息、發綁定碼 |
 | `teacher_inquiries.py` | `/teacher/inquiries` | 洽詢中的學生 |
 | `teacher_lessons.py` | `/teacher/lessons`、`/teacher/change-requests` | 課表、課務申請同意或拒絕、課前摘要 |
-| `teacher_practice.py` | `/teacher/courses/{id}/recordings`、`/teacher/recordings/{id}/audio` | 老師看自己課程的練習錄音與回饋 |
-| `teacher_materials.py`、`teacher_quizzes.py` | `/teacher/materials`、`/teacher/quizzes` | 教材與測驗（AI 測驗由負責的組員開發） |
-| `health.py` | `/health` | 確認服務有在跑 |
+| `teacher_practice.py` | `/teacher/courses/{id}/recordings`、`/teacher/recordings/{id}/audio`、`/teacher/recordings/{id}/score-sheet` | 老師看自己課程的練習錄音、回饋與對照樂譜 |
+| `teacher_materials.py`、`teacher_quizzes.py` | `/teacher/materials`、`/teacher/quizzes` | 教材上傳與測驗列表的原型；AI 測驗尚未完成 |
+| `assignments.py` | `/teacher/assignments...`、`/api/student/assignments...` | 作業：老師替已綁定的學生發作業（作業內容、期限、參考 MIDI、多份教材）；學生下載檔案、錄音繳交（跟這份作業的 MIDI 比；可帶節拍器速度，作業可設練習速度） |
+| `support.py` | `/api/support/...`、`/api/admin/support/...` | 管理員和老師、學生的對話。老師審核通過、學生註冊成功時自動送出歡迎與使用須知 |
+| `health.py` | `/health` | 確認服務有在跑、資料庫連得上 |
 
-老師端資料同步集中在 `services/teacher_sync.py`，檔案上傳路徑集中在 `core/uploads.py`。學生送出錄音後，`services/practice.py` 會在背景呼叫 `audio_scoring/scorer.py` 評分；分析失敗記成失敗，不記 0 分。
+老師端資料同步集中在 `services/teacher_sync.py`，檔案上傳路徑集中在 `core/uploads.py`（作業的 MIDI 與教材放 `uploads/assignments/`，資料表只記路徑）。學生送出錄音後，`services/practice.py` 會在背景呼叫 `audio_scoring/scorer.py` 評分；分析失敗記成失敗，不記 0 分。
 
 ## 測試
 

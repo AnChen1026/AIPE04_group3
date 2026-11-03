@@ -36,12 +36,18 @@ export function pad(value: number): string {
   return String(value).padStart(2, '0')
 }
 
-// <input type="datetime-local"> 需要的格式
-export function toLocalInput(value: Date): string {
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`
+// 排課的最小單位是 15 分鐘
+export const QUARTER_MS = 15 * 60_000
+export const QUARTER_OPTIONS = Array.from({ length: 96 }, (_, index) => index * 15)
+// 固定時間規則的星期：0 是週一，和後端一致
+export const RULE_WEEKDAYS = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
+
+// 當天第幾分鐘換成 18:15
+export function minuteLabel(minute: number): string {
+  return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`
 }
 
-export const COURSE_LEVELS = ['入門', '初階', '中階', '進階', '不確定']
+export const COURSE_LEVELS =['入門', '初階', '中階', '進階', '不確定']
 
 export const DELIVERY_LABELS: Record<string, string> = { online: '線上', in_person: '實體', 線上: '線上', 實體: '實體' }
 
@@ -95,3 +101,37 @@ export function addDays(value: Date, days: number): Date {
 export function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString()
 }
+
+// 卡片三色輪流：同一門課固定同一色（依 keys 裡的順序）
+export function toneClass(key: string, keys: string[]): string {
+  const index = Math.max(keys.indexOf(key), 0) % 3
+  return index ? `tone-card--${index}` : ''
+}
+
+// 作業的繳交期限：「繳交期限：2026-11-05 剩餘 3 天」；沒設定時是「待定」
+export function dueText(value: string | null | undefined): string {
+  if (!value) return '繳交期限：待定'
+  const due = new Date(value)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const day = new Date(due)
+  day.setHours(0, 0, 0, 0)
+  const days = Math.round((day.getTime() - today.getTime()) / 86_400_000)
+  const date = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`
+  if (days > 0) return `繳交期限：${date} 剩餘 ${days} 天`
+  if (days === 0) return `繳交期限：${date}（今天）`
+  return `繳交期限：${date}（已過 ${-days} 天）`
+}
+
+export const ASSIGNMENT_KIND_LABELS: Record<string, string> = { performance: '演奏作業', quiz: '題庫作業' }
+
+export function fileSizeText(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+// 老師個人資料、工作室的縣市選單
+export const TAIWAN_CITIES = [
+  '台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '台中市', '彰化縣', '南投縣',
+  '雲林縣', '嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣',
+]

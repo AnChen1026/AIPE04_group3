@@ -36,15 +36,15 @@ onMounted(async () => {
   <AuthCard title="聯繫老師">
     <p v-if="!error" class="contact__text">正在打開和老師的對話…</p>
     <template v-else>
-      <p class="error-text contact__text">{{ error }}</p>
-      <RouterLink :to="auth.homePath" class="btn btn--ghost btn--block">回到{{ auth.user ? '我的頁面' : '首頁' }}</RouterLink>
+      <p class="auth-alert contact__text" role="alert">{{ error }}</p>
+      <RouterLink :to="auth.homePath" class="auth-button auth-button--ghost">回到{{ auth.user ? '我的頁面' : '首頁' }}</RouterLink>
     </template>
   </AuthCard>
 </template>
 
 <style scoped>
-.contact__text {
-  margin: 20px 0;
-  text-align: center;
+.contact__text:not(.auth-alert) {
+  margin: 0 0 20px;
+  color: var(--home-muted);
 }
 </style>

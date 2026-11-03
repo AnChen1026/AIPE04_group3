@@ -17,8 +17,8 @@ const emit = defineEmits<{
     <SectionHeading
       v-reveal
       label="認識老師"
-      title="由每天都在彈琴的人，"
-      accent="陪你練下去"
+      title="讓專業的老師"
+      accent="陪你走下去"
       heading-id="teachers-title"
       align="center"
     >

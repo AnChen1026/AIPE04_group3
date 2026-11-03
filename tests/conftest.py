@@ -46,11 +46,13 @@ def upload_root(tmp_path, monkeypatch):
     import backend.core.uploads as uploads
     import backend.routers.teacher_materials as material_router
     import backend.services.course as course_service
+    import backend.services.assignment as assignment_service
     import backend.services.student as student_service
 
     monkeypatch.setattr(uploads, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(course_service, "MIDI_UPLOAD_DIR", tmp_path / "uploads" / "midi")
     monkeypatch.setattr(student_service, "PRACTICE_UPLOAD_DIR", tmp_path / "uploads" / "practice")
+    monkeypatch.setattr(assignment_service, "ASSIGNMENT_UPLOAD_DIR", tmp_path / "uploads" / "assignments")
     import backend.services.images as image_service
 
     monkeypatch.setattr(image_service, "IMAGE_DIR", tmp_path / "uploads" / "images")
@@ -64,7 +66,8 @@ def no_llm(monkeypatch):
     """測試不呼叫真的 Gemini。需要時在測試裡再換成假的回覆。"""
     import backend.services.llm as llm
 
-    monkeypatch.setattr(llm, "generate_text", lambda system_instruction, content: None)
+    monkeypatch.setattr(llm, "generate_text", lambda system_instruction, content, *args, **kwargs: None)
+    monkeypatch.setattr(llm, "generate_text_with_reason", lambda *args, **kwargs: (None, "測試中不呼叫 LLM"))
 
 
 @pytest.fixture(autouse=True)

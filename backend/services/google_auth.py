@@ -169,4 +169,9 @@ def login_or_register_google_user(
         raise
 
     db.refresh(user)
+    # 新學生收到管理員的歡迎訊息；老師要等審核通過才送
+    if user.role == "student":
+        from backend.services.support import send_welcome
+
+        send_welcome(db, user)
     return user

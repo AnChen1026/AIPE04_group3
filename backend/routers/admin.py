@@ -4,7 +4,7 @@ from pathlib import Path
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from backend.core.storage import file_response
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -15,7 +15,10 @@ from backend.repositories.teacher_application import (
     list_applications,
 )
 from backend.repositories.user import list_users_by_role
-from backend.schemas.user import TeacherApplicationResponse, UserResponse
+from backend.repositories.password_reset import list_requests
+from backend.schemas.user import PasswordResetDone, PasswordResetRequestResponse, TeacherApplicationResponse, UserResponse
+from backend.services.password_reset import dismiss_request, reset_password
+from backend.services.student import StudentBusinessError
 from backend.services.teacher import (
     approve_teacher_application,
     build_application_response,
@@ -86,14 +89,10 @@ def api_download_proof(
     if application is None or application.proof_file_path is None:
         raise HTTPException(status_code=404, detail="找不到證明文件。")
 
-    file_path = UPLOAD_DIR / application.proof_file_path
-    if file_path.exists() is False:
-        raise HTTPException(status_code=404, detail="找不到證明文件。")
-
-    return FileResponse(
-        path=file_path,
-        filename=application.proof_file_name or "proof",
-    )
+    value = application.proof_file_path
+    if not value.startswith(("storage://", "uploads/")):
+        value = "uploads/" + value  # legacy proof paths omit uploads/
+    return file_response(value, filename=application.proof_file_name or "proof")
 
 
 @router.get("/api/admin/teachers", response_model=list[UserResponse])
@@ -112,3 +111,45 @@ def api_student_list(
 ):
     """JSON：全部學生帳號。"""
     return [build_user_response(db, user) for user in list_users_by_role(db, "student")]
+
+
+# ---------- 忘記密碼（地端版本）：管理員替使用者重設成臨時密碼
+
+
+@router.get("/api/admin/password-reset-requests", response_model=list[PasswordResetRequestResponse])
+def api_password_reset_requests(
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """待處理的在前面，其餘依時間新到舊。"""
+    return list_requests(db)
+
+
+@router.post("/api/admin/password-reset-requests/{request_id}/reset", response_model=PasswordResetDone)
+def api_reset_password(
+    request_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """產生臨時密碼並替申請人設定。臨時密碼只回這一次，請管理員另外告訴使用者。"""
+    try:
+        reset_request, temporary_password = reset_password(db, request_id, admin)
+    except StudentBusinessError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    return PasswordResetDone(
+        request=PasswordResetRequestResponse.model_validate(reset_request),
+        temporary_password=temporary_password,
+    )
+
+
+@router.post("/api/admin/password-reset-requests/{request_id}/dismiss", response_model=PasswordResetRequestResponse)
+def api_dismiss_password_reset(
+    request_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """不處理這筆申請，密碼不變。"""
+    try:
+        return dismiss_request(db, request_id, admin)
+    except StudentBusinessError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error

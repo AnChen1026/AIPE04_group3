@@ -1,12 +1,15 @@
 """老師管理自己的課程：欄位檢查、修改與參考 MIDI。"""
 
+import hashlib
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import status
 from sqlalchemy.orm import Session
 
-from backend.core.uploads import MIDI_UPLOAD_DIR, stored_path
-from backend.models.student import Course
+from backend.core.uploads import MIDI_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
+from backend.models.student import Course, ReferenceMidi
 from backend.services.student import StudentBusinessError
 
 COURSE_LEVELS = ("入門", "初階", "中階", "進階", "不確定")
@@ -94,10 +97,27 @@ def save_reference_midi(
     folder = MIDI_UPLOAD_DIR / str(teacher_user_id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{uuid.uuid4()}.mid"
-    path.write_bytes(content)
+    storage_key = save_file(path, content, "audio/midi")
 
-    course.reference_midi_path = stored_path(path)
-    db.commit()
+    try:
+        original_filename = filename.replace("\\", "/").rsplit("/", 1)[-1][-255:] or "reference.mid"
+        course.reference_midi_path = storage_key
+        reference = db.query(ReferenceMidi).filter(ReferenceMidi.course_id == course.id).one_or_none()
+        if reference is None:
+            reference = ReferenceMidi(course_id=course.id, teacher_id=teacher_user_id)
+            db.add(reference)
+        reference.teacher_id = teacher_user_id
+        reference.storage_key = storage_key
+        reference.original_filename = original_filename
+        reference.content_sha256 = hashlib.sha256(content).hexdigest()
+        reference.file_size_bytes = len(content)
+        reference.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(course)
     return course
 
@@ -106,7 +126,13 @@ def save_course_image(db: Session, teacher_user_id: uuid.UUID, course_id: uuid.U
     from backend.services.images import save_image
 
     course = get_own_course(db, teacher_user_id, course_id)
-    course.image_path = save_image(content, "courses")
-    db.commit()
+    storage_key = save_image(content, "courses")
+    course.image_path = storage_key
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(course)
     return course

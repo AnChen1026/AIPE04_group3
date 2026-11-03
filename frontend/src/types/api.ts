@@ -71,6 +71,54 @@ export interface TeacherLesson extends Lesson {
 
 export type ChangeRequestType = 'booking' | 'leave' | 'reschedule'
 
+// 老師開放的可上課時段。學生只看得到還沒被預約的時間
+export interface AvailabilitySlot {
+  id: string
+  starts_at: string
+  ends_at: string
+}
+
+// open：可預約；held：學生點選了、等老師完成約課；booked：已排進正式課表
+export type AvailabilityStatus = 'open' | 'held' | 'booked'
+
+export interface TeacherAvailabilitySlot extends AvailabilitySlot {
+  status: AvailabilityStatus
+  student_id: string | null
+  student_name: string | null
+  course_id: string | null
+  course_title: string | null
+  lesson_id: string | null
+  change_request_id: string | null
+}
+
+// 每週的一段時間。weekday 0 是週一；分鐘是當天的第幾分鐘，例如 18:00 是 1080
+export interface WeeklyWindow {
+  weekday: number
+  start_minute: number
+  end_minute: number
+}
+
+export interface RecurringLesson extends WeeklyWindow {
+  id: string
+  student_id: string
+  student_name: string
+  course_id: string
+  course_title: string
+  future_lessons: { id: string; starts_at: string; ends_at: string }[]
+}
+
+export interface RecurringSkippedWeek {
+  starts_at: string
+  ends_at: string
+  reason: string
+}
+
+export interface RecurringLessonResult {
+  rule: RecurringLesson
+  created: number
+  skipped: RecurringSkippedWeek[]
+}
+
 export interface ChangeRequest {
   id: string
   course_id: string
@@ -96,11 +144,17 @@ export interface Feedback {
   rhythm_score: number | null
   feedback_text: string | null
   status: 'pending' | 'completed' | 'failed'
+  // 有答案與學生上下對照的樂譜
+  has_score_sheet: boolean
 }
 
 export interface Recording {
   id: string
   course_id: string
+  // 繳交的是哪一份作業；直接照課程參考曲練習的是 null
+  assignment_id: string | null
+  // 錄音時開的節拍器速度；沒開是 null
+  metronome_bpm: number | null
   status: 'pending' | 'processing' | 'completed' | 'failed'
   submitted_at: string
   feedback: Feedback | null
@@ -125,8 +179,6 @@ export interface LessonSummary {
     completed_count: number
     failed_count: number
     waiting_count: number
-    average_pitch_score?: number
-    average_rhythm_score?: number
   }
   source_recording_ids: string[]
   generated_at: string
@@ -160,3 +212,64 @@ export interface BoundStudent {
   phone_number: string | null
   courses: { course_id: string; course_title: string; bound_at: string }[]
 }
+
+export interface AssignmentMaterial {
+  id: string
+  filename: string
+  content_type: string | null
+  file_size_bytes: number
+  created_at: string
+}
+
+// 老師發給一位學生的作業。performance＝演奏作業（錄音繳交），quiz＝題庫作業
+export interface Assignment {
+  id: string
+  course_id: string
+  course_title: string
+  student_id: string
+  student_name: string
+  kind: 'performance' | 'quiz'
+  title: string
+  description: string | null
+  due_at: string | null
+  has_midi: boolean
+  midi_filename: string | null
+  // 參考 MIDI 的速度，以及老師指定的練習速度（學生的節拍器預設用練習速度）
+  midi_bpm: number | null
+  practice_bpm: number | null
+  materials: AssignmentMaterial[]
+  submission_count: number
+  last_submitted_at: string | null
+  created_at: string
+}
+
+// 平台管理員和一位老師或學生的對話
+export interface SupportConversation {
+  id: string
+  user_id: string
+  user_name: string
+  user_role: string
+  created_at: string
+  unread_count: number
+  last_message: string | null
+  last_message_at: string | null
+}
+
+export interface CourseJoinCode {
+  code: string
+  expires_at: string
+}
+
+export interface Studio {
+  id: string
+  code: string
+  name: string
+  owner_name: string
+  city: string | null
+  district: string | null
+  intro: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type StudioInput = Pick<Studio, 'name' | 'owner_name' | 'city' | 'district' | 'intro'>

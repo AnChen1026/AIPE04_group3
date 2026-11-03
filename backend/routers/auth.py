@@ -18,6 +18,8 @@ from backend.models.user import User
 from backend.repositories.teacher_application import get_application_by_user_id
 from backend.schemas.user import (
     GoogleUrlResponse,
+    PasswordChange,
+    PasswordResetSubmit,
     TeacherApplicationForm,
     TeacherApplicationResponse,
     TeacherRegister,
@@ -41,7 +43,10 @@ from backend.services.teacher import (
     register_teacher,
     submit_teacher_application,
 )
+from backend.services.password_reset import submit_reset_request
 from backend.services.user import (
+    PasswordChangeError,
+    change_password,
     EmailAlreadyRegisteredError,
     authenticate_user,
     build_user_response,
@@ -229,6 +234,20 @@ def api_update_me(
     return build_user_response(db, user)
 
 
+@router.post("/api/auth/me/password")
+def api_change_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, str]:
+    """修改自己的密碼。新密碼至少 8 個字元；有密碼的帳號要先輸入目前密碼。"""
+    try:
+        change_password(db, user, data)
+    except PasswordChangeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {"message": "密碼已更新，下次登入請用新密碼。"}
+
+
 @router.get("/api/auth/teacher-application", response_model=TeacherApplicationResponse)
 def api_teacher_application(
     db: Session = Depends(get_db),
@@ -295,3 +314,10 @@ def api_google_url(
     request.session["google_intent"] = intent
     return GoogleUrlResponse(url=build_google_auth_url(state))
 
+
+
+@router.post("/api/auth/password-reset-requests", status_code=202)
+def api_request_password_reset(data: PasswordResetSubmit, db: Session = Depends(get_db)) -> dict[str, str]:
+    """忘記密碼：建立一筆給管理員處理的申請。不管 Email 有沒有註冊都回同一句話。"""
+    submit_reset_request(db, str(data.email))
+    return {"message": "已收到申請。如果這個 Email 有註冊，管理員會協助重設密碼並另外通知你。"}

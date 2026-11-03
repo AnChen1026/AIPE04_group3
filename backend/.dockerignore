@@ -1,0 +1,29 @@
+#  絕對不能包進去的敏感檔案與環境變數
+.env
+.env.*
+*.private
+secret*
+
+#  排除開發時的虛擬環境與套件（容器內會自己安裝，不需要本機的）
+.venv/
+venv/
+ENV/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
+
+#  排除 Python 產生的快取垃圾檔（這會佔用大量空間）
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+#  排除版本控制與編輯器雜物
+.git
+.gitignore
+.vscode/
+.idea/
+*.log

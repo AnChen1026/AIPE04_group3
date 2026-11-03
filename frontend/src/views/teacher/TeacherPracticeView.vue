@@ -1,109 +1,122 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import FeedbackView from '@/components/console/FeedbackView.vue'
-import { fetchCourseRecordings, fetchMyCourses } from '@/api/teacher'
-import { apiUrl } from '@/api/http'
-import type { Course, TeacherRecording } from '@/types/api'
-import { formatDateTime } from '@/utils/format'
+import { fetchAssignments } from '@/api/teacher'
+import type { Assignment } from '@/types/api'
+import { ASSIGNMENT_KIND_LABELS, dueText, toneClass } from '@/utils/format'
 
-// 設計稿的「作業管理」：學生照這門課的參考 MIDI 送出的練習錄音與每次的回饋
-const courses = ref<Course[]>([])
-const courseId = ref('')
-const recordings = ref<TeacherRecording[]>([])
-const studentFilter = ref('')
+// 設計稿的「作業狀態」：老師發出的每一份作業，學生有沒有繳交。按「新增」到作業上傳，「查看詳情」看檔案與每次錄音的回饋
+const route = useRoute()
+const assignments = ref<Assignment[]>([])
+const keyword = ref('')
+const filter = ref<'all' | 'submitted' | 'missing'>('all')
+const loaded = ref(false)
 const error = ref('')
-let timer = 0
 
-const course = computed(() => courses.value.find((item) => item.id === courseId.value))
-const students = computed(() => [...new Map(recordings.value.map((item) => [item.student_id, item.student_name])).entries()])
-const shown = computed(() => recordings.value.filter((item) => !studentFilter.value || item.student_id === studentFilter.value))
+const filters = [
+  { value: 'all', label: '全部' },
+  { value: 'submitted', label: '已繳交' },
+  { value: 'missing', label: '未繳交' },
+] as const
 
-async function loadRecordings() {
-  window.clearTimeout(timer)
-  if (!courseId.value) return
-  try {
-    recordings.value = await fetchCourseRecordings(courseId.value)
-    error.value = ''
-  } catch (problem) {
-    error.value = problem instanceof Error ? problem.message : '讀不到練習錄音。'
-  }
-  // 還有錄音在分析時，每 5 秒更新一次
-  if (recordings.value.some((item) => item.status === 'pending' || item.status === 'processing')) {
-    timer = window.setTimeout(loadRecordings, 5000)
-  }
+// 網址帶 ?course= 時只看那門課（從課表的「查看作業分析」進來）
+const onlyCourse = computed(() => (typeof route.query.course === 'string' ? route.query.course : ''))
+const courseKeys = computed(() => [...new Set(assignments.value.map((item) => item.course_id))])
+const shown = computed(() => {
+  const text = keyword.value.trim().toLowerCase()
+  return assignments.value.filter(
+    (item) =>
+      (!onlyCourse.value || item.course_id === onlyCourse.value) &&
+      (filter.value === 'all' || (filter.value === 'submitted') === item.submission_count > 0) &&
+      (!text || [item.student_name, item.course_title, item.title].some((value) => value.toLowerCase().includes(text))),
+  )
+})
+
+function statusText(item: Assignment) {
+  if (item.kind === 'quiz') return '題庫作業已發布'
+  return item.submission_count ? `學生已繳交（${item.submission_count} 次）` : '作業已上傳，學生未繳交'
 }
 
-watch(courseId, () => {
-  studentFilter.value = ''
-  loadRecordings()
-})
-
 onMounted(async () => {
-  courses.value = (await fetchMyCourses()).filter((item) => item.status !== 'archived')
-  courseId.value = courses.value[0]?.id ?? ''
+  try {
+    assignments.value = await fetchAssignments()
+  } catch (problem) {
+    error.value = problem instanceof Error ? problem.message : '讀不到作業。'
+  } finally {
+    loaded.value = true
+  }
 })
-
-onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="作業管理" description="學生照參考 MIDI 錄的練習，以及每一次的音高、節奏與文字回饋。">
-    <select v-model="courseId" class="select practice__select" aria-label="選擇課程">
-      <option v-if="courses.length === 0" value="">還沒有課程</option>
-      <option v-for="item in courses" :key="item.id" :value="item.id">{{ item.title }}</option>
-    </select>
-    <select v-if="students.length > 1" v-model="studentFilter" class="select practice__select" aria-label="選擇學生">
-      <option value="">全部學生</option>
-      <option v-for="[id, name] in students" :key="id" :value="id">{{ name }}</option>
-    </select>
+  <PageHeader title="作業狀態">
+    <label class="search-input">
+      <span class="visually-hidden">搜尋學生</span>
+      <input v-model="keyword" class="input" type="search" placeholder="搜尋學生" />
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+      </svg>
+    </label>
+    <RouterLink :to="{ name: 'teacher-assignment-new', query: onlyCourse ? { course: onlyCourse } : {} }" class="btn btn--primary">
+      新增
+    </RouterLink>
   </PageHeader>
 
-  <div v-if="course && !course.has_reference_midi" class="card practice__notice">
-    這門課還沒有參考 MIDI，學生暫時不能送出練習。
-    <RouterLink :to="`/teacher/courses/${course.id}/edit`">到課程設定上傳</RouterLink>
+  <div class="chip-group homework__filters" role="group" aria-label="依繳交狀態篩選">
+    <button
+      v-for="item in filters"
+      :key="item.value"
+      type="button"
+      class="chip"
+      :aria-pressed="filter === item.value"
+      @click="filter = item.value"
+    >
+      {{ item.label }}
+    </button>
+    <RouterLink v-if="onlyCourse" :to="{ name: 'teacher-practice' }" class="chip">看全部課程</RouterLink>
   </div>
   <p v-if="error" class="error-text">{{ error }}</p>
 
-  <div v-if="courseId && shown.length === 0" class="card empty">這門課還沒有學生送出練習。</div>
-  <article v-for="item in shown" :key="item.id" class="card recording">
-    <header class="recording__head">
-      <strong>{{ item.student_name }}</strong>
-      <span class="muted">{{ formatDateTime(item.submitted_at) }}</span>
-    </header>
-    <audio class="recording__audio" controls preload="none" :src="apiUrl(`/teacher/recordings/${item.id}/audio`)"></audio>
-    <FeedbackView :recording="item" />
+  <div v-if="loaded && shown.length === 0" class="card empty">
+    {{ assignments.length === 0 ? '還沒有發過作業。按右上角「新增」替已綁定的學生發第一份作業。' : '沒有符合的作業。' }}
+  </div>
+  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="toneClass(item.course_id, courseKeys)">
+    <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
+    <div class="tone-card__cell">
+      <p class="tone-card__title">{{ item.course_title }}</p>
+      <p class="tone-card__line">{{ item.student_name }}</p>
+    </div>
+    <div class="tone-card__cell">
+      <p class="tone-card__title">{{ statusText(item) }}</p>
+      <p class="tone-card__line">{{ item.title }}・{{ dueText(item.due_at) }}</p>
+    </div>
+    <RouterLink :to="{ name: 'teacher-assignment', params: { id: item.id } }" class="tone-btn">查看詳情</RouterLink>
   </article>
 </template>
 
 <style scoped>
-.practice__select {
-  width: auto;
-  min-width: 180px;
+.search-input {
+  width: min(220px, 100%);
 }
 
-.practice__notice {
-  margin-bottom: 16px;
-  background: var(--home-cream);
-  font-size: 14px;
+.homework__filters {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--home-line);
 }
 
-.practice__notice a {
-  margin-left: 6px;
-  color: var(--home-accent);
-  text-decoration: underline;
+.homework {
+  grid-template-columns: 130px minmax(0, 0.8fr) minmax(0, 1.6fr) auto;
 }
 
-.recording__head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
+.homework__type {
+  text-align: center;
 }
 
-.recording__audio {
-  display: block;
-  width: 100%;
-  max-width: 420px;
-  margin: 10px 0;
+@media (max-width: 720px) {
+  .homework__type {
+    text-align: left;
+  }
 }
 </style>

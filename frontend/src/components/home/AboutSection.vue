@@ -14,13 +14,13 @@ defineProps<{
     <div class="about__intro">
       <SectionHeading
         v-reveal
-        label="關於琴室"
-        title="一對一的鋼琴課，"
+        label="關於melo"
+        title="想開始上課"
         accent="從找到對的老師開始"
         heading-id="about-title"
         align="center"
       >
-        不論是第一次碰琴，還是想把放下很久的曲子撿回來，都能在這裡找到步調相近的老師。
+        不論是第一次彈琴，還是想重新找回以前的樂感，都能在這裡找到步調相近的老師
       </SectionHeading>
 
       <div class="about__photos" aria-hidden="true">

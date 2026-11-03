@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchAdminStudents, fetchAdminTeachers } from '@/api/admin'
+import { openAdminConversation } from '@/api/support'
 import type { CurrentUser } from '@/types/user'
 import { formatDate } from '@/utils/format'
 
 const route = useRoute()
+const router = useRouter()
 const people = ref<CurrentUser[]>([])
 const keyword = ref('')
 const error = ref('')
@@ -20,6 +22,16 @@ const shown = computed(() => {
     [person.name, person.email, person.phone_number ?? ''].some((value) => value.toLowerCase().includes(text)),
   )
 })
+
+// 主動找這位老師或學生聊：沒有對話就先建一段
+async function chat(person: CurrentUser) {
+  try {
+    const conversation = await openAdminConversation(person.id)
+    router.push(`/admin/chat/${conversation.id}`)
+  } catch (problem) {
+    error.value = problem instanceof Error ? problem.message : '沒有辦法開啟對話。'
+  }
+}
 
 const applicationText: Record<string, string> = {
   pending: '等待審核',
@@ -69,6 +81,7 @@ watch(() => route.name, load, { immediate: true })
         <p class="muted">{{ person.email }}</p>
       </div>
       <span class="person__state">{{ person.is_active ? '已啟用' : '未啟用' }}</span>
+      <button v-if="person.is_active" type="button" class="btn btn--ghost btn--small" @click="chat(person)">聊天</button>
     </div>
     <dl class="person__meta">
       <div>

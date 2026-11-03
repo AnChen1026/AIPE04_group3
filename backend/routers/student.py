@@ -1,22 +1,23 @@
 """學生 JSON API。正式 Vue 之後也呼叫這裡。"""
 
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.uploads import resolve_stored_path
+from backend.core.storage import file_response
 from backend.dependencies.common import get_current_user, require_roles
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
 from backend.services.conversation import conversation_rows
 from backend.schemas.student import (
+    AvailabilitySlotResponse,
     BindIn,
     MessageIn,
     ChangeRequestResponse,
+    SlotBookingIn,
+    SlotRescheduleIn,
     ConversationResponse,
     CourseResponse,
     FeedbackResponse,
@@ -24,6 +25,8 @@ from backend.schemas.student import (
     MessageResponse,
     RecordingResponse,
 )
+from backend.services.availability import book_slot, list_open_slots, reschedule_to_slot
+from backend.services.weekly_schedule import extend_teacher_schedule
 from backend.services.practice import run_recording_analysis
 from backend.services.student import (
     MAX_RECORDING_BYTES,
@@ -156,9 +159,10 @@ def api_schedule(
     db: Session = Depends(get_db),
 ):
     try:
-        require_bound(db, current_user.id, course_id)
+        course = require_bound(db, current_user.id, course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
+    extend_teacher_schedule(db, course.teacher_id)
     return StudentRepository.list_schedule(db, current_user.id, course_id)
 
 
@@ -181,23 +185,59 @@ def api_change_request(
     course_id: uuid.UUID,
     request_type: str,
     session_id: uuid.UUID | None = None,
-    proposed_starts_at: datetime | None = None,
-    proposed_ends_at: datetime | None = None,
     reason: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """請假。約課與調課要從老師開放的時段選，走下面的 book、reschedule。"""
     try:
-        return create_change_request(
-            db,
-            current_user,
-            course_id,
-            request_type,
-            session_id,
-            proposed_starts_at,
-            proposed_ends_at,
-            reason,
-        )
+        return create_change_request(db, current_user, course_id, request_type, session_id, reason)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+
+
+@router.get("/courses/{course_id}/availability", response_model=list[AvailabilitySlotResponse])
+def api_teacher_availability(
+    course_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """這門課老師還沒被預約的可上課時段。要先綁定。"""
+    try:
+        course = require_bound(db, current_user.id, course_id)
+        extend_teacher_schedule(db, course.teacher_id)
+        return list_open_slots(db, current_user, course_id)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+
+
+@router.post("/courses/{course_id}/availability/{slot_id}/book", response_model=ChangeRequestResponse)
+def api_book_slot(
+    course_id: uuid.UUID,
+    slot_id: uuid.UUID,
+    data: SlotBookingIn | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """在時段內選時間送出約課，那段先保留給自己；別人已預約回 409。老師完成約課才進正式課表。"""
+    data = data or SlotBookingIn()
+    try:
+        return book_slot(db, current_user, course_id, slot_id, data.starts_at, data.minutes, data.reason)
+    except StudentBusinessError as error:
+        _raise_business_error(error)
+
+
+@router.post("/courses/{course_id}/availability/{slot_id}/reschedule", response_model=ChangeRequestResponse)
+def api_reschedule_to_slot(
+    course_id: uuid.UUID,
+    slot_id: uuid.UUID,
+    data: SlotRescheduleIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """把一堂課調到開放時段內，長度沿用原本那堂。老師同意前原本的課不變。"""
+    try:
+        return reschedule_to_slot(db, current_user, course_id, data.session_id, slot_id, data.starts_at, data.reason)
     except StudentBusinessError as error:
         _raise_business_error(error)
 
@@ -207,6 +247,8 @@ def _recording_response(db: Session, recording) -> RecordingResponse:
     return RecordingResponse(
         id=recording.id,
         course_id=recording.course_id,
+        assignment_id=recording.assignment_id,
+        metronome_bpm=recording.metronome_bpm,
         status=recording.status,
         submitted_at=recording.submitted_at,
         feedback=FeedbackResponse.model_validate(feedback) if feedback else None,
@@ -279,7 +321,23 @@ def api_my_recording_audio(
         require_bound(db, current_user.id, recording.course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
-    return FileResponse(resolve_stored_path(recording.file_path))
+    return file_response(recording.file_path)
+
+
+@router.get("/recordings/{recording_id}/score-sheet")
+def api_my_score_sheet(
+    recording_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """答案與自己這次演奏上下對照的樂譜（MusicXML）。"""
+    recording = _own_recording(db, current_user, recording_id)
+    feedback = StudentRepository.get_feedback(db, recording.id)
+    if feedback is None or not feedback.score_sheet_path:
+        raise HTTPException(status_code=404, detail="這次練習沒有對照樂譜。")
+    return file_response(
+        feedback.score_sheet_path, media_type="application/vnd.recordare.musicxml+xml"
+    )
 
 
 @router.get("/courses/{course_id}/reference-midi")
@@ -295,4 +353,4 @@ def api_reference_midi(
         _raise_business_error(error)
     if not course.reference_midi_path:
         raise HTTPException(status_code=404, detail="這門課還沒有參考 MIDI。")
-    return FileResponse(resolve_stored_path(course.reference_midi_path), media_type="audio/midi")
+    return file_response(course.reference_midi_path, media_type="audio/midi")

@@ -28,6 +28,26 @@ export const rejectApplication = (id: string) =>
 export const fetchAdminTeachers = () => request<CurrentUser[]>('/api/admin/teachers')
 export const fetchAdminStudents = () => request<CurrentUser[]>('/api/admin/students')
 
+export interface PasswordResetRequest {
+  id: string
+  status: 'pending' | 'completed' | 'dismissed'
+  created_at: string
+  handled_at: string | null
+  user: {
+    id: string
+    email: string
+    name: string
+    role: string
+    auth_provider: string
+  }
+}
+
+export const fetchPasswordResets = () => request<PasswordResetRequest[]>('/api/admin/password-reset-requests')
+export const resetPassword = (id: string) =>
+  request<{ request: PasswordResetRequest; temporary_password: string }>(`/api/admin/password-reset-requests/${id}/reset`, { method: 'POST' })
+export const dismissPasswordReset = (id: string) =>
+  request<PasswordResetRequest>(`/api/admin/password-reset-requests/${id}/dismiss`, { method: 'POST' })
+
 export function proofUrl(id: string): string {
   return `${API_BASE}/api/admin/teacher-applications/${id}/proof`
 }

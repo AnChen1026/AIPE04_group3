@@ -246,9 +246,9 @@ onUnmounted(() => {
       <canvas ref="canvasRef" class="hero__smoke" aria-hidden="true"></canvas>
       <div class="hero__scrim" :style="scrimStyle"></div>
       <div class="hero__copy" :style="copyStyle">
-        <p class="hero__eyebrow">一對一鋼琴課</p>
-        <h1 id="hero-title">找一位老師，<em>把想彈的曲子練完。</em></h1>
-        <p class="hero__lead">古典、流行、爵士都可以。先從適合自己的步調開始。</p>
+        <p class="hero__eyebrow">鋼琴課程推薦</p>
+        <h1 id="hero-title">讓喜歡的音樂<em>成為生活的一部分</em></h1>
+        <p class="hero__lead">古典、流行、爵士，遇見適合的老師，讓音樂陪你走得更遠</p>
         <form class="hero__search" role="search" @submit.prevent="scrollToCourses">
           <label class="visually-hidden" for="home-search">搜尋老師或課程</label>
           <input id="home-search" v-model="keyword" type="search" placeholder="搜尋老師或課程" />

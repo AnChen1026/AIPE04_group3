@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import ImagePicker from '@/components/console/ImagePicker.vue'
-import { createCourse, fetchCourse, updateCourse, uploadCourseImage, uploadReferenceMidi } from '@/api/teacher'
+import { createCourse, fetchCourse, updateCourse, uploadCourseImage } from '@/api/teacher'
 import { imageForCourse } from '@/assets/courseImages'
 import { apiUrl } from '@/api/http'
 import { useLeaveGuard } from '@/composables/useLeaveGuard'
@@ -32,9 +32,6 @@ const imagePicker = ref<InstanceType<typeof ImagePicker> | null>(null)
 const created = ref(false)
 const defaultImage = computed(() => imageForCourse(form.title, form.style))
 const original = ref('')
-const hasMidi = ref(false)
-const midiFile = ref<File | null>(null)
-const midiInput = ref<HTMLInputElement | null>(null)
 const errors = reactive<Record<string, string>>({})
 const serverError = ref('')
 const saving = ref(false)
@@ -42,7 +39,6 @@ const saved = ref(false)
 
 const dirty = computed(
   () =>
-    midiFile.value !== null ||
     image.value !== null ||
     (original.value !== '' && JSON.stringify(form) !== original.value),
 )
@@ -62,7 +58,6 @@ onMounted(async () => {
       description: course.description ?? '',
       status: course.status,
     })
-    hasMidi.value = course.has_reference_midi
     imageUrl.value = course.image_url ? apiUrl(course.image_url) : null
   }
   original.value = JSON.stringify(form)
@@ -75,7 +70,6 @@ function validate() {
     errors.price_per_lesson = '單堂價格要是 0 以上的整數。'
   }
   if (form.status === 'published' && !form.level) errors.level = '發布前請選擇找課程度，學生才找得到。'
-  if (midiFile.value && !/\.midi?$/i.test(midiFile.value.name)) errors.midi = '請選擇 .mid 或 .midi 檔。'
   return Object.keys(errors).length === 0
 }
 
@@ -93,13 +87,8 @@ function startAnother() {
     status: 'draft',
   })
   original.value = JSON.stringify(form)
-  hasMidi.value = false
   imageUrl.value = null
   window.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
-function onMidi(event: Event) {
-  midiFile.value = (event.target as HTMLInputElement).files?.[0] ?? null
 }
 
 async function save() {
@@ -123,12 +112,6 @@ async function save() {
       const updated = await uploadCourseImage(course.id, image.value)
       imageUrl.value = updated.image_url ? `${apiUrl(updated.image_url)}?v=${Date.now()}` : null
       imagePicker.value?.reset()
-    }
-    if (midiFile.value) {
-      await uploadReferenceMidi(course.id, midiFile.value)
-      hasMidi.value = true
-      midiFile.value = null
-      if (midiInput.value) midiInput.value.value = ''
     }
     original.value = JSON.stringify(form)
     // 新增完回到列表或再新增一門，不會停在剛建立的課程上，避免下一門蓋掉這一門
@@ -219,19 +202,6 @@ async function save() {
           placeholder="這門課適合誰、會學到什麼、上課怎麼進行"
         ></textarea>
       </div>
-      <div class="field field--full">
-        <span class="field__label">參考 MIDI</span>
-        <p class="midi__state">
-          <template v-if="hasMidi">
-            已設定。學生的練習都會跟這份曲子比對。
-            <a v-if="courseId" :href="apiUrl(`/courses/${courseId}/reference-midi`)" class="midi__link">下載目前的檔案</a>
-          </template>
-          <template v-else>還沒設定。沒有參考 MIDI 時，學生不能送出練習錄音。</template>
-        </p>
-        <input ref="midiInput" type="file" accept=".mid,.midi" aria-label="選擇參考 MIDI 檔" @change="onMidi" />
-        <span class="field__hint">.mid／.midi，最大 2 MB。換新檔後，之前的練習仍保留當時的比對結果。</span>
-        <p v-if="errors.midi" class="error-text">{{ errors.midi }}</p>
-      </div>
     </div>
     <p v-if="serverError" class="error-text" role="alert">{{ serverError }}</p>
   </form>
@@ -265,17 +235,6 @@ async function save() {
 
 .course__image {
   margin-bottom: 22px;
-}
-
-.midi__state {
-  margin: 0 0 6px;
-  font-size: 14px;
-}
-
-.midi__link {
-  margin-left: 8px;
-  color: var(--home-accent);
-  text-decoration: underline;
 }
 
 .error-text {

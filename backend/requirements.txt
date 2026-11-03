@@ -1,0 +1,40 @@
+# FastAPI 相關
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+email-validator>=2.0.0
+argon2-cffi>=23.1.0
+python-multipart>=0.0.9
+itsdangerous>=2.2.0
+
+# 測試：pytest tests
+pytest>=8.0.0
+httpx>=0.27.0
+
+# 資料庫
+sqlalchemy>=2.0.0
+psycopg[binary]>=3.1.0
+alembic>=1.13.0
+
+# 資料分析相關
+pandas>=2.2.0
+numpy>=1.26.0
+scipy>=1.12.0
+
+# 演奏評分測試：讀 MIDI、音檔轉 MIDI
+pretty_midi>=0.2.9
+librosa>=0.8.0
+soundfile>=0.12.1
+onnxruntime
+setuptools<81
+# basic-pitch 不能直接 pip install：它要求的 TensorFlow 舊版沒有 Python 3.12 版本。
+# 我們只用它的 ONNX 模型（onnxruntime 執行），用不到 TensorFlow，所以另外執行：
+#   pip install basic-pitch==0.4.0 --no-deps
+# Dockerfile 已經自動做這一步。
+# --no-deps 不會自動裝下面這些，所以要自己列出
+mir_eval
+resampy>=0.2.2,<0.4.3
+scikit-learn
+google-genai>=1.0.0
+
+# 練習回饋的上下對照樂譜（MusicXML）
+music21>=9.1

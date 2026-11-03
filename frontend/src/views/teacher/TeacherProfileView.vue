@@ -34,7 +34,7 @@ onMounted(async () => {
 
 <template>
   <PageHeader title="個人資料" description="學生在課程頁看到的老師介紹。">
-    <RouterLink to="/teacher/profile/edit" class="btn btn--primary">編輯</RouterLink>
+    <RouterLink to="/teacher/settings/profile/edit" class="btn btn--primary">編輯</RouterLink>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
   <div v-if="profile" class="card profile__head">

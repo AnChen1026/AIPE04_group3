@@ -130,6 +130,8 @@ class FeedbackResponse(BaseModel):
     rhythm_score: float | None = None
     feedback_text: str | None = None
     status: str
+    # 有沒有答案與學生的對照樂譜，可以用 score-sheet 網址下載
+    has_score_sheet: bool = False
 
     class Config:
         from_attributes = True
@@ -138,6 +140,10 @@ class FeedbackResponse(BaseModel):
 class RecordingResponse(BaseModel):
     id: uuid.UUID
     course_id: uuid.UUID
+    # 繳交的是哪一份作業；直接照課程參考曲練習的是空的
+    assignment_id: uuid.UUID | None = None
+    # 錄音時開的節拍器速度；沒開是空的
+    metronome_bpm: float | None = None
     status: str
     submitted_at: datetime
     feedback: FeedbackResponse | None = None
@@ -167,3 +173,154 @@ class LessonSummaryResponse(BaseModel):
     stats: dict
     source_recording_ids: list[str]
     generated_at: datetime
+
+
+class AssignmentMaterialResponse(BaseModel):
+    id: uuid.UUID
+    filename: str
+    content_type: str | None = None
+    file_size_bytes: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AssignmentResponse(BaseModel):
+    """一份作業。老師和學生看到的一樣；檔案另外用下載網址拿。"""
+
+    id: uuid.UUID
+    course_id: uuid.UUID
+    course_title: str
+    student_id: uuid.UUID
+    student_name: str
+    kind: str
+    title: str
+    description: str | None = None
+    due_at: datetime | None = None
+    has_midi: bool
+    midi_filename: str | None = None
+    midi_bpm: float | None = None
+    practice_bpm: int | None = None
+    materials: list[AssignmentMaterialResponse]
+    submission_count: int
+    last_submitted_at: datetime | None = None
+    created_at: datetime
+
+
+class AvailabilitySlotIn(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class AvailabilitySlotResponse(BaseModel):
+    """學生看到的老師可上課時段：只有時間。"""
+
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeacherAvailabilitySlotResponse(AvailabilitySlotResponse):
+    """老師自己的時段：多了狀態、預約的學生與課程，以及待處理的約課。"""
+
+    status: str
+    student_id: uuid.UUID | None = None
+    student_name: str | None = None
+    course_id: uuid.UUID | None = None
+    course_title: str | None = None
+    lesson_id: uuid.UUID | None = None
+    change_request_id: uuid.UUID | None = None
+
+
+class SlotBookingIn(BaseModel):
+    """學生在開放時段內選開始時間與長度。"""
+
+    starts_at: datetime | None = None
+    minutes: int | None = None
+    reason: str | None = None
+
+
+class SlotRescheduleIn(BaseModel):
+    """學生把一堂課調到開放時段內，長度沿用原本那堂。"""
+
+    session_id: uuid.UUID
+    starts_at: datetime
+    reason: str | None = None
+
+
+class WeeklyWindow(BaseModel):
+    """每週的一段時間。weekday 0 是週一；分鐘是當天的第幾分鐘，例如 18:00 是 1080。"""
+
+    weekday: int
+    start_minute: int
+    end_minute: int
+
+    class Config:
+        from_attributes = True
+
+
+class WeeklyAvailabilityIn(BaseModel):
+    windows: list[WeeklyWindow]
+
+
+class RecurringLessonIn(WeeklyWindow):
+    student_id: uuid.UUID
+    course_id: uuid.UUID
+
+
+class RecurringLessonUpdateIn(WeeklyWindow):
+    """move_lesson_ids：老師勾選要一起移到新時間的課，其他已排的課保留。"""
+
+    move_lesson_ids: list[uuid.UUID] = []
+
+
+class RecurringLessonStopIn(BaseModel):
+    """cancel_lesson_ids：老師勾選要一起取消的課，其他已排的課保留。"""
+
+    cancel_lesson_ids: list[uuid.UUID] = []
+
+
+class RecurringFutureLesson(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RecurringLessonResponse(WeeklyWindow):
+    id: uuid.UUID
+    student_id: uuid.UUID
+    student_name: str
+    course_id: uuid.UUID
+    course_title: str
+    future_lessons: list[RecurringFutureLesson]
+
+
+class RecurringSkippedWeek(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+    reason: str
+
+
+class RecurringLessonResult(BaseModel):
+    """created：排了或移動了幾堂；skipped：因衝突沒排成的那幾週。"""
+
+    rule: RecurringLessonResponse
+    created: int
+    skipped: list[RecurringSkippedWeek]
+
+
+class TeacherLessonIn(BaseModel):
+    """老師直接排課。課的時間由老師決定；slot_id 是放在哪個開放時段上，時段會讓出這段時間。"""
+
+    student_id: uuid.UUID
+    course_id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime
+    slot_id: uuid.UUID | None = None

@@ -1,5 +1,5 @@
-import { request } from './http'
-import type { ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
+import { apiUrl, request } from './http'
+import type { Assignment, AvailabilitySlot, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
 
 // ---------- 接洽對話與綁定
 export const startConversation = (courseId: string) =>
@@ -33,8 +33,6 @@ export const fetchMyChangeRequests = (courseId: string) =>
 export interface ChangeRequestInput {
   request_type: ChangeRequestType
   session_id?: string | null
-  proposed_starts_at?: string | null
-  proposed_ends_at?: string | null
   reason?: string | null
 }
 
@@ -44,6 +42,17 @@ export const createChangeRequest = (courseId: string, input: ChangeRequestInput)
     query: { ...input },
   })
 
+// ---------- 老師的可上課時段：要先綁定；在時段內選時間送出約課或調課，老師同意才改正式課表
+export const fetchTeacherAvailability = (courseId: string) =>
+  request<AvailabilitySlot[]>(`/api/student/courses/${courseId}/availability`)
+export const bookSlot = (courseId: string, slotId: string, input: { starts_at: string; minutes: number; reason?: string | null }) =>
+  request<ChangeRequest>(`/api/student/courses/${courseId}/availability/${slotId}/book`, { method: 'POST', body: { ...input } })
+export const rescheduleToSlot = (
+  courseId: string,
+  slotId: string,
+  input: { session_id: string; starts_at: string; reason?: string | null },
+) => request<ChangeRequest>(`/api/student/courses/${courseId}/availability/${slotId}/reschedule`, { method: 'POST', body: { ...input } })
+
 // ---------- 練習錄音
 export const fetchMyRecordings = (courseId: string) => request<Recording[]>(`/api/student/courses/${courseId}/recordings`)
 export const fetchMyRecording = (id: string) => request<Recording>(`/api/student/recordings/${id}`)
@@ -52,4 +61,19 @@ export function uploadRecording(courseId: string, audio: Blob, filename: string)
   const form = new FormData()
   form.append('audio', audio, filename)
   return request<Recording>(`/api/student/courses/${courseId}/recordings`, { method: 'POST', body: form })
+}
+
+// ---------- 作業：老師發給自己的作業、下載檔案、錄音繳交
+export const fetchMyAssignments = () => request<Assignment[]>('/api/student/assignments')
+export const fetchAssignmentRecordings = (id: string) => request<Recording[]>(`/api/student/assignments/${id}/recordings`)
+export const studentAssignmentMidiUrl = (id: string) => apiUrl(`/api/student/assignments/${id}/midi`)
+export const studentMaterialUrl = (id: string) => apiUrl(`/api/student/assignment-materials/${id}`)
+export const studentScoreSheetUrl = (recordingId: string) => apiUrl(`/api/student/recordings/${recordingId}/score-sheet`)
+
+// 錄音時有開節拍器就帶速度，節奏照節拍器評分
+export function submitAssignment(id: string, audio: Blob, filename: string, metronomeBpm: number | null = null) {
+  const form = new FormData()
+  form.append('audio', audio, filename)
+  if (metronomeBpm) form.append('metronome_bpm', String(metronomeBpm))
+  return request<Recording>(`/api/student/assignments/${id}/recordings`, { method: 'POST', body: form })
 }

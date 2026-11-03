@@ -2,20 +2,23 @@
 
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
+from backend.models.assignment import Assignment
 from backend.models.student import (
+    AvailabilitySlot,
     BindingCode,
     ChangeRequest,
     ConversationMessage,
     Course,
     CourseBinding,
+    CourseJoinCode,
     InquiryConversation,
     LessonSession,
     PracticeFeedback,
@@ -23,7 +26,8 @@ from backend.models.student import (
 )
 from backend.models.teacher import TeacherDB
 from backend.models.user import User
-from backend.core.uploads import PRACTICE_UPLOAD_DIR, stored_path
+from backend.core.uploads import PRACTICE_UPLOAD_DIR
+from backend.core.storage import save_file, cleanup_files
 from backend.repositories.student import StudentRepository
 from backend.services.chat_hub import chat_hub, message_event
 
@@ -208,13 +212,21 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
     if course is None or course.status == "archived":
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這門課已經停止開放，不能綁定。")
 
-    binding = StudentRepository.get_binding(db, student.id, conversation.course_id)
     now = datetime.now(timezone.utc)
+    binding = _bind_student(db, student, course, now)
+    binding_code.used_at = now
+    _commit(db)
+    db.refresh(binding)
+    return binding
+
+
+def _bind_student(db: Session, student: User, course: Course, now: datetime) -> CourseBinding:
+    binding = StudentRepository.get_binding(db, student.id, course.id)
     if binding is None:
         binding = CourseBinding(
             student_id=student.id,
-            teacher_id=conversation.teacher_id,
-            course_id=conversation.course_id,
+            teacher_id=course.teacher_id,
+            course_id=course.id,
             status="bound",
             bound_at=now,
         )
@@ -223,22 +235,96 @@ def redeem_binding_code(db: Session, student: User, conversation: InquiryConvers
         binding.status = "bound"
         binding.bound_at = now
         binding.unbound_at = None
-    binding_code.used_at = now
-    _commit(db)
-    db.refresh(binding)
     return binding
 
 
 def redeem_code_only(db: Session, student: User, code: str) -> InquiryConversation:
     """學生只輸入綁定碼：找到老師發給他的那段對話，再照一般規則綁定。"""
     binding_code = StudentRepository.get_binding_code(db, code.strip().upper())
-    if binding_code is None or binding_code.student_id != student.id:
+    if binding_code is None:
+        return redeem_course_join_code(db, student, code)
+    if binding_code.student_id != student.id:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
     conversation = StudentRepository.get_conversation(db, binding_code.conversation_id)
     if conversation is None:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
     redeem_binding_code(db, student, conversation, binding_code.code)
     return conversation
+
+
+JOIN_CODE_HOURS = (1, 24, 72, 168)
+# 去掉 0/O、1/I 這類容易看錯的字
+JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def active_course_join_code(db: Session, teacher_id: uuid.UUID, course_id: uuid.UUID) -> CourseJoinCode | None:
+    join_code = db.scalar(
+        select(CourseJoinCode).where(CourseJoinCode.course_id == course_id, CourseJoinCode.teacher_id == teacher_id)
+    )
+    if join_code is None or join_code.expires_at <= datetime.now(timezone.utc):
+        return None
+    return join_code
+
+
+def issue_course_join_code(db: Session, course: Course, hours: int) -> CourseJoinCode:
+    """替一門課產生限時綁定碼。同一門課只留最新一組，舊碼立刻失效。"""
+    if hours not in JOIN_CODE_HOURS:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "有效時間只能選 1、24、72 或 168 小時。")
+    if course.status != "published":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "課程發布後才能產生綁定碼。")
+    db.execute(delete(CourseJoinCode).where(CourseJoinCode.course_id == course.id))
+    while True:
+        code = "".join(secrets.choice(JOIN_CODE_ALPHABET) for _ in range(8))
+        taken = db.scalar(select(CourseJoinCode.id).where(CourseJoinCode.code == code)) or db.scalar(
+            select(BindingCode.id).where(BindingCode.code == code)
+        )
+        if not taken:
+            break
+    join_code = CourseJoinCode(
+        code=code,
+        course_id=course.id,
+        teacher_id=course.teacher_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=hours),
+    )
+    db.add(join_code)
+    _commit(db)
+    db.refresh(join_code)
+    return join_code
+
+
+def revoke_course_join_code(db: Session, course: Course) -> None:
+    db.execute(delete(CourseJoinCode).where(CourseJoinCode.course_id == course.id))
+    _commit(db)
+
+
+def redeem_course_join_code(db: Session, student: User, code: str) -> InquiryConversation:
+    """課程限時碼：期限內可以重複使用。加入後也開一段和老師的對話，方便之後聯絡。"""
+    join_code = db.scalar(select(CourseJoinCode).where(CourseJoinCode.code == code.strip().upper()))
+    if join_code is None or join_code.expires_at <= datetime.now(timezone.utc):
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "綁定碼不能使用，請確認老師給你的碼。")
+    conversation = start_conversation(db, student, join_code.course_id)
+    course = StudentRepository.get_course(db, join_code.course_id)
+    _bind_student(db, student, course, datetime.now(timezone.utc))
+    _commit(db)
+    return conversation
+
+
+def reopen_slot(db: Session, slot: AvailabilitySlot) -> None:
+    """時段回到可預約，並和前後相連的可預約時段併回一段，之後才放得下較長的課。"""
+    slot.reopen()
+    neighbours = db.scalars(
+        select(AvailabilitySlot).where(
+            AvailabilitySlot.teacher_id == slot.teacher_id,
+            AvailabilitySlot.status == "open",
+            AvailabilitySlot.id != slot.id,
+            or_(AvailabilitySlot.ends_at == slot.starts_at, AvailabilitySlot.starts_at == slot.ends_at),
+        )
+    ).all()
+    for neighbour in neighbours:
+        slot.starts_at = min(slot.starts_at, neighbour.starts_at)
+        slot.ends_at = max(slot.ends_at, neighbour.ends_at)
+        slot.from_weekly = slot.from_weekly and neighbour.from_weekly
+        db.delete(neighbour)
 
 
 def require_bound(db: Session, student_id: uuid.UUID, course_id: uuid.UUID) -> Course:
@@ -256,22 +342,21 @@ def create_change_request(
     course_id: uuid.UUID,
     request_type: str,
     session_id: uuid.UUID | None,
-    proposed_starts_at: datetime | None,
-    proposed_ends_at: datetime | None,
     reason: str | None,
 ) -> ChangeRequest:
+    """請假。約課與調課要從老師開放的時段選（見 availability.py），不能自己填時間。"""
     course = require_bound(db, student.id, course_id)
-    if request_type not in ("booking", "leave", "reschedule"):
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "申請種類不正確。")
-    if request_type in ("leave", "reschedule"):
-        if session_id is None:
-            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請假或調課要指定原本的課堂。")
-        lesson = StudentRepository.get_session(db, session_id)
-        if lesson is None or lesson.student_id != student.id or lesson.course_id != course.id:
-            raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "不能對這堂課提出申請。")
     if request_type in ("booking", "reschedule"):
-        if proposed_starts_at is None or proposed_ends_at is None or proposed_ends_at <= proposed_starts_at:
-            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請填開始和結束時間，結束要晚於開始。")
+        raise StudentBusinessError(
+            status.HTTP_400_BAD_REQUEST, "請從老師開放的可上課時段選擇；想要其他時間請自行向老師聯繫。"
+        )
+    if request_type != "leave":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "申請種類不正確。")
+    if session_id is None:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請假要指定原本的課堂。")
+    lesson = StudentRepository.get_session(db, session_id)
+    if lesson is None or lesson.student_id != student.id or lesson.course_id != course.id:
+        raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "不能對這堂課提出申請。")
 
     change_request = ChangeRequest(
         course_id=course.id,
@@ -279,8 +364,6 @@ def create_change_request(
         student_id=student.id,
         session_id=session_id,
         request_type=request_type,
-        proposed_starts_at=proposed_starts_at,
-        proposed_ends_at=proposed_ends_at,
         reason=reason,
         status="pending",
     )
@@ -296,10 +379,14 @@ def save_recording(
     course_id: uuid.UUID,
     filename: str,
     content: bytes,
+    assignment: Assignment | None = None,
+    metronome_bpm: float | None = None,
 ) -> PracticeRecording:
+    """繳交作業時跟作業的參考 MIDI 比；作業沒附 MIDI、或不是交作業時，用課程的參考曲。"""
     course = require_bound(db, student.id, course_id)
-    if not course.reference_midi_path:
-        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "老師還沒設定這門課的參考曲，暫時不能送出錄音。")
+    reference_midi_path = (assignment.midi_path if assignment else None) or course.reference_midi_path
+    if not reference_midi_path:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "老師還沒設定參考曲，暫時不能送出錄音。")
     suffix = Path(filename).suffix.lower()
     if suffix not in RECORDING_SUFFIXES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "請上傳音檔，或用網頁錄音。")
@@ -307,20 +394,24 @@ def save_recording(
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔是空的。")
     if len(content) > MAX_RECORDING_BYTES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "音檔最大 20 MB。")
+    if metronome_bpm is not None and not 30 <= metronome_bpm <= 240:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "節拍器速度要在 30～240 BPM 之間。")
 
     recording_id = uuid.uuid4()
     folder = PRACTICE_UPLOAD_DIR / str(student.id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f"{recording_id}{suffix}"
-    path.write_bytes(content)
+    storage_key = save_file(path, content)
 
     recording = PracticeRecording(
         id=recording_id,
         course_id=course.id,
         teacher_id=course.teacher_id,
         student_id=student.id,
-        file_path=stored_path(path),
-        reference_midi_path=course.reference_midi_path,
+        file_path=storage_key,
+        assignment_id=assignment.id if assignment else None,
+        reference_midi_path=reference_midi_path,
+        metronome_bpm=metronome_bpm,
         status="pending",
     )
     feedback = PracticeFeedback(
@@ -330,11 +421,16 @@ def save_recording(
         student_id=student.id,
         status="pending",
     )
-    db.add(recording)
-    # 兩張表之間沒有 relationship，先寫入錄音，回饋的外鍵才找得到
-    db.flush()
-    db.add(feedback)
-    _commit(db)
+    try:
+        db.add(recording)
+        # 先寫入錄音，回饋的外鍵才找得到
+        db.flush()
+        db.add(feedback)
+        _commit(db)
+    except Exception:
+        db.rollback()
+        cleanup_files([storage_key])
+        raise
     db.refresh(recording)
     return recording
 
@@ -382,8 +478,13 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
     if not StudentRepository.is_bound(db, change_request.student_id, change_request.course_id):
         raise StudentBusinessError(status.HTTP_403_FORBIDDEN, "學生尚未綁定這門課。")
 
+    # 學生點選可上課時段送出的約課：拒絕就把時段放回去，同意就標成已排
+    slot = db.get(AvailabilitySlot, change_request.availability_slot_id) if change_request.availability_slot_id else None
+
     if not approve:
         change_request.status = "rejected"
+        if slot is not None:
+            reopen_slot(db, slot)
         _commit(db)
         db.refresh(change_request)
         return change_request
@@ -393,6 +494,9 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
         if lesson is None:
             raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到原本的課堂。")
         lesson.status = "cancelled"
+        booked_slot = db.scalar(select(AvailabilitySlot).where(AvailabilitySlot.lesson_id == lesson.id))
+        if booked_slot is not None:
+            reopen_slot(db, booked_slot)
     else:
         ignore_id = change_request.session_id if change_request.request_type == "reschedule" else None
         taken = StudentRepository.slot_is_taken(
@@ -405,26 +509,38 @@ def decide_change_request(db: Session, teacher: User, request_id: uuid.UUID, app
         )
         if taken:
             change_request.status = "rejected"
+            if slot is not None:
+                reopen_slot(db, slot)
             _commit(db)
             db.refresh(change_request)
             raise StudentBusinessError(status.HTTP_409_CONFLICT, "時段已被占用，正式課表沒有改變。")
         if change_request.request_type == "booking":
-            db.add(
-                LessonSession(
-                    course_id=change_request.course_id,
-                    teacher_id=change_request.teacher_id,
-                    student_id=change_request.student_id,
-                    starts_at=change_request.proposed_starts_at,
-                    ends_at=change_request.proposed_ends_at,
-                    status="scheduled",
-                )
+            lesson = LessonSession(
+                course_id=change_request.course_id,
+                teacher_id=change_request.teacher_id,
+                student_id=change_request.student_id,
+                starts_at=change_request.proposed_starts_at,
+                ends_at=change_request.proposed_ends_at,
+                status="scheduled",
             )
+            db.add(lesson)
+            if slot is not None:
+                db.flush()
+                slot.status = "booked"
+                slot.lesson_id = lesson.id
         else:
             lesson = StudentRepository.get_session(db, change_request.session_id)
             if lesson is None:
                 raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到原本的課堂。")
+            # 原本那堂若來自開放時段，舊時間回到可預約；選的時段標成已排
+            old_slot = db.scalar(select(AvailabilitySlot).where(AvailabilitySlot.lesson_id == lesson.id))
+            if old_slot is not None:
+                reopen_slot(db, old_slot)
             lesson.starts_at = change_request.proposed_starts_at
             lesson.ends_at = change_request.proposed_ends_at
+            if slot is not None:
+                slot.status = "booked"
+                slot.lesson_id = lesson.id
 
     change_request.status = "approved"
     _commit(db)

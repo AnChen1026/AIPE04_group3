@@ -26,13 +26,13 @@ const steps = computed(() => (role.value === 'student' ? props.studentSteps : pr
       <SectionHeading
         v-reveal
         label="上課流程"
-        title="從找課到練習，"
+        title="從找課到練習"
         accent="每一步都清楚"
         heading-id="flow-title"
         align="center"
         tone="dark"
       >
-        學生和老師看到的步驟不一樣，切換看看。
+        學生和老師看到的步驟不一樣，切換看看
       </SectionHeading>
 
       <div v-reveal="100" class="flow__tabs" role="tablist" aria-label="選擇身分">

@@ -69,7 +69,7 @@ def test_刪掉的舊API已經不存在(make_user, login):
         ("post", "/chat"),
         ("post", "/bindings"),
         ("get", "/teacher/submissions"),
-        ("get", "/teacher/assignments"),
+        # /teacher/assignments 現在是新的作業 API（tests/test_assignments.py），不在這份清單
     ]:
         assert getattr(teacher_client, method)(path).status_code in (404, 405)
 
@@ -102,13 +102,15 @@ def test_教材與測驗只看得到自己的(make_user, login):
     assert stranger.get("/teacher/quizzes").json() == []
 
 
-def test_首頁推薦端口已保留_尚未實作():
+def test_首頁推薦端口已實作(db):
     from fastapi.testclient import TestClient
 
     from backend.main import app
 
     client = TestClient(app)
-    assert client.post("/api/recommendations", json={"message": "想學鋼琴"}).status_code == 501
+    started = client.post("/api/recommendations", json={"message": "想學鋼琴"})
+    assert started.status_code == 200
+    assert started.json()["status"] == "asking"
     session_id = "00000000-0000-0000-0000-000000000000"
-    assert client.post(f"/api/recommendations/{session_id}/answer", json={"message": "沒學過"}).status_code == 501
-    assert client.get(f"/api/recommendations/{session_id}").status_code == 501
+    assert client.post(f"/api/recommendations/{session_id}/answer", json={"message": "沒學過"}).status_code == 404
+    assert client.get(f"/api/recommendations/{session_id}").status_code == 404
