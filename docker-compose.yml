@@ -8,14 +8,15 @@ services:
     container_name: python-dev-box # 固定容器名稱
     working_dir: /app
     ports:
-      - "8000:8000" # 💡 全新加入：將容器內的 8000 通訊埠（FastAPI 預設）映射到本機電腦的 8000 埠
+      - "127.0.0.1:8000:8000" # 容器內的 8000 埠（FastAPI）只開給本機，其他電腦連不到
     volumes:
       - ./backend:/app/backend # 和映像裡的 /app/backend 是同一個位置
       - ./uploads:/app/uploads
     environment:
       PYTHONPATH: /app
       # 容器內 localhost 是後端自己。這裡覆寫 .env，改連同一個 compose 裡的 postgres。
-      DATABASE_URL: postgresql+psycopg://aipe04:aipe04@postgres:5432/aipe04
+      # 帳密讀 .env 的 POSTGRES_*，缺少時 compose 會直接報錯停止
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?請在 .env 設定 POSTGRES_USER}:${POSTGRES_PASSWORD:?請在 .env 設定 POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?請在 .env 設定 POSTGRES_DB}
     command: sh -c "alembic -c backend/alembic.ini upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload" # 先自動升級資料庫結構，再啟動 Uvicorn 服務
     depends_on:
       postgres:
@@ -67,11 +68,12 @@ services:
     image: postgres:17
     container_name: aipe04-postgres
     environment:
-      POSTGRES_USER: aipe04
-      POSTGRES_PASSWORD: aipe04
-      POSTGRES_DB: aipe04
+      # 讀 .env 的值，缺少時 compose 會直接報錯停止
+      POSTGRES_USER: ${POSTGRES_USER:?請在 .env 設定 POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請在 .env 設定 POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?請在 .env 設定 POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432" # 只開給本機的資料庫工具與測試；本機 5432 已被電腦裝的 PostgreSQL 佔用，改用 5433。容器之間仍走 app-network 的 5432
     volumes:
       - postgres17_data:/var/lib/postgresql/data
     networks:
@@ -79,7 +81,8 @@ services:
     restart: unless-stopped # Docker 重開後自動把資料庫叫回來
     # 每 5 秒檢查一次資料庫是不是真的活著
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U aipe04 -d aipe04" ]
+      # $$ 讓 compose 不替換，交給容器裡的 shell 讀上面設定的環境變數
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 5
