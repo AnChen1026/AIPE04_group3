@@ -20,6 +20,7 @@ API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/heal
 | `DATABASE_URL` | PostgreSQL 連線字串（必填） |
 | `SESSION_SECRET_KEY` | 簽署登入 Cookie 的密鑰（必填） |
 | `ADMIN_EMAIL`、`ADMIN_PASSWORD` | 有填時，啟動會建立本機管理員帳號 |
+| `DEMO_TEACHER_EMAIL`、`DEMO_TEACHER_PASSWORD`、`DEMO_STUDENT_EMAIL`、`DEMO_STUDENT_PASSWORD` | 四個都有填、兩個 Email 都還沒註冊時，啟動會建立已綁定的 demo 老師與學生，附課程、對話與約課紀錄。雲端不要設 |
 | `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI` | Google 登入。本機 Redirect URI 設 `http://localhost:3000/backend/auth/google/callback`，走 Vue 的 `/backend` 代理 |
 | `FRONTEND_URL` | Google 驗證完導回的 Vue 網址。前後端同網址（本機走代理）時不用設 |
 | `GEMINI_API_KEY`、`GEMINI_MODEL` | 練習回饋與課前摘要的文字說明。沒填或呼叫失敗時改用規則產生的文字 |
