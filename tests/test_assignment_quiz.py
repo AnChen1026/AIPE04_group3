@@ -1,6 +1,7 @@
 """題庫作業：老師上傳教材請 AI 出題（預覽、重新生成）、存成作業；學生作答、看錯題與解析。"""
 
 import json
+import uuid
 
 import pytest
 
@@ -70,10 +71,16 @@ def setup(make_user, make_course, login):
 
 
 def generate(client, **extra):
+    """送出背景出題。測試裡背景工作會在回應後立刻跑完，所以接著讀那筆工作就是結果。"""
     data = {"count": "10", "types": "single,multiple,truefalse", "difficulty": "mixed"}
     data.update(extra)
     files = {"file": ("基礎樂理.txt", "五線譜與譜號：高音譜號……".encode("utf-8"), "text/plain")}
-    return client.post("/teacher/quiz/generate", data=data, files=files)
+    return client.post("/teacher/quiz/jobs", data=data, files=files)
+
+
+def job_of(client, response):
+    assert response.status_code == 202, response.text
+    return client.get(f"/teacher/quiz/jobs/{response.json()['id']}").json()
 
 
 def create_quiz(teacher_client, course, student, questions=QUESTIONS):
@@ -89,34 +96,79 @@ def create_quiz(teacher_client, course, student, questions=QUESTIONS):
     )
 
 
-def test_老師上傳教材AI出題_回傳預覽並剔除格式錯的題目(setup, fake_llm):
+def test_老師上傳教材_背景出題完成後可以審查_剔除格式錯的題目(setup, fake_llm):
     _, _, _, teacher_client, _ = setup
-    response = generate(teacher_client)
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["source_filename"] == "基礎樂理.txt"
-    assert [item["type"] for item in body["questions"]] == ["single", "multiple", "truefalse"]
-    assert body["questions"][0]["hint"] == "想想高音譜號的線間口訣。"
+    queued = generate(teacher_client, title="基礎樂理")
+    assert queued.json()["status"] == "queued"
+    job = job_of(teacher_client, queued)
+    assert job["status"] == "succeeded", job
+    assert job["title"] == "基礎樂理" and job["source_filename"] == "基礎樂理.txt"
+    assert job["progress"] == 3
+    assert [item["type"] for item in job["questions"]] == ["single", "multiple", "truefalse"]
+    assert job["questions"][0]["hint"] == "想想高音譜號的線間口訣。"
     assert "五線譜與譜號" in fake_llm["content"]
     assert "single, multiple, truefalse" in fake_llm["content"]
     assert fake_llm["feature"] == llm.FEATURE_QUIZ_GENERATION
+    # 列表只給狀態，不帶題目
+    listed = teacher_client.get("/teacher/quiz/jobs").json()
+    assert [item["id"] for item in listed] == [job["id"]] and listed[0]["questions"] is None
 
 
-def test_出題設定不合理或檔案不支援會擋下(setup, fake_llm):
+def test_出題設定不合理或檔案不支援會馬上擋下(setup, fake_llm):
     _, _, _, teacher_client, _ = setup
     assert generate(teacher_client, count="0").status_code == 400
     assert generate(teacher_client, count="31").status_code == 400
     assert generate(teacher_client, types="essay").status_code == 400
     assert generate(teacher_client, difficulty="extreme").status_code == 400
-    docx = teacher_client.post("/teacher/quiz/generate", files={"file": ("a.docx", b"PK", "application/zip")})
+    docx = teacher_client.post("/teacher/quiz/jobs", files={"file": ("a.docx", b"PK", "application/zip")})
     assert docx.status_code == 400 and "PDF" in docx.json()["detail"]
+    assert teacher_client.get("/teacher/quiz/jobs").json() == []
 
 
-def test_AI沒有回應時告訴老師原因(setup):
+def test_AI沒有回應時工作標成失敗並說明原因(setup):
     _, _, _, teacher_client, _ = setup
-    response = generate(teacher_client)
-    assert response.status_code == 502
-    assert "測試中不呼叫 LLM" in response.json()["detail"]
+    job = job_of(teacher_client, generate(teacher_client))
+    assert job["status"] == "failed"
+    assert "測試中不呼叫 LLM" in job["error"]
+
+
+def test_本機模型分批出題_忙碌會等一下再試_不重複(setup, monkeypatch):
+    """千問等本機模型：每批讀一段教材出 4 題，遇到閘道忙碌（503）等一下重試。"""
+    _, _, _, teacher_client, _ = setup
+    monkeypatch.setenv("QUIZ_GENERATION_LLM_PROVIDER", "local")
+    monkeypatch.setattr(ai_quiz, "BUSY_WAIT_SECONDS", 0)
+    monkeypatch.setattr(ai_quiz, "LOCAL_CHUNK_CHARS", 40)
+    calls = []
+
+    def reply(system_instruction, content, feature=None, temperature=0.3, timeout_seconds=None):
+        calls.append(content)
+        if len(calls) == 1:
+            return None, "local（qwen3）：503 本機模型忙碌中或沒有開"
+        batch = len(calls)
+        questions = [
+            {**QUESTIONS[2], "question": f"第 {batch} 批第 {index} 個敘述是對的。"} for index in range(4)
+        ]
+        # 每批都夾一題和前面重複的，應該被剔掉
+        questions.append({**QUESTIONS[2], "question": "第 2 批第 0 個敘述是對的。"})
+        return json.dumps({"questions": questions}, ensure_ascii=False), None
+
+    monkeypatch.setattr(llm, "generate_text_with_reason", reply)
+    long_text = "\n".join(f"第 {index} 段：音符時值與拍號的說明。" for index in range(12))
+    response = teacher_client.post(
+        "/teacher/quiz/jobs",
+        data={"count": "10", "types": "truefalse", "difficulty": "easy"},
+        files={"file": ("長教材.txt", long_text.encode("utf-8"), "text/plain")},
+    )
+    job = job_of(teacher_client, response)
+    assert job["status"] == "succeeded", job
+    assert job["provider"] == "local"
+    assert len(job["questions"]) == 10
+    assert len({item["question"] for item in job["questions"]}) == 10
+    # 1 次忙碌 + 3 批（4、4、2 題）；後面的批次會附上已出過的題目
+    assert len(calls) == 4
+    assert "請根據以上教材出 2 題" in calls[-1] and "前面已經出過" in calls[-1]
+    # 每批只送一段教材，不是整份
+    assert all(len(content.split("---")[0]) < len(long_text) for content in calls)
 
 
 def test_PDF教材可以讀出文字():
@@ -128,9 +180,89 @@ def test_PDF教材可以讀出文字():
     assert "Treble clef" in text
 
 
-def test_學生和其他老師不能叫AI出題(setup, make_user, login, fake_llm):
-    _, _, _, _, student_client = setup
+def test_學生和其他老師看不到出題紀錄(setup, make_user, login, fake_llm):
+    _, _, _, teacher_client, student_client = setup
     assert generate(student_client).status_code in (401, 403)
+    job = job_of(teacher_client, generate(teacher_client))
+    other = login(make_user("teacher"))
+    assert other.get(f"/teacher/quiz/jobs/{job['id']}").status_code == 404
+    assert other.delete(f"/teacher/quiz/jobs/{job['id']}").status_code == 404
+    assert other.get("/teacher/quiz/jobs").json() == []
+
+
+def test_老師審查改答案後發成作業_留下AI原版與老師版本(setup, fake_llm, db):
+    from backend.models.quiz_job import QuizGenerationJob
+
+    _, student, course, teacher_client, student_client = setup
+    job = job_of(teacher_client, generate(teacher_client))
+    reviewed = [dict(item) for item in job["questions"][:2]]
+    reviewed[0]["answers"] = [1]  # 老師覺得 AI 的答案錯了，改成 B
+    response = teacher_client.post(
+        "/teacher/assignments",
+        data={
+            "course_id": str(course.id),
+            "student_id": str(student.id),
+            "kind": "quiz",
+            "title": "基礎樂理",
+            "questions": json.dumps(reviewed, ensure_ascii=False),
+            "quiz_job_id": job["id"],
+        },
+    )
+    assert response.status_code == 201, response.text
+    saved = db.get(QuizGenerationJob, uuid.UUID(job["id"]))
+    db.refresh(saved)
+    assert saved.status == "published" and str(saved.assignment_id) == response.json()["id"]
+    assert saved.questions[0]["answers"] == [0] and saved.final_questions[0]["answers"] == [1]
+    assert len(saved.final_questions) == 2
+    # 發過就不再列出，也不能再發一次
+    assert teacher_client.get("/teacher/quiz/jobs").json() == []
+    again = teacher_client.post(
+        "/teacher/assignments",
+        data={
+            "course_id": str(course.id),
+            "student_id": str(student.id),
+            "kind": "quiz",
+            "title": "基礎樂理",
+            "questions": json.dumps(reviewed, ensure_ascii=False),
+            "quiz_job_id": job["id"],
+        },
+    )
+    assert again.status_code == 400
+    teacher_view = teacher_client.get(f"/teacher/assignments/{response.json()['id']}/quiz").json()
+    assert teacher_view[0]["answers"] == [1]
+
+
+def test_老師可以刪掉不要的出題(setup, fake_llm):
+    _, _, _, teacher_client, _ = setup
+    job = job_of(teacher_client, generate(teacher_client))
+    assert teacher_client.delete(f"/teacher/quiz/jobs/{job['id']}").status_code == 204
+    assert teacher_client.get("/teacher/quiz/jobs").json() == []
+
+
+def test_太久沒動的出題中工作會標成中斷(setup, db, make_user):
+    from datetime import datetime, timedelta, timezone
+
+    from backend.models.quiz_job import QuizGenerationJob
+
+    teacher, _, _, teacher_client, _ = setup
+    job = QuizGenerationJob(
+        teacher_id=teacher.id,
+        status="running",
+        settings={"count": 5, "types": ["single"], "difficulty": "easy"},
+        source_filename="a.txt",
+        source_text="教材",
+        progress=2,
+        updated_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+    db.add(job)
+    db.commit()
+    db.execute(
+        QuizGenerationJob.__table__.update()
+        .where(QuizGenerationJob.id == job.id)
+        .values(updated_at=datetime.now(timezone.utc) - timedelta(hours=1))
+    )
+    listed = teacher_client.get("/teacher/quiz/jobs").json()
+    assert listed[0]["status"] == "failed" and "中斷" in listed[0]["error"]
 
 
 def test_存題庫作業_學生看不到答案_老師看得到(setup):
@@ -213,3 +345,13 @@ def test_別人拿不到題目與作答(setup, make_user, login):
     assert other_student.get(f"/api/student/assignments/{assignment['id']}/quiz").status_code == 404
     assert other_student.post(f"/api/student/assignments/{assignment['id']}/quiz/attempts", json={"answers": []}).status_code == 404
     assert other_teacher.get(f"/teacher/assignments/{assignment['id']}/quiz").status_code == 404
+
+
+def test_重新生成用同一份教材再出一次_舊的不再列出(setup, fake_llm):
+    _, _, _, teacher_client, _ = setup
+    first = job_of(teacher_client, generate(teacher_client, title="基礎樂理"))
+    response = teacher_client.post(f"/teacher/quiz/jobs/{first['id']}/retry")
+    second = job_of(teacher_client, response)
+    assert second["id"] != first["id"] and second["status"] == "succeeded"
+    assert second["title"] == "基礎樂理" and second["settings"] == first["settings"]
+    assert [item["id"] for item in teacher_client.get("/teacher/quiz/jobs").json()] == [second["id"]]

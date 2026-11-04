@@ -72,7 +72,7 @@ def embed_texts(texts):
             parsed.scheme != "https"
             and not (
                 parsed.scheme == "http"
-                and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+                and parsed.hostname in {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
             )
         )
     ):

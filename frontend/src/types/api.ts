@@ -263,10 +263,24 @@ export interface QuizDraftQuestion {
   explanation: string | null
 }
 
-export interface QuizGenerateResult {
+// 一次 AI 出題（背景執行）：排隊中 → 出題中 → 待審查（succeeded）或失敗；發成作業後就不再列出
+export interface QuizJob {
+  id: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'published' | 'discarded'
+  title: string | null
+  course_id: string | null
+  student_id: string | null
+  due_at: string | null
+  settings: { count: number; types: QuizQuestionType[]; difficulty: QuizDifficulty }
   source_filename: string
-  source_chars: number
-  questions: QuizDraftQuestion[]
+  provider: string | null
+  model: string | null
+  progress: number
+  error: string | null
+  created_at: string
+  finished_at: string | null
+  // 只有讀單筆、而且出題完成時才有
+  questions: QuizDraftQuestion[] | null
 }
 
 // 學生作答時看到的一題（沒有答案）；老師看到的多了 answers 與 explanation

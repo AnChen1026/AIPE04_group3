@@ -4,7 +4,7 @@ import type {
   QuizAttempt,
   QuizDifficulty,
   QuizDraftQuestion,
-  QuizGenerateResult,
+  QuizJob,
   QuizQuestion,
   QuizQuestionType,
   BoundStudent,
@@ -144,8 +144,9 @@ export interface AssignmentInput {
   materials?: File[]
   // 練習速度（BPM），沒填就用 MIDI 的速度
   practice_bpm?: number | null
-  // 題庫作業：AI 出題後老師確認的題目
+  // 題庫作業：AI 出題後老師審查（可能改過答案）的題目，以及是哪一次出題
   questions?: QuizDraftQuestion[]
+  quiz_job_id?: string | null
 }
 
 export const fetchAssignments = () => request<Assignment[]>('/teacher/assignments')
@@ -163,25 +164,40 @@ export function createAssignment(input: AssignmentInput) {
   if (input.practice_bpm) form.append('practice_bpm', String(input.practice_bpm))
   for (const file of input.materials ?? []) form.append('materials', file)
   if (input.questions?.length) form.append('questions', JSON.stringify(input.questions))
+  if (input.quiz_job_id) form.append('quiz_job_id', input.quiz_job_id)
   return request<Assignment>('/teacher/assignments', { method: 'POST', body: form })
 }
 
-// ---------- 題庫作業：上傳教材請 AI 出題（只預覽、不存），重新生成就是再呼叫一次
-export interface QuizGenerateInput {
+// ---------- 題庫作業：上傳教材請 AI 在背景出題，完成後老師審查再發作業
+export interface QuizJobInput {
   file: File
   count: number
   types: QuizQuestionType[]
   difficulty: QuizDifficulty
+  // 作業名稱與指派對象可以先帶著，審查完直接發
+  title?: string
+  course_id?: string
+  student_id?: string
+  due_at?: string | null
 }
 
-export function generateQuiz(input: QuizGenerateInput) {
+export function createQuizJob(input: QuizJobInput) {
   const form = new FormData()
   form.append('file', input.file)
   form.append('count', String(input.count))
   form.append('types', input.types.join(','))
   form.append('difficulty', input.difficulty)
-  return request<QuizGenerateResult>('/teacher/quiz/generate', { method: 'POST', body: form })
+  if (input.title) form.append('title', input.title)
+  if (input.course_id) form.append('course_id', input.course_id)
+  if (input.student_id) form.append('student_id', input.student_id)
+  if (input.due_at) form.append('due_at', input.due_at)
+  return request<QuizJob>('/teacher/quiz/jobs', { method: 'POST', body: form })
 }
+
+export const fetchQuizJobs = () => request<QuizJob[]>('/teacher/quiz/jobs')
+export const fetchQuizJob = (id: string) => request<QuizJob>(`/teacher/quiz/jobs/${id}`)
+export const retryQuizJob = (id: string) => request<QuizJob>(`/teacher/quiz/jobs/${id}/retry`, { method: 'POST' })
+export const discardQuizJob = (id: string) => request<void>(`/teacher/quiz/jobs/${id}`, { method: 'DELETE' })
 
 export const fetchAssignmentQuiz = (id: string) => request<QuizQuestion[]>(`/teacher/assignments/${id}/quiz`)
 export const fetchAssignmentQuizAttempts = (id: string) => request<QuizAttempt[]>(`/teacher/assignments/${id}/quiz/attempts`)

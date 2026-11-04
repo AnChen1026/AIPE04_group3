@@ -5,6 +5,7 @@ import { QUIZ_DIFFICULTY_LABELS, QUIZ_TYPE_LABELS, optionLetter, optionLetters }
 // 設計稿的一題卡片：題型、難易度、第幾題、單元、題目、A～D 選項，下面一顆展開按鈕，最下面上一題／下一題。
 // preview：老師預覽 AI 出的題，按鈕是「查看答案及解析」。
 // answer：學生作答，可以點選項（多選題可以選多個），按鈕是「查看提示」。
+// editable（只用在 preview）：老師審查時直接點選項改正確答案，綠色就是目前的答案。
 const props = defineProps<{
   mode: 'preview' | 'answer'
   index: number
@@ -17,9 +18,10 @@ const props = defineProps<{
   answers?: number[]
   explanation?: string | null
   hint?: string | null
+  editable?: boolean
 }>()
 const selected = defineModel<number[]>('selected', { default: () => [] })
-const emit = defineEmits<{ prev: []; next: [] }>()
+const emit = defineEmits<{ prev: []; next: []; 'update:answers': [answers: number[]] }>()
 
 const opened = ref(false)
 watch(
@@ -30,6 +32,12 @@ watch(
 const multiple = computed(() => props.type === 'multiple')
 
 function choose(option: number) {
+  if (props.mode === 'preview' && props.editable) {
+    const current = props.answers ?? []
+    if (!multiple.value) emit('update:answers', [option])
+    else emit('update:answers', current.includes(option) ? current.filter((value) => value !== option) : [...current, option].sort())
+    return
+  }
   if (props.mode !== 'answer') return
   if (!multiple.value) {
     selected.value = [option]
@@ -41,7 +49,7 @@ function choose(option: number) {
 }
 
 function optionState(option: number) {
-  if (props.mode === 'preview' && opened.value && props.answers?.includes(option)) return 'correct'
+  if (props.mode === 'preview' && (opened.value || props.editable) && props.answers?.includes(option)) return 'correct'
   if (props.mode === 'answer' && selected.value.includes(option)) return 'chosen'
   return ''
 }
@@ -57,6 +65,7 @@ function optionState(option: number) {
     <p v-if="topic" class="quiz-card__topic">{{ topic }}</p>
     <h3 class="quiz-card__question">{{ question }}</h3>
     <p v-if="mode === 'answer' && multiple" class="quiz-card__note">可以選多個答案</p>
+    <p v-if="editable" class="quiz-card__note quiz-card__note--edit">點選項改正確答案{{ multiple ? '（多選題至少要兩個）' : '' }}</p>
 
     <div class="quiz-card__options" :role="mode === 'answer' ? (multiple ? 'group' : 'radiogroup') : undefined" :aria-label="question">
       <button
@@ -67,8 +76,7 @@ function optionState(option: number) {
         :class="optionState(position) && `quiz-option--${optionState(position)}`"
         :role="mode === 'answer' ? (multiple ? 'checkbox' : 'radio') : undefined"
         :aria-checked="mode === 'answer' ? selected.includes(position) : undefined"
-        :tabindex="mode === 'answer' ? 0 : -1"
-        :disabled="mode !== 'answer'"
+        :disabled="mode !== 'answer' && !editable"
         @click="choose(position)"
       >
         <span class="quiz-option__letter">{{ optionLetter(position) }}</span>
@@ -144,6 +152,10 @@ function optionState(option: number) {
   margin: 4px 0 0;
   color: var(--home-muted);
   font-size: 13px;
+}
+
+.quiz-card__note--edit {
+  color: var(--home-accent);
 }
 
 .quiz-card__options {

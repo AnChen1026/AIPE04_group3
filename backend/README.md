@@ -63,7 +63,7 @@ API 在 <http://127.0.0.1:8000>，自動產生的 API 文件在 `/docs`，`/heal
 | `teacher_practice.py` | `/teacher/courses/{id}/recordings`、`/teacher/recordings/{id}/audio`、`/teacher/recordings/{id}/score-sheet` | 老師看自己課程的練習錄音、回饋與對照樂譜 |
 | `teacher_materials.py`、`teacher_quizzes.py` | `/teacher/materials`、`/teacher/quizzes` | 教材上傳與測驗列表的原型；AI 測驗尚未完成 |
 | `assignments.py` | `/teacher/assignments...`、`/api/student/assignments...` | 作業：老師替已綁定的學生發作業（作業內容、期限、參考 MIDI、多份教材）；學生下載檔案、錄音繳交（跟這份作業的 MIDI 比；可帶節拍器速度，作業可設練習速度） |
-| `assignments.py`（題庫） | `/teacher/quiz/generate`、`/teacher/assignments/{id}/quiz...`、`/api/student/assignments/{id}/quiz...` | 題庫作業：老師上傳教材（PDF／TXT）請 AI 出題預覽（單選／多選／是非、難易度、提示），確認後跟作業一起存；學生作答、看錯題與解析，可重複練習。出題在 `services/ai_quiz.py`，預設用 OpenAI（需要 `OPENAI_API_KEY`），`.env` 寫 `QUIZ_GENERATION_LLM_PROVIDER=gemini` 可改回 Gemini |
+| `assignments.py`（題庫） | `/teacher/quiz/generate`、`/teacher/assignments/{id}/quiz...`、`/api/student/assignments/{id}/quiz...` | 題庫作業：老師上傳教材（PDF／TXT）請 AI 出題預覽（單選／多選／是非、難易度、提示），確認後跟作業一起存；學生作答、看錯題與解析，可重複練習。出題在 `services/ai_quiz.py`，預設用 OpenAI（需要 `OPENAI_API_KEY`），`.env` 寫 `QUIZ_GENERATION_LLM_PROVIDER=gemini` 改回 Gemini、寫 `local` 改用本機千問。出題在背景執行（`/teacher/quiz/jobs`，`services/quiz_jobs.py`），完成後老師審查、可改答案再發作業；AI 原版與老師版本都留在 `quiz_generation_jobs` |
 | `support.py` | `/api/support/...`、`/api/admin/support/...` | 管理員和老師、學生的對話。老師審核通過、學生註冊成功時自動送出歡迎與使用須知 |
 | `health.py` | `/health` | 確認服務有在跑、資料庫連得上 |
 

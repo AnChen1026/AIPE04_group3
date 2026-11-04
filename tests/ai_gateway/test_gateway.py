@@ -161,3 +161,21 @@ def test_gateway_limits_authenticated_requests_even_when_serial(monkeypatch):
             ).status_code
             == 429
         )
+
+
+def test_gateway_can_allow_more_chat_models_by_environment(monkeypatch):
+    import httpx
+
+    from scripts.local_ai_gateway import create_app
+
+    monkeypatch.setenv("AI_GATEWAY_TOKEN", "d" * 48)
+
+    def upstream(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    body = {"model": "qwen3:14b", "messages": [{"role": "user", "content": "出題"}], "reasoning_effort": "none"}
+    headers = {"Authorization": "Bearer " + "d" * 48}
+    with TestClient(create_app(transport=httpx.MockTransport(upstream))) as client:
+        assert client.post("/v1/chat/completions", headers=headers, json=body).status_code == 422
+        monkeypatch.setenv("AI_GATEWAY_CHAT_MODELS", "qwen3:4b-instruct-2507-q4_K_M, qwen3:14b")
+        assert client.post("/v1/chat/completions", headers=headers, json=body).status_code == 200

@@ -1,14 +1,16 @@
 """AI 出題：從老師上傳的教材（PDF／TXT）讀出文字，請 LLM 出題，再檢查格式。
 
 出題邏輯（system prompt、讀教材、剔除格式錯誤的題目）沿用宇鈞在 ai-quiz 分支寫的版本，
-改成走專案共用的 backend/services/llm.py：預設用 OpenAI（OPENAI_API_KEY），.env 寫 QUIZ_GENERATION_LLM_PROVIDER=gemini 可以換回 Gemini，
-並加上多選題、是非題、難易度與作答提示。
+改成走專案共用的 backend/services/llm.py：預設用 OpenAI（OPENAI_API_KEY），.env 寫 QUIZ_GENERATION_LLM_PROVIDER=gemini
+換回 Gemini，寫 local 改用 Ollie 電腦上的千問等本機模型（QUIZ_GENERATION_LLM_MODEL 選模型），並加上多選題、是非題、難易度與作答提示。
 
-這裡只負責「出題」，不存資料庫：老師預覽滿意後，題目跟作業一起由 services/assignment.py 存起來。
+這裡只負責「出題」：背景工作與進度在 services/quiz_jobs.py，老師審查後題目跟作業一起由 services/assignment.py 存起來。
 """
 
 import json
 import re
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 from backend.services import llm
@@ -26,6 +28,13 @@ MAX_MATERIAL_CHARS = 30000  # 送進模型的教材長度上限
 SOURCE_SUFFIXES = (".pdf", ".txt")
 # 一次出很多題時模型要想比較久
 GENERATION_TIMEOUT_SECONDS = 120.0
+# 本機模型（千問等）：閘道每則訊息最多 12000 字、一次最多回 1400 token，所以每批讀一段教材、出幾題
+LOCAL_BATCH_SIZE = 4
+LOCAL_CHUNK_CHARS = 6000
+# 模型忙碌時（本機閘道同時只處理一個請求、雲端 503）等一下再試
+BUSY_ATTEMPTS = 4
+BUSY_WAIT_SECONDS = 15
+BUSY_MARKERS = ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "high demand", "沒有回應", "忙碌")
 
 SYSTEM_PROMPT = """你是一位專業的鋼琴與樂理出題老師，負責根據使用者提供的教材內容出題。
 
@@ -196,38 +205,107 @@ def check_settings(count: int, types: list[str], difficulty: str) -> tuple[int, 
     return count, chosen, difficulty
 
 
-def generate_questions(material: str, count: int, types: list[str], difficulty: str) -> list[dict]:
-    """請 LLM 出題，回傳檢查過的題目（含答案、提示、解析）。"""
+def generate_questions(
+    material: str,
+    count: int,
+    types: list[str],
+    difficulty: str,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> list[dict]:
+    """請 LLM 出題，回傳檢查過的題目（含答案、提示、解析）。
+
+    雲端模型（Gemini、OpenAI）一次出完。本機模型（千問等）每次能讀、能寫的字數都有限，
+    所以分批：每批讀一段教材、出 LOCAL_BATCH_SIZE 題，並告訴模型前面出過哪些題目避免重複。
+    on_progress(已出題數, 目標題數) 讓背景工作更新進度。
+    """
     count, chosen, difficulty = check_settings(count, types, difficulty)
+    local = llm.provider_for(llm.FEATURE_QUIZ_GENERATION) == "local"
+    batch_size = LOCAL_BATCH_SIZE if local else count
+    chunks = _split_material(material, LOCAL_CHUNK_CHARS) if local else [material[:MAX_MATERIAL_CHARS]]
+    questions: list[dict] = []
+    seen: set[str] = set()
+    empty_batches = 0
+    batch = 0
+    while len(questions) < count and empty_batches < 2 and batch < count + 2:
+        wanted = min(batch_size, count - len(questions))
+        chunk = chunks[batch % len(chunks)]
+        avoid = [item["question"][:40] for item in questions][-30:]
+        new_ones = [
+            item
+            for item in _generate_batch(chunk, wanted, chosen, difficulty, avoid)
+            if _normalized(item["question"]) not in seen
+        ][:wanted]
+        batch += 1
+        if not new_ones:
+            empty_batches += 1
+            continue
+        empty_batches = 0
+        for item in new_ones:
+            seen.add(_normalized(item["question"]))
+        questions.extend(new_ones)
+        if on_progress:
+            on_progress(len(questions), count)
+        if not local:
+            break
+    if not questions:
+        raise QuizGenerationError("AI 沒有產生有效的題目，請再試一次或換一份教材。", status_code=502)
+    return questions[:count]
+
+
+def _generate_batch(material: str, count: int, chosen: tuple[str, ...], difficulty: str, avoid: list[str]) -> list[dict]:
+    """呼叫一次模型出 count 題。本機模型忙碌（同時只能處理一個）時等一下再試。"""
     instruction = (
         f"請根據以上教材出 {count} 題，題型只能用：{', '.join(chosen)}"
         f"（{'、'.join(QUESTION_TYPE_LABELS[item] for item in chosen)}），"
         + ("各題型數量盡量平均，" if len(chosen) > 1 else "")
         + f"難易度：{difficulty}（{DIFFICULTY_LABELS[difficulty]}）。請依照指定的 JSON 格式輸出。"
     )
-    content = f"以下是教材內容：\n\n{material[:MAX_MATERIAL_CHARS]}\n\n---\n\n{instruction}"
-    text, reason = llm.generate_text_with_reason(
-        SYSTEM_PROMPT,
-        content,
-        feature=llm.FEATURE_QUIZ_GENERATION,
-        temperature=0.7,
-        timeout_seconds=GENERATION_TIMEOUT_SECONDS,
-    )
-    if text is None:
+    if avoid:
+        instruction += "\n前面已經出過下列題目，不要重複或換句話說再出一次：\n" + "\n".join(f"- {item}" for item in avoid)
+    content = f"以下是教材內容：\n\n{material}\n\n---\n\n{instruction}"
+    for attempt in range(1, BUSY_ATTEMPTS + 1):
+        text, reason = llm.generate_text_with_reason(
+            SYSTEM_PROMPT,
+            content,
+            feature=llm.FEATURE_QUIZ_GENERATION,
+            temperature=0.7,
+            timeout_seconds=GENERATION_TIMEOUT_SECONDS,
+        )
+        if text is not None:
+            break
         reason = reason or ""
-        if any(marker in reason for marker in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "high demand", "沒有回應")):
-            raise QuizGenerationError("AI 服務現在比較忙，請過一兩分鐘再按一次。", status_code=503)
+        busy = any(marker in reason for marker in BUSY_MARKERS)
+        if busy and attempt < BUSY_ATTEMPTS:
+            time.sleep(BUSY_WAIT_SECONDS)
+            continue
+        if busy:
+            raise QuizGenerationError("AI 服務現在比較忙，請過一兩分鐘再試一次。", status_code=503)
         if "沒有設定" in reason:
-            raise QuizGenerationError(f"AI 出題還沒設定好：{reason}請管理員在 .env 設定金鑰。", status_code=503)
+            raise QuizGenerationError(f"AI 出題還沒設定好：{reason}請管理員在 .env 設定。", status_code=503)
         raise QuizGenerationError(f"AI 出題失敗：{reason}", status_code=502)
     try:
         raw = _parse_json(text)
-    except (ValueError, json.JSONDecodeError) as error:
-        raise QuizGenerationError("AI 回傳的格式看不懂，請再試一次。", status_code=502) from error
-    questions = [item for item in (clean_question(q, chosen) for q in raw.get("questions", []) or []) if item]
-    if not questions:
-        raise QuizGenerationError("AI 沒有產生有效的題目，請再試一次或換一份教材。", status_code=502)
-    return questions[:count]
+    except (ValueError, json.JSONDecodeError):
+        return []
+    return [item for item in (clean_question(q, chosen) for q in raw.get("questions", []) or []) if item]
+
+
+def _split_material(material: str, size: int) -> list[str]:
+    """教材切成每段不超過 size 字，盡量在段落換行處切開。"""
+    text = material[:MAX_MATERIAL_CHARS].strip()
+    chunks: list[str] = []
+    while len(text) > size:
+        cut = text.rfind("\n", size // 2, size)
+        cut = cut if cut > 0 else size
+        chunks.append(text[:cut].strip())
+        text = text[cut:].strip()
+    if text:
+        chunks.append(text)
+    return chunks or [""]
+
+
+def _normalized(question: str) -> str:
+    return re.sub(r"\s+|[，。？?！!、：:；;「」（）()]", "", question)
 
 
 def grade(answers: list[int], selected: list[int]) -> bool:

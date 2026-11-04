@@ -7,6 +7,7 @@ from backend.models.base import Base
 from backend.models.material import MaterialDB
 from backend.models.password_reset import PasswordResetRequest
 from backend.models.quiz import QuizDB
+from backend.models.quiz_job import QuizGenerationJob
 from backend.models.studio import Studio
 from backend.models.support import SupportConversation, SupportMessage
 from backend.models.teacher_application import TeacherApplication
@@ -24,6 +25,7 @@ __all__ = [
     "MaterialDB",
     "PasswordResetRequest",
     "QuizDB",
+    "QuizGenerationJob",
     "Studio",
     "SupportConversation",
     "SupportMessage",
