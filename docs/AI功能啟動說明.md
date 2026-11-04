@@ -136,9 +136,11 @@ docker exec python-dev-box python -c "from backend.services import llm; print(ll
 > 這條路要開著 **3 樣東西**：Docker、Ollama、閘道（一個終端機視窗）。閘道是一道門：只讓我們的後端、用正確的金鑰、用指定的模型來問 Ollama。
 
 ### 3-1 裝 Ollama
-- [ ] 到 <https://ollama.com/download> 下載安裝，打開它。
+- [ ] 到 <https://ollama.com/download> 下載**桌面 App** 安裝，打開它。Mac 右上角、Windows 右下角會出現羊駝圖示。
+- 以前用 Homebrew（`brew install ollama`）裝過的，那是沒有畫面的命令列版。要改用 App 的話，先停掉舊的，不然兩個會搶同一個埠：`brew services stop ollama`（如果是在某個終端機視窗開的 `ollama serve`，就在那個視窗按 Ctrl-C）。
 
-✅ 終端機打 `ollama list` 沒有出錯（可能是空的）就對了。
+✅ 看得到羊駝圖示，而且終端機打 `ollama list` 沒有出錯（可能是空的）就對了。
+❌ 出現 `could not connect to ollama server` → Ollama 有裝但沒開，把 App 打開再試。
 
 ### 3-2 下載模型（約 4GB，要等）
 ```bash
@@ -152,6 +154,12 @@ ollama pull bge-m3:567m
 ✅ 再打 `ollama list`，兩個名字都在就對了。**名字要一模一樣**，AI 找課只認這兩個。
 
 ### 3-3 讓 Ollama 讀得下長一點的教材
+- [ ] 點羊駝圖示 → **Settings**，把 **Context length** 調到 **16k**。
+
+✅ Settings 裡 Context length 顯示 16k 就對了。
+
+Settings 裡找不到這個選項（舊版 App）就改用指令：
+
 Windows（PowerShell）：
 ```powershell
 setx OLLAMA_CONTEXT_LENGTH 16384
@@ -162,9 +170,12 @@ Mac：
 launchctl setenv OLLAMA_CONTEXT_LENGTH 16384
 ```
 
-然後**把 Ollama 完全關掉再打開**（Windows 右下角、Mac 右上角的羊駝圖示 → Quit，再重新打開）。
+然後**把 Ollama 完全關掉再打開**（羊駝圖示 → Quit，再重新打開）。
 
-✅ 做完、重開過 Ollama 就對了（這步沒有畫面可以看）。
+用命令列版、沒有 App 的人，以後都用這行開 Ollama（視窗開著別關）：
+```bash
+OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+```
 
 ### 3-4 做一把閘道金鑰，放進 `.env`
 ```bash
@@ -279,7 +290,7 @@ uv run python -m scripts.index_course_embeddings
 uv run python -m scripts.index_course_embeddings --apply --confirm-database aipe04
 ```
 
-✅ 跑完沒有紅色錯誤就對了。
+✅ 跑完沒有紅色錯誤，最後一行是 `indexed=` 和 `published=` 一樣的數字就對了。想再確認一次，可以重跑上面的試跑指令，看到 `pending=0` 代表全部建好。
 
 ### 3-10 ③ AI 找課：試用
 - [ ] 打開 <http://localhost>，按右下角 **AI 找課**，打「我想學流行鋼琴」。
@@ -298,7 +309,7 @@ uv run python -m scripts.index_course_embeddings --apply --confirm-database aipe
 
 **路線 B**（多兩步）
 - [ ] 打開 Docker Desktop
-- [ ] 打開 Ollama
+- [ ] 確認 Ollama 有開（看得到羊駝圖示）。App 裝好後預設開機就會自己啟動；Mac 可以到「系統設定 → 一般 → 登入項目」確認 Ollama 在清單裡
 - [ ] `docker compose up -d`
 - [ ] 開一個新終端機，做 **3-5** 開閘道（視窗不要關）
 
@@ -312,6 +323,7 @@ uv run python -m scripts.index_course_embeddings --apply --confirm-database aipe
 |---|---|---|
 | `docker compose ps` 後端一直不是 healthy | 後端起不來 | `docker compose logs backend --tail 50` 看最後幾行紅字 |
 | AI 出題一直「排隊中／出題中」很久 | 本機模型慢，或閘道視窗被關了 | 確認閘道視窗還開著；本機模型出 10 題可能要好幾分鐘，可以先去做別的，出好會通知 |
+| 測試或出題出現 `503 本機模型忙碌中或沒有開` | Ollama 沒開（常見：電腦重開、命令列版的視窗被關），或閘道沒開 | 先打 `ollama list`：出現 `could not connect` 就把 Ollama 打開；再確認閘道視窗還開著 |
 | 出題失敗：「AI 服務現在比較忙」 | 模型同時被別的功能用，或雲端太忙 | 等一兩分鐘，在出題紀錄按「刪除」再重新送出 |
 | 出題失敗：「沒有設定 OPENAI_API_KEY」 | 路線 A 金鑰沒填 | 回到 2-2 |
 | 出題失敗：「沒有設定 AI_COURSE_GATEWAY_TOKEN」或「網址不是 https」 | 路線 B 的 `.env` 沒填好 | 回到 3-4，網址照抄 `http://host.docker.internal:18763` |
