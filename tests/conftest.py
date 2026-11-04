@@ -83,6 +83,9 @@ def analysis_session(db, monkeypatch):
             pass
 
     monkeypatch.setattr(practice, "session_factory", SharedSession)
+    import backend.services.quiz_jobs as quiz_jobs
+
+    monkeypatch.setattr(quiz_jobs, "session_factory", SharedSession)
 
 
 @pytest.fixture

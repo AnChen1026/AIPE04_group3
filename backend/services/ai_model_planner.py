@@ -76,7 +76,7 @@ def plan_turn(message: str, previous: dict, previous_question: str | None = None
     ):
         return None
     if parsed.scheme != "https" and not (
-        parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1", "host.docker.internal"}
     ):
         return None
     try:

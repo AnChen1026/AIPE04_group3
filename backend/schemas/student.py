@@ -225,10 +225,27 @@ class QuizQuestionIn(BaseModel):
     explanation: str | None = None
 
 
-class QuizGenerateResponse(BaseModel):
+class QuizJobResponse(BaseModel):
+    """一次 AI 出題（背景工作）。questions 只有在 succeeded 之後才有。"""
+
+    id: uuid.UUID
+    status: str
+    title: str | None = None
+    course_id: uuid.UUID | None = None
+    student_id: uuid.UUID | None = None
+    due_at: datetime | None = None
+    settings: dict
     source_filename: str
-    source_chars: int
-    questions: list[QuizQuestionIn]
+    provider: str | None = None
+    model: str | None = None
+    progress: int
+    error: str | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
+    questions: list[QuizQuestionIn] | None = None
+
+    class Config:
+        from_attributes = True
 
 
 class StudentQuizQuestionResponse(BaseModel):

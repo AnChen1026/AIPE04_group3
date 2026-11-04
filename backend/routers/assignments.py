@@ -4,7 +4,7 @@ import json
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -19,12 +19,13 @@ from backend.schemas.student import (
     FeedbackResponse,
     QuizAttemptIn,
     QuizAttemptResponse,
-    QuizGenerateResponse,
+    QuizJobResponse,
     RecordingResponse,
     StudentQuizQuestionResponse,
     TeacherQuizQuestionResponse,
 )
-from backend.services.ai_quiz import MAX_SOURCE_BYTES, QuizGenerationError, extract_text, generate_questions
+from backend.services import quiz_jobs
+from backend.services.ai_quiz import MAX_SOURCE_BYTES, clean_question
 from backend.services.assignment import (
     MAX_MATERIAL_BYTES,
     create_assignment,
@@ -77,11 +78,13 @@ def api_create_assignment(
     practice_bpm: int | None = Form(None),
     materials: list[UploadFile] | None = File(None),
     questions: str | None = Form(None),
+    quiz_job_id: uuid.UUID | None = Form(None),
     db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
     """multipart：midi 是參考曲（演奏作業才有），materials 可以放多個教材檔（樂譜、講義、示範音檔）。
-    題庫作業的 questions 是 JSON 字串：/teacher/quiz/generate 回傳、老師預覽確認過的題目陣列。"""
+    題庫作業的 questions 是 JSON 字串：AI 出題（/teacher/quiz/jobs）完成後老師審查、改過答案的題目陣列；
+    帶 quiz_job_id 會把那次出題標成已發出，並留下老師最後的版本。"""
     try:
         question_list = json.loads(questions) if questions else None
     except json.JSONDecodeError:
@@ -95,6 +98,8 @@ def api_create_assignment(
         if item.filename
     ]
     try:
+        if quiz_job_id is not None:
+            quiz_jobs.check_publishable(db, teacher.user_id, quiz_job_id)
         assignment = create_assignment(
             db,
             teacher.user_id,
@@ -109,6 +114,9 @@ def api_create_assignment(
             practice_bpm,
             questions=question_list,
         )
+        if quiz_job_id is not None:
+            final = [clean_question(item) for item in question_list or []]
+            quiz_jobs.mark_published(db, teacher.user_id, quiz_job_id, assignment.id, [item for item in final if item])
     except StudentBusinessError as error:
         _raise(error)
     return _row(list_teacher_assignments(db, teacher.user_id), assignment.id)
@@ -154,24 +162,93 @@ def api_teacher_material(
     return file_response(material.file_path, media_type=material.content_type, filename=material.filename)
 
 
-@router.post("/teacher/quiz/generate", response_model=QuizGenerateResponse)
-def api_generate_quiz(
+@router.post("/teacher/quiz/jobs", response_model=QuizJobResponse, status_code=202)
+def api_create_quiz_job(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     count: int = Form(10),
     types: str = Form("single"),
     difficulty: str = Form("mixed"),
+    title: str | None = Form(None),
+    course_id: uuid.UUID | None = Form(None),
+    student_id: uuid.UUID | None = Form(None),
+    due_at: datetime | None = Form(None),
+    db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
-    """題庫作業上傳：讀老師的教材（PDF／TXT）請 AI 出題，只回傳預覽，不存。
+    """題庫作業上傳：讀老師的教材（PDF／TXT），在背景請 AI 出題，馬上回應。
     types 用逗號分隔：single,multiple,truefalse；difficulty 是 easy／medium／hard／mixed。
-    「重新生成題目」就是再呼叫一次。老師確認後，把題目放進 POST /teacher/assignments 的 questions。"""
+    作業名稱與指派對象可以先帶著，審查完直接發作業。進度用 GET /teacher/quiz/jobs 看。"""
     data = file.file.read(MAX_SOURCE_BYTES + 1)
     try:
-        material = extract_text(file.filename or "", data)
-        questions = generate_questions(material, count, [item.strip() for item in types.split(",") if item.strip()], difficulty)
-    except QuizGenerationError as error:
-        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
-    return {"source_filename": file.filename or "", "source_chars": len(material), "questions": questions}
+        job = quiz_jobs.create_job(
+            db,
+            teacher.user_id,
+            file.filename or "",
+            data,
+            count,
+            [item.strip() for item in types.split(",") if item.strip()],
+            difficulty,
+            title=title,
+            course_id=course_id,
+            student_id=student_id,
+            due_at=due_at,
+        )
+    except StudentBusinessError as error:
+        _raise(error)
+    background_tasks.add_task(quiz_jobs.run_job, job.id)
+    return job
+
+
+@router.get("/teacher/quiz/jobs", response_model=list[QuizJobResponse])
+def api_quiz_jobs(
+    response: Response,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """出題紀錄（不含題目，題目用單筆 API 拿）：排隊中、出題中、待審查、失敗。"""
+    response.headers["Cache-Control"] = "no-store"
+    return [QuizJobResponse.model_validate(job).model_copy(update={"questions": None}) for job in quiz_jobs.list_jobs(db, teacher.user_id)]
+
+
+@router.get("/teacher/quiz/jobs/{job_id}", response_model=QuizJobResponse)
+def api_quiz_job(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    try:
+        return quiz_jobs.own_job(db, teacher.user_id, job_id)
+    except StudentBusinessError as error:
+        _raise(error)
+
+
+@router.post("/teacher/quiz/jobs/{job_id}/retry", response_model=QuizJobResponse, status_code=202)
+def api_retry_quiz_job(
+    job_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """「重新生成題目」：同一份教材與設定在背景再出一次。"""
+    try:
+        job = quiz_jobs.retry_job(db, teacher.user_id, job_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    background_tasks.add_task(quiz_jobs.run_job, job.id)
+    return job
+
+
+@router.delete("/teacher/quiz/jobs/{job_id}", status_code=204)
+def api_discard_quiz_job(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    try:
+        quiz_jobs.discard_job(db, teacher.user_id, job_id)
+    except StudentBusinessError as error:
+        _raise(error)
 
 
 @router.get("/teacher/assignments/{assignment_id}/quiz", response_model=list[TeacherQuizQuestionResponse])

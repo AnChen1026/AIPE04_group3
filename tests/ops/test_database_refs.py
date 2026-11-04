@@ -34,6 +34,7 @@ def test_unknown_schema_is_rejected_instead_of_omitting_new_references():
         "019_weekly_schedule",
         "020_course_embeddings",
         "021_assignment_quiz",
+        "022_quiz_generation_jobs",
     ],
 )
 def test_later_revisions_keep_same_file_reference_contract(revision):

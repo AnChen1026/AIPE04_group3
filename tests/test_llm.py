@@ -17,6 +17,10 @@ def env(monkeypatch):
         "LLM_PROVIDER",
         "PRACTICE_FEEDBACK_LLM_PROVIDER",
         "QUIZ_GENERATION_LLM_PROVIDER",
+        "PRACTICE_FEEDBACK_LLM_MODEL",
+        "LOCAL_MODEL",
+        "AI_COURSE_GATEWAY_URL",
+        "AI_COURSE_GATEWAY_TOKEN",
         "GEMINI_MODEL",
         "OPENAI_MODEL",
         "LLM_TIMEOUT_SECONDS",
@@ -113,3 +117,53 @@ def test_AI出題預設用OpenAI_不跟全站設定_可以單獨改回Gemini(env
     assert llm.provider_for(llm.FEATURE_LESSON_SUMMARY) == "gemini"
     env.setenv("QUIZ_GENERATION_LLM_PROVIDER", "gemini")
     assert llm.provider_for(llm.FEATURE_QUIZ_GENERATION) == "gemini"
+
+
+def test_本機千問_練習回饋可以選本機與指定模型_經過閘道(env):
+    seen = {}
+
+    def fake_post(url, headers, json, timeout):
+        seen.update(url=url, headers=headers, json=json)
+        request = httpx.Request("POST", url)
+        return httpx.Response(200, json={"choices": [{"message": {"content": " 節奏穩定！ "}}]}, request=request)
+
+    env.setattr(httpx, "post", fake_post)
+    env.setenv("PRACTICE_FEEDBACK_LLM_PROVIDER", "local")
+    env.setenv("PRACTICE_FEEDBACK_LLM_MODEL", "qwen3:14b")
+    env.setenv("AI_COURSE_GATEWAY_URL", "https://gateway.example.com/")
+    env.setenv("AI_COURSE_GATEWAY_TOKEN", "t" * 48)
+    assert REAL_WITH_REASON("系統", "內容", feature=llm.FEATURE_PRACTICE_FEEDBACK) == ("節奏穩定！", None)
+    assert seen["url"] == "https://gateway.example.com/v1/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer " + "t" * 48
+    assert seen["json"]["model"] == "qwen3:14b"
+    assert seen["json"]["max_tokens"] <= 1400
+    assert seen["json"]["reasoning_effort"] == "none"
+    # 沒指定模型就用預設的千問 4B
+    env.setenv("PRACTICE_FEEDBACK_LLM_MODEL", "")
+    REAL_WITH_REASON("系統", "內容", feature=llm.FEATURE_PRACTICE_FEEDBACK)
+    assert seen["json"]["model"] == llm.DEFAULT_MODELS["local"]
+
+
+def test_本機閘道沒設好或忙碌時說明原因(env):
+    env.setenv("LLM_PROVIDER", "local")
+    text, reason = REAL_WITH_REASON("系統", "內容")
+    assert text is None and "AI_COURSE_GATEWAY_TOKEN" in reason
+    env.setenv("AI_COURSE_GATEWAY_TOKEN", "t" * 48)
+    env.setenv("AI_COURSE_GATEWAY_URL", "http://example.com")
+    text, reason = REAL_WITH_REASON("系統", "內容")
+    assert text is None and "https" in reason
+
+    def busy(url, headers, json, timeout):
+        return httpx.Response(503, json={"detail": "Model busy"}, request=httpx.Request("POST", url))
+
+    env.setattr(httpx, "post", busy)
+    env.setenv("AI_COURSE_GATEWAY_URL", "http://127.0.0.1:18763")
+    text, reason = REAL_WITH_REASON("系統", "內容")
+    assert text is None and "503" in reason and "忙碌" in reason
+
+
+def test_Docker裡的後端可以用hostdockerinternal連到電腦上的閘道(env):
+    env.setenv("AI_COURSE_GATEWAY_URL", "http://host.docker.internal:18763")
+    assert llm._gateway_url() == "http://host.docker.internal:18763"
+    env.setenv("AI_COURSE_GATEWAY_URL", "http://gateway.example.com")
+    assert llm._gateway_url() is None

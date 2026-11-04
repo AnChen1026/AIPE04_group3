@@ -68,3 +68,34 @@ python -m scripts.cloud_command --config /path/to/.env.cloud.json index-courses 
 - 硬條件採保守驗證，複雜的否定或修正可能要求換句話說；語意搜尋不保證理解每種說法，請檢查課程原文及費用。
 - Refine 與直接整理目前是離線比較工具，不是線上推薦回答。少量測試不足以證明它比直接整理更好；正式啟用前仍需擴大評估、量測延遲並檢查引用。
 - 閘道及後端限流是單程序記憶體內計數，重新啟動後重設；未支援多副本的集中限流。暫不適合高流量或高可用正式部署。
+
+
+## AI 出題與練習回饋改用本機千問
+
+AI 出題與練習回饋預設用雲端模型（出題 OpenAI、回饋 Gemini）。要改用這台 Mac 的千問等本機模型，用的是同一個閘道與通道。
+
+1. 先下載要用的模型，例如 `ollama pull qwen3:4b-instruct-2507-q4_K_M`（已經有）；記憶體夠的話可以試 `qwen3:14b` 等較大的模型，出題品質通常比較好。
+2. 讓 Ollama 讀得下比較長的教材：啟動 Ollama 前設定 `OLLAMA_CONTEXT_LENGTH=16384`（Mac 的 Ollama App 可以用 `launchctl setenv OLLAMA_CONTEXT_LENGTH 16384` 後重開 App）。
+3. 啟動閘道時開放要用的模型，並把等待時間拉長（大模型在筆電上生成比較慢）：
+
+```sh
+export AI_GATEWAY_TOKEN="$(cat .scratch/shared-ai/gateway-token)"
+export AI_GATEWAY_CHAT_MODELS="qwen3:4b-instruct-2507-q4_K_M,qwen3:14b"
+export AI_GATEWAY_TIMEOUT_SECONDS=180
+python -m uvicorn scripts.local_ai_gateway:app --host 127.0.0.1 --port 18763 --no-access-log
+```
+
+不設 `AI_GATEWAY_CHAT_MODELS` 時只開放原本 AI 找課用的 `qwen3:4b-instruct-2507-q4_K_M`，AI 找課不受影響。
+
+4. 在後端（Render 或本機 `.env`）設定，`AI_COURSE_GATEWAY_URL`、`AI_COURSE_GATEWAY_TOKEN` 和 AI 找課共用：
+
+| 設定 | 用途 |
+| --- | --- |
+| `QUIZ_GENERATION_LLM_PROVIDER=local` | AI 出題改用本機模型 |
+| `QUIZ_GENERATION_LLM_MODEL=qwen3:14b` | 出題用哪個模型（不寫就是 `qwen3:4b-instruct-2507-q4_K_M`） |
+| `PRACTICE_FEEDBACK_LLM_PROVIDER=local` | 音訊評分後的文字回饋改用本機模型 |
+| `PRACTICE_FEEDBACK_LLM_MODEL=` | 回饋用哪個模型 |
+
+本機模型每次能讀、能寫的字數有限（閘道每則訊息 12000 字、一次最多回 1400 token），所以出題會分批：每批讀一段教材、出 4 題，並避開前面出過的題目。後端會關掉千問 3.5 這類模型的「先思考再回答」，否則思考會把字數用光、回傳空白。閘道同時只處理一個請求，忙碌時出題會等 15 秒再試，最多 4 次。
+
+出題在背景執行，老師不用在頁面上等；完成後作業選單會出現數字與通知，老師審查時可以直接點選項改正確答案、刪題，再發成作業。這台 Mac 休眠或通道中斷時，出題會失敗，老師可以在出題紀錄看到原因。
