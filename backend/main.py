@@ -26,6 +26,7 @@ from backend.routers.teacher_profile import router as teacher_profile_router
 from backend.routers.teacher_quizzes import router as teacher_quizzes_router
 from backend.routers.teacher_students import router as teacher_students_router
 from backend.routers.teacher_studio import router as teacher_studio_router
+from backend.routers.ai_quiz import router as ai_quiz_router # AI 出題 API
 from backend.services.admin import seed_admin_if_needed
 from backend.services import teacher_sync  # 註冊老師資料同步，讓老師登入時補上 teacher_profiles
 
@@ -48,6 +49,7 @@ app.include_router(student_router)
 app.include_router(assignments_router)
 app.include_router(support_router)
 app.include_router(chat_ws_router)
+app.include_router(ai_quiz_router) # AI 出題 API
 # 老師端 API
 for teacher_module in (
     teacher_profile_router,

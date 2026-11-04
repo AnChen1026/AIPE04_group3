@@ -38,3 +38,11 @@ google-genai>=1.0.0
 
 # 練習回饋的上下對照樂譜（MusicXML）
 music21>=9.1
+
+# 出題系統需求套件
+python-multipart
+PyMuPDF
+pytesseract
+Pillow
+python-dotenv
+openai

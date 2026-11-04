@@ -62,3 +62,6 @@ frontend/*.tsbuildinfo
 *.dump
 *.crt
 !.env.ops.example.json
+
+# opencode 設定檔
+opencode.jsonc

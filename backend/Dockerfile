@@ -6,6 +6,9 @@ FROM python:3.12.10-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ffmpeg \
+    tesseract-ocr \
+    tesseract-ocr-chi-tra \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # 3. 在容器內部開闢一間叫 /app 的虛擬辦公室，並把位置停在這裡

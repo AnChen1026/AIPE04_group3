@@ -53,7 +53,27 @@ class AIPlannerUnclear(Exception):
     pass
 
 
+def _uses_local_provider() -> bool:
+    """是否指定使用本地 OpenAI-compatible API。"""
+    return os.environ.get("LLM_PROVIDER", "").strip().lower() == "local"
+
+
+def _local_provider_url() -> str:
+    """取得本地 API Server 的 Base URL。"""
+    return os.environ.get("LOCAL_PROVIDER_URL", "").strip().rstrip("/")
+
+
+def _local_model_name() -> str:
+    """取得本地模型名稱。"""
+    default_model = "qwen3:4b-instruct-2507-q4_K_M"
+    return os.environ.get("LOCAL_MODEL_NAME", "").strip() or default_model
+
+
 def is_configured() -> bool:
+    """確認目前選擇的模型供應商是否有設定。"""
+    if _uses_local_provider():
+        return bool(_local_provider_url())
+
     return bool(
         os.environ.get("AI_COURSE_GATEWAY_URL")
         or os.environ.get("AI_COURSE_GATEWAY_TOKEN")
@@ -63,34 +83,70 @@ def is_configured() -> bool:
 def plan_turn(message: str, previous: dict, previous_question: str | None = None) -> tuple[dict, str] | None:
     if previous.get("_semantic_query") and re.search(r"不喜歡|不想|不要|拒絕|討厭|排除|取消", message):
         raise AIPlannerUnclear()
-    url = os.environ.get("AI_COURSE_GATEWAY_URL", "").rstrip("/")
-    token = os.environ.get("AI_COURSE_GATEWAY_TOKEN", "")
-    parsed = urlsplit(url)
+
+    # 依照 LLM_PROVIDER 決定使用本地模型或原本的雲端 Gateway。
+    local_provider = _uses_local_provider()
+
+    if local_provider:
+        url = _local_provider_url()
+        token = ""
+        model_name = _local_model_name()
+    else:
+        url = os.environ.get("AI_COURSE_GATEWAY_URL", "").rstrip("/")
+        token = os.environ.get("AI_COURSE_GATEWAY_TOKEN", "")
+        model_name = "qwen3:4b-instruct-2507-q4_K_M"
+
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        return None
+
     if (
         not url
-        or len(token) < 32
         or not parsed.hostname
         or parsed.username
         or parsed.query
         or parsed.fragment
     ):
         return None
-    if parsed.scheme != "https" and not (
-        parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
-    ):
-        return None
+
+    if local_provider:
+        # 本地 API 必須使用 HTTP/HTTPS，且 URL 必須明確指定連接埠。
+        if parsed.scheme not in {"http", "https"} or port is None:
+            return None
+    else:
+        # 保留原本雲端 Gateway 的 Token 與 HTTPS 驗證。
+        if len(token) < 32:
+            return None
+
+        if parsed.scheme != "https" and not (
+            parsed.scheme == "http"
+            and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        ):
+            return None
+
+    # 本地模型不需要 Bearer Token，雲端維持原本驗證方式。
+    headers = {}
+    if not local_provider:
+        headers["Authorization"] = "Bearer " + token
+
     try:
         response = httpx.post(
             url + "/v1/chat/completions",
-            headers={"Authorization": "Bearer " + token},
+            headers=headers,
             json={
-                "model": "qwen3:4b-instruct-2507-q4_K_M",
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": PROMPT},
                     {
                         "role": "user",
                         "content": json.dumps(
-                            {"message": message[:1000], "previous": previous, "previous_question": (previous_question or "")[:180]},
+                            {
+                                "message": message[:1000],
+                                "previous": previous,
+                                "previous_question": (previous_question or "")[:180],
+                            },
                             ensure_ascii=False,
                         ),
                     },
@@ -101,21 +157,36 @@ def plan_turn(message: str, previous: dict, previous_question: str | None = None
             },
             timeout=30,
         )
+
         response.raise_for_status()
+
         output = ModelTurn.model_validate_json(
             response.json()["choices"][0]["message"]["content"]
         )
+
         question = output.question.strip()
-        if question and (question.count("?") + question.count("？") != 1 or "\n" in question or not question.endswith(("?", "？")) or question == message.strip()):
+
+        if question and (
+            question.count("?") + question.count("？") != 1
+            or "\n" in question
+            or not question.endswith(("?", "？"))
+            or question == message.strip()
+        ):
             # Do not reject an otherwise valid user request for a malformed
             # model question; use a single safe clarification instead.
             question = "你最想用鋼琴彈什麼？"
+
         structured = []
         preference = None
+
         for change in output.changes:
-            if change.field == "style" and ("style" not in parse_criteria(change.quote) or not re.search(r"只想|只要|一定要", message)):
+            if change.field == "style" and (
+                "style" not in parse_criteria(change.quote)
+                or not re.search(r"只想|只要|一定要", message)
+            ):
                 start = message.find(change.quote)
-                prefix = message[max(0, start - 4) : start] if start >= 0 else ""
+                prefix = message[max(0, start - 4): start] if start >= 0 else ""
+
                 if (
                     start < 0
                     or message.count(change.quote) != 1
@@ -130,19 +201,27 @@ def plan_turn(message: str, previous: dict, previous_question: str | None = None
                     )
                 ):
                     raise InvalidPlan("unverifiable preference")
+
                 preference = change.quote
             else:
                 structured.append(change.model_dump())
+
         result = apply_changes(previous, message, structured)
+
         if preference:
             result["_semantic_query"] = preference
+
             if re.search(r"改成|改為|變成|取代", message):
                 result["style"] = None
+
         elif any(change.field == "style" for change in output.changes):
             result.pop("_semantic_query", None)
+
         return result, question
+
     except InvalidPlan:
         raise AIPlannerUnclear() from None
+
     except (
         httpx.HTTPError,
         ValidationError,

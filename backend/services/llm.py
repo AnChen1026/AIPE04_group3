@@ -1,13 +1,14 @@
-"""呼叫大型語言模型寫一段文字，可以用 .env 切換 Gemini 或 OpenAI。
+"""呼叫大型語言模型寫一段文字，可以用 .env 切換 Gemini、OpenAI 或本地模型。
 
 沒有金鑰、逾時、服務忙碌時回傳 None，並在後端紀錄寫下原因，由呼叫端改用規則產生的文字。
 每次呼叫最多等 LLM_TIMEOUT_SECONDS 秒；逾時或服務忙碌會再試一次。
 
 .env 設定：
-  LLM_PROVIDER=gemini              全站預設用哪家，沒寫就是 gemini（也可以寫 openai）
+  LLM_PROVIDER=gemini              全站預設用哪家，沒寫就是 gemini（也可以寫 openai 或 local）
   PRACTICE_FEEDBACK_LLM_PROVIDER=  只換某個功能，例如練習回饋改用 openai，課前摘要不受影響
   GEMINI_API_KEY、GEMINI_MODEL
   OPENAI_API_KEY、OPENAI_MODEL
+  LOCAL_PROVIDER_URL=本地 OpenAI API Server 網址（預設：http://localhost:9931）
   LLM_TIMEOUT_SECONDS=20
 """
 
@@ -28,6 +29,7 @@ DEFAULT_PROVIDER = "gemini"
 DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "openai": "gpt-4o-mini"}
 KEY_NAMES = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}
 DEFAULT_MODEL = DEFAULT_MODELS["gemini"]
+LOCAL_PROVIDER_URL = "http://localhost:9931"
 
 DEFAULT_TIMEOUT_SECONDS = 20.0
 MAX_ATTEMPTS = 2
@@ -53,11 +55,28 @@ def generate_text(system_instruction: str, content: str, feature: str | None = N
 def generate_text_with_reason(
     system_instruction: str, content: str, feature: str | None = None, temperature: float = 0.3
 ) -> tuple[str | None, str | None]:
-    """回傳 (文字, 失敗原因)。成功時失敗原因是 None。"""
+    """回傳 (文字，失敗原因)。成功時失敗原因是 None。"""
     provider = provider_for(feature)
     call = PROVIDERS.get(provider)
     if call is None:
-        return _fail(f"不認得 LLM 供應商「{provider}」，請在 .env 寫 gemini 或 openai。")
+        return _fail(f"不認得 LLM 供應商「{provider}」，請在 .env 寫 gemini、openai 或 local。")
+    if provider == "local":
+        model = read_env_value("LOCAL_MODEL") or DEFAULT_MODELS["openai"]
+        timeout = _timeout_seconds()
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                text = (call(model, system_instruction, content, timeout, temperature) or "").strip()
+            except LLMError as error:
+                reason = f"local（{model}）：{error}"
+                if error.retryable and attempt < MAX_ATTEMPTS:
+                    logger.warning("LLM 暫時失敗，%s 秒後重試：%s", RETRY_WAIT_SECONDS, reason)
+                    time.sleep(RETRY_WAIT_SECONDS)
+                    continue
+                return _fail(reason)
+            if text:
+                return text, None
+            return _fail(f"local（{model}）有回應，但沒有文字內容。")
+        return _fail(f"local（{model}）一直沒有成功。")
     api_key = read_env_value(KEY_NAMES[provider])
     if api_key is None:
         return None, f"沒有設定 {KEY_NAMES[provider]}。"
@@ -84,6 +103,11 @@ def provider_for(feature: str | None) -> str:
     """先看這個功能自己的設定，再看全站預設。"""
     chosen = read_env_value(f"{feature.upper()}_LLM_PROVIDER") if feature else None
     return (chosen or read_env_value("LLM_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
+
+
+def _local_url() -> str:
+    """讀取本地 OpenAI API Server 網址，預設為 http://192.168.51.151:9931。"""
+    return read_env_value("LOCAL_PROVIDER_URL") or LOCAL_PROVIDER_URL
 
 
 def _timeout_seconds() -> float:
@@ -151,4 +175,35 @@ def _call_openai(api_key, model, system_instruction, content, timeout, temperatu
     return choices[0]["message"]["content"] if choices else None
 
 
-PROVIDERS = {"gemini": _call_gemini, "openai": _call_openai}
+def _call_local(model, system_instruction, content, timeout, temperature) -> str | None:
+    """呼叫本地 OpenAI API Server，不需要 API key。"""
+    try:
+        response = httpx.post(
+            _local_url(),
+            headers={"Content-Type": "application/json"},
+            json={
+                "model": model,
+                "temperature": temperature,
+                "messages": [
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": content},
+                ],
+            },
+            timeout=timeout,
+        )
+    except httpx.TimeoutException as error:
+        raise LLMError(f"等了 {timeout:g} 秒沒有回應", retryable=True) from error
+    except httpx.HTTPError as error:
+        raise LLMError(f"連線失敗：{error}", retryable=True) from error
+    if response.status_code != 200:
+        try:
+            detail = response.json().get("error", {}).get("message", "")
+        except ValueError:
+            detail = response.text[:200]
+        retryable = response.status_code == 429 or response.status_code >= 500
+        raise LLMError(f"{response.status_code} {detail}".strip(), retryable=retryable)
+    choices = response.json().get("choices") or []
+    return choices[0]["message"]["content"] if choices else None
+
+
+PROVIDERS = {"gemini": _call_gemini, "openai": _call_openai, "local": _call_local}
