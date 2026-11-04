@@ -62,3 +62,6 @@ frontend/*.tsbuildinfo
 *.dump
 *.crt
 !.env.ops.example.json
+
+# 本機上傳的檔案（錄音、MIDI、教材、圖片）
+uploads/
