@@ -16,6 +16,7 @@ def env(monkeypatch):
     for name in (
         "LLM_PROVIDER",
         "PRACTICE_FEEDBACK_LLM_PROVIDER",
+        "QUIZ_GENERATION_LLM_PROVIDER",
         "GEMINI_MODEL",
         "OPENAI_MODEL",
         "LLM_TIMEOUT_SECONDS",
@@ -104,3 +105,11 @@ def test_OpenAI的回應與錯誤(env):
     assert REAL_WITH_REASON("系統", "內容") == ("很好！", None)
     text, reason = REAL_WITH_REASON("系統", "忙碌")
     assert text is None and "429" in reason
+
+
+def test_AI出題預設用OpenAI_不跟全站設定_可以單獨改回Gemini(env):
+    env.setenv("LLM_PROVIDER", "gemini")
+    assert llm.provider_for(llm.FEATURE_QUIZ_GENERATION) == "openai"
+    assert llm.provider_for(llm.FEATURE_LESSON_SUMMARY) == "gemini"
+    env.setenv("QUIZ_GENERATION_LLM_PROVIDER", "gemini")
+    assert llm.provider_for(llm.FEATURE_QUIZ_GENERATION) == "gemini"

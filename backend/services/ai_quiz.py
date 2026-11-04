@@ -1,7 +1,7 @@
 """AI 出題：從老師上傳的教材（PDF／TXT）讀出文字，請 LLM 出題，再檢查格式。
 
 出題邏輯（system prompt、讀教材、剔除格式錯誤的題目）沿用宇鈞在 ai-quiz 分支寫的版本，
-改成走專案共用的 backend/services/llm.py（.env 的 LLM_PROVIDER／QUIZ_GENERATION_LLM_PROVIDER 切換 Gemini 或 OpenAI），
+改成走專案共用的 backend/services/llm.py：預設用 OpenAI（OPENAI_API_KEY），.env 寫 QUIZ_GENERATION_LLM_PROVIDER=gemini 可以換回 Gemini，
 並加上多選題、是非題、難易度與作答提示。
 
 這裡只負責「出題」，不存資料庫：老師預覽滿意後，題目跟作業一起由 services/assignment.py 存起來。
