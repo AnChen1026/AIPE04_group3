@@ -91,13 +91,21 @@ def test_same_title_needs_teacher_name_for_a_card(db, make_user, fake_model):
     assert [card["id"] for card in ask("推薦一下").json()["courses"]] == [str(picked.id)]
 
 
-def test_model_failure_is_503(db, monkeypatch):
+def test_model_failure_lists_found_courses_instead(db, make_user, monkeypatch):
     monkeypatch.setattr(course_chat.llm, "generate_text_with_reason", lambda *args, **kwargs: (None, "閘道沒開"))
+    teacher = make_user("teacher")
+    courses = [add_course(db, teacher, f"聊天備援課 {index}", style="流行", price_per_lesson=1500) for index in range(4)]
+    rows = [(course, "老師", None) for course in courses]
+    monkeypatch.setattr(course_chat, "_candidates", lambda db, criteria, query: rows)
 
-    response = ask("我想學鋼琴")
+    response = ask("流行鋼琴，一堂 1000 元以內")
 
-    assert response.status_code == 503
-    assert "暫時沒有回應" in response.json()["detail"]
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["reply"] == course_chat.FALLBACK_REPLY
+    assert [card["id"] for card in body["courses"]] == [str(course.id) for course in courses[:3]]
+    # 沒有 AI 也照樣核對預算
+    assert body["courses"][0]["warnings"] == ["每堂 NT$ 1,500，超過你說的 NT$ 1,000"]
 
 
 def test_last_message_must_be_from_student(db, fake_model):

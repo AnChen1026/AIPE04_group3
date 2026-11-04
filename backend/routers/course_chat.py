@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.services.ai_rate_limit import RateLimiter
-from backend.services.course_chat import CourseChatUnavailable, reply
+from backend.services.course_chat import reply
 
 router = APIRouter(prefix="/api/course-chat", tags=["首頁推薦"])
 limiter = RateLimiter()
@@ -78,7 +78,4 @@ def _owner(request: Request) -> str:
 def chat(payload: ChatRequest, request: Request, db: Session = Depends(get_db)):
     if not limiter.allow(_owner(request)):
         raise HTTPException(status_code=429, detail="訊息送得太頻繁，請稍後再試。", headers={"Retry-After": "60"})
-    try:
-        return reply(db, [message.model_dump() for message in payload.messages])
-    except CourseChatUnavailable as error:
-        raise HTTPException(status_code=503, detail="AI 找課助理暫時沒有回應，請稍後再試。") from error
+    return reply(db, [message.model_dump() for message in payload.messages])

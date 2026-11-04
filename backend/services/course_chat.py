@@ -4,6 +4,7 @@
 卡片再用程式核對價格與地區：超過學生的預算、不在學生說的地區、回覆寫的價格和資料不同，都在卡片上提醒。
 """
 
+import logging
 import re
 
 from sqlalchemy import select
@@ -15,6 +16,8 @@ from backend.models.user import User
 from backend.services import llm
 from backend.services.ai_semantic import rank_public_courses_with_status
 from backend.services.recommendation import _apply_required_filters, parse_criteria
+
+logger = logging.getLogger(__name__)
 
 FEATURE_COURSE_CHAT = "course_chat"
 # 交給模型參考的課程數。太多會超過本機模型讀得下的長度
@@ -50,8 +53,10 @@ PLATFORM_GUIDE = """- 不登入也能找課；想洽詢老師時再註冊或登�
 SHORT_CITY = re.compile(r"(台北|臺北|新北|桃園|台中|臺中|台南|臺南|高雄|基隆|新竹|嘉義)(?![市縣])")
 
 
-class CourseChatUnavailable(Exception):
-    """模型沒有回應；訊息是給使用者看的說明。"""
+# 模型沒回應時直接列出程式找到的課，至少和原本的條件式找課一樣能用
+FALLBACK_COUNT = 3
+FALLBACK_REPLY = "AI 暫時沒有回應，先列出最接近你描述的課，可以按「聯繫老師」直接詢問。"
+NO_COURSE_REPLY = "AI 暫時沒有回應，目前也還沒有已發布的課程，請稍後再試。"
 
 
 def reply(db: Session, messages: list[dict]) -> dict:
@@ -69,7 +74,14 @@ def reply(db: Session, messages: list[dict]) -> dict:
         timeout_seconds=TIMEOUT_SECONDS,
     )
     if text is None:
-        raise CourseChatUnavailable(reason or "AI 暫時沒有回應")
+        logger.warning("AI 找課聊天改列課程：%s", reason)
+        return {
+            "reply": FALLBACK_REPLY if candidates else NO_COURSE_REPLY,
+            "courses": [
+                {**_course_card(row), "warnings": _warnings([], row[0], criteria)}
+                for row in candidates[:FALLBACK_COUNT]
+            ],
+        }
     text = text.replace("**", "").replace("##", "")
     segments = _segments(text, candidates)
     return {
