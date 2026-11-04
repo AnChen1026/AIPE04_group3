@@ -358,7 +358,9 @@ uv run python -m scripts.index_course_embeddings --apply --confirm-database aipe
    ```env
    QUIZ_GENERATION_LLM_MODEL=qwen3:14b
    PRACTICE_FEEDBACK_LLM_MODEL=qwen3:14b
+   COURSE_CHAT_LLM_MODEL=qwen3:14b
    ```
+   `COURSE_CHAT_LLM_MODEL` 管 ③ AI 找課的聊天回覆。實測 24GB 的 Mac mini：4B 一輪約 5～13 秒，14B 約 13～31 秒；14B 比較會照條件挑課、不會把成人課推給小朋友，約課流程也講得比較對。
 
 ---
 

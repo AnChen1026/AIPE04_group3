@@ -2,11 +2,10 @@
 import { computed, nextTick, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import { sendCourseChat } from '@/api/courseChat'
-import type { RecommendationCourse } from '@/types/recommendation'
+import { sendCourseChat, type ChatCourse } from '@/api/courseChat'
 import { deliveryText, priceText } from '@/utils/format'
 
-interface ChatMessage { role: 'assistant' | 'user'; text: string; courses?: RecommendationCourse[] }
+interface ChatMessage { role: 'assistant' | 'user'; text: string; courses?: ChatCourse[] }
 
 const GREETING = '嗨！想學什麼樣的鋼琴？跟我聊聊你的程度、想彈的曲子、預算或地區，我會從老師已發布的課程裡幫你挑。平台怎麼用也可以問我。'
 
@@ -90,6 +89,7 @@ function restart() {
                 <h3>{{ course.title }}</h3>
                 <p>{{ [course.level, course.style, deliveryText(course.delivery_mode)].filter(Boolean).join('・') }}</p>
                 <p>{{ course.region || '地區未填' }}・{{ priceText(course.price_per_lesson) }}</p>
+                <p v-for="warning in course.warnings" :key="warning" class="course-card__warning">⚠ {{ warning }}</p>
                 <RouterLink :to="`/courses/${course.id}/contact`">聯繫老師</RouterLink>
               </article>
             </div>
@@ -142,6 +142,7 @@ function restart() {
 .course-card h3 { font-size: 16px; }
 .course-card p { color: var(--home-muted); font-size: 12px; }
 .course-card__teacher { color: var(--home-accent) !important; font-weight: 600; }
+.course-card__warning { color: #a23a2f !important; }
 .course-card a { display: inline-block; margin-top: 7px; color: var(--home-accent); font-size: 13px; font-weight: 600; }
 .composer { display: flex; gap: 8px; padding: 13px 16px; border-top: 1px solid var(--home-line); }
 .composer input { min-width: 0; flex: 1; padding: 10px 12px; border: 1px solid var(--home-line); border-radius: 10px; background: #fff; color: var(--home-ink); font: inherit; }

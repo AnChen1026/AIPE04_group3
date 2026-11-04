@@ -56,6 +56,8 @@ class ChatCourse(BaseModel):
     description: str | None = None
     image_url: str | None = None
     teacher_photo_url: str | None = None
+    warnings: list[str] = []
+    """程式核對價格與地區後的提醒，例如超過預算、不在指定地區。"""
 
 
 class ChatResponse(BaseModel):

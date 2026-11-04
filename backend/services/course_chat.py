@@ -1,6 +1,7 @@
 """AI 找課聊天（RAG）：先從已發布課程找出最相關的幾門，再讓模型只根據這些課程和平台說明回答。
 
 課程卡片一律由資料庫組成，模型寫錯價格也不會影響卡片；回覆裡提到哪幾門課的課名，就附上那幾張卡片。
+卡片再用程式核對價格與地區：超過學生的預算、不在學生說的地區、回覆寫的價格和資料不同，都在卡片上提醒。
 """
 
 import re
@@ -23,8 +24,10 @@ QUERY_TURNS = 3
 # 本機模型寫一段回覆要 10～30 秒
 TIMEOUT_SECONDS = 90
 DELIVERY_TEXT = {"online": "線上", "in_person": "實體"}
-# 匯入的 demo 課程把上課方式存成中文，篩選時兩種寫法都要認
-DELIVERY_VALUES = {"online": ("online", "線上", "線上與實體"), "in_person": ("in_person", "實體", "線上與實體")}
+# 回覆裡寫到的金額：「NT$800」「NT$ 1,200」「800 元」
+# 課名前面多看幾個字找老師名字，例如「乙老師的」
+TEACHER_LOOKBEHIND = 8
+AMOUNT = re.compile(r"NT\$\s*([\d,]{3,7})|([\d,]{3,7})\s*元")
 
 SYSTEM_PROMPT = """你是 melo. 鋼琴教學平台的找課顧問，用繁體中文、親切自然地和學生聊天。
 1. 推薦課程時，只能從下面「可以推薦的課程」挑，課名要一字不差地寫出來；不要編造清單以外的課、老師、價格或時段。
@@ -68,8 +71,15 @@ def reply(db: Session, messages: list[dict]) -> dict:
     if text is None:
         raise CourseChatUnavailable(reason or "AI 暫時沒有回應")
     text = text.replace("**", "").replace("##", "")
-    mentioned = [row for row in candidates if _mentions(text, row, candidates)]
-    return {"reply": text, "courses": [_course_card(row) for row in mentioned]}
+    segments = _segments(text, candidates)
+    return {
+        "reply": text,
+        "courses": [
+            {**_course_card(row), "warnings": _warnings(segments[row[0].id], row[0], criteria)}
+            for row in candidates
+            if row[0].id in segments
+        ],
+    }
 
 
 def _candidates(db: Session, criteria: dict, query: str) -> list:
@@ -82,26 +92,67 @@ def _candidates(db: Session, criteria: dict, query: str) -> list:
         .order_by(Course.created_at.desc(), Course.id)
         .limit(1000)
     )
-    delivery = criteria.get("delivery_mode")
-    matching_statement = _apply_required_filters(
-        select(Course.id).where(Course.status == "published"), {**criteria, "delivery_mode": None}
-    )
-    if delivery in DELIVERY_VALUES:
-        matching_statement = matching_statement.where(Course.delivery_mode.in_(DELIVERY_VALUES[delivery]))
-    matching = set(db.scalars(matching_statement))
+    matching = set(db.scalars(_apply_required_filters(select(Course.id).where(Course.status == "published"), criteria)))
     # 沒有語意索引時維持最新課程的順序，模型一樣只能從這幾門挑
     ranked, _status = rank_public_courses_with_status(db, db.execute(statement).all(), query)
     ranked.sort(key=lambda row: row[0].id not in matching)
     return ranked[:CANDIDATE_COUNT]
 
 
-def _mentions(text: str, row, candidates: list) -> bool:
-    """回覆寫到課名才附卡片。同名的課要連老師名字一起寫到，才知道是哪一門。"""
-    course, teacher_name, _photo = row
-    if course.title not in text:
-        return False
-    same_title = sum(other[0].title == course.title for other in candidates)
-    return same_title == 1 or teacher_name in text
+def _segments(text: str, candidates: list) -> dict:
+    """把回覆切成「從某個課名開始，到下一個課名或下一段」的片段，記下每門課被寫到的片段。
+
+    長的課名先比對，「成人古典鋼琴」裡的「古典鋼琴」不算另一門課。同名的課要在片段裡（或課名前幾個字）
+    寫到老師名字，才知道是哪一門；只有片段被算到的課才附卡片。
+    """
+    taken = [False] * len(text)
+    starts = []
+    for title in sorted({row[0].title for row in candidates}, key=len, reverse=True):
+        for match in re.finditer(re.escape(title), text):
+            if not any(taken[match.start() : match.end()]):
+                taken[match.start() : match.end()] = [True] * len(match.group())
+                starts.append((match.start(), title))
+    starts.sort()
+    segments = {}
+    previous_end = 0
+    for index, (position, title) in enumerate(starts):
+        end = starts[index + 1][0] if index + 1 < len(starts) else len(text)
+        paragraph = text.find("\n\n", position)
+        if 0 <= paragraph < end:
+            end = paragraph
+        segment = text[position:end]
+        # 「乙老師的同名課」：老師名字寫在課名前面
+        nearby = text[max(previous_end, position - TEACHER_LOOKBEHIND) : end]
+        same_title = [row for row in candidates if row[0].title == title]
+        owners = same_title if len(same_title) == 1 else [row for row in same_title if row[1] in nearby]
+        for row in owners:
+            segments.setdefault(row[0].id, []).append(segment)
+        previous_end = end
+    return segments
+
+
+def _warnings(segments: list[str], course: Course, criteria: dict) -> list[str]:
+    """用程式核對，不靠模型：預算、地區，以及回覆裡寫給這門課的價格。"""
+    warnings = []
+    budget = criteria.get("max_price")
+    price = course.price_per_lesson
+    if budget is not None:
+        if price is None:
+            warnings.append("課程沒填價格，無法確認是否在預算內")
+        elif price > int(budget):
+            warnings.append(f"每堂 NT$ {price:,}，超過你說的 NT$ {int(budget):,}")
+    region = criteria.get("region")
+    # 線上課在哪裡都能上，不用比地區
+    if region and course.delivery_mode != "online" and str(region) not in (course.region or "").replace("臺", "台"):
+        warnings.append(f"上課地點在{course.region or '（未填）'}，不是你說的{region}")
+    written = {
+        int((found.group(1) or found.group(2)).replace(",", ""))
+        for segment in segments
+        for found in AMOUNT.finditer(segment)
+    }
+    if price is not None and written - {price, budget}:
+        warnings.append("回覆寫的價格和課程資料不同，以這張卡片為準")
+    return warnings
 
 
 def _system_prompt(candidates: list) -> str:
@@ -112,7 +163,7 @@ def _system_prompt(candidates: list) -> str:
             f"{index}. 課名：{course.title}\n"
             f"   老師：{teacher_name}\n"
             f"   程度：{course.level or '未填'}；曲風：{course.style or '未填'}；"
-            f"上課方式：{DELIVERY_TEXT.get(course.delivery_mode or '', course.delivery_mode or '未填')}；地區：{course.region or '未填'}\n"
+            f"上課方式：{DELIVERY_TEXT.get(course.delivery_mode or '', '未填')}；地區：{course.region or '未填'}\n"
             f"   價格：{price}；時段：{course.time_slots or '未填'}\n"
             f"   介紹：{(course.description or '未填')[:300]}"
         )
