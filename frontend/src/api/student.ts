@@ -1,5 +1,5 @@
 import { apiUrl, request } from './http'
-import type { Assignment, AvailabilitySlot, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
+import type { Assignment, AvailabilitySlot, QuizAttempt, QuizQuestion, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
 
 // ---------- 接洽對話與綁定
 export const startConversation = (courseId: string) =>
@@ -77,3 +77,9 @@ export function submitAssignment(id: string, audio: Blob, filename: string, metr
   if (metronomeBpm) form.append('metronome_bpm', String(metronomeBpm))
   return request<Recording>(`/api/student/assignments/${id}/recordings`, { method: 'POST', body: form })
 }
+
+// ---------- 題庫作業：題目（沒有答案）、交卷、歷次作答
+export const fetchQuiz = (id: string) => request<QuizQuestion[]>(`/api/student/assignments/${id}/quiz`)
+export const fetchQuizAttempts = (id: string) => request<QuizAttempt[]>(`/api/student/assignments/${id}/quiz/attempts`)
+export const submitQuiz = (id: string, answers: { question_id: string; selected: number[] }[]) =>
+  request<QuizAttempt>(`/api/student/assignments/${id}/quiz/attempts`, { method: 'POST', body: { answers } })

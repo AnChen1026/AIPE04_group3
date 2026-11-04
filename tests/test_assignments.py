@@ -110,7 +110,13 @@ def test_題庫作業不能附MIDI也不能錄音繳交(setup):
     assert create(teacher_client, course, student, kind="quiz").status_code == 400
     quiz = teacher_client.post(
         "/teacher/assignments",
-        data={"course_id": str(course.id), "student_id": str(student.id), "title": "樂理練習", "kind": "quiz"},
+        data={
+            "course_id": str(course.id),
+            "student_id": str(student.id),
+            "title": "樂理練習",
+            "kind": "quiz",
+            "questions": '[{"type": "truefalse", "question": "四分音符是一拍。", "options": [], "answers": [0]}]',
+        },
     )
     assert quiz.status_code == 201, quiz.text
     response = student_client.post(f"/api/student/assignments/{quiz.json()['id']}/recordings", files={"audio": FAKE_AUDIO})

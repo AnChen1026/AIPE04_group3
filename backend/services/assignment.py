@@ -14,9 +14,10 @@ from sqlalchemy.orm import Session
 
 from backend.core.uploads import ASSIGNMENT_UPLOAD_DIR
 from backend.core.storage import save_file, cleanup_files
-from backend.models.assignment import Assignment, AssignmentMaterial
+from backend.models.assignment import Assignment, AssignmentMaterial, AssignmentQuizQuestion, QuizAttempt, QuizAttemptAnswer
 from backend.models.student import Course, CourseBinding, PracticeRecording
 from backend.models.user import User
+from backend.services.ai_quiz import MAX_QUESTIONS, clean_question, grade
 from backend.services.course import MAX_MIDI_BYTES, MIDI_SUFFIXES
 from backend.services.student import StudentBusinessError, _commit, require_bound
 
@@ -71,8 +72,10 @@ def create_assignment(
     midi: tuple[str, bytes] | None,
     materials: list[tuple[str, str | None, bytes]],
     practice_bpm: int | None = None,
+    questions: list[dict] | None = None,
 ) -> Assignment:
-    """materials 是 (檔名, content type, 內容)。只能發給目前綁定在這門課的學生。"""
+    """materials 是 (檔名, content type, 內容)。只能發給目前綁定在這門課的學生。
+    題庫作業要帶 questions（老師在 AI 出題預覽後確認的題目），格式同 services/ai_quiz.clean_question。"""
     course = db.get(Course, course_id)
     if course is None or course.teacher_id != teacher_id:
         raise StudentBusinessError(status.HTTP_404_NOT_FOUND, "找不到這門課。")
@@ -103,6 +106,19 @@ def create_assignment(
             raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"「{name}」超過 30 MB。")
     if midi is not None:
         _check_midi(*midi)
+    cleaned_questions: list[dict] = []
+    if kind == "quiz":
+        cleaned = [clean_question(item) for item in questions or []]
+        if not cleaned:
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "題庫作業至少要有一題，請先用 AI 生成題目。")
+        if len(cleaned) > MAX_QUESTIONS:
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"一份題庫作業最多 {MAX_QUESTIONS} 題。")
+        bad = [str(index + 1) for index, item in enumerate(cleaned) if item is None]
+        if bad:
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"第 {'、'.join(bad)} 題的格式不正確（選項或答案有問題）。")
+        cleaned_questions = [item for item in cleaned if item is not None]
+    elif questions:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "演奏作業不用題目。")
     if practice_bpm is not None and not MIN_BPM <= practice_bpm <= MAX_BPM:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"練習速度請填 {MIN_BPM}～{MAX_BPM} BPM。")
 
@@ -127,6 +143,21 @@ def create_assignment(
             assignment.midi_bpm = _midi_bpm(midi[1])
         db.add(assignment)
         db.flush()
+        for position, item in enumerate(cleaned_questions, start=1):
+            db.add(
+                AssignmentQuizQuestion(
+                    assignment_id=assignment.id,
+                    position=position,
+                    question_type=item["type"],
+                    difficulty=item["difficulty"],
+                    topic=item["topic"],
+                    question=item["question"],
+                    options=item["options"],
+                    answers=item["answers"],
+                    explanation=item["explanation"],
+                    hint=item["hint"],
+                )
+            )
         for name, content_type, content in materials:
             path = _write(teacher_id, Path(name).suffix.lower()[:16], content)
             written.append(path)
@@ -210,9 +241,8 @@ def assignment_rows(db: Session, assignments: list[Assignment]) -> list[dict]:
     courses = dict(
         db.execute(select(Course.id, Course.title).where(Course.id.in_({item.course_id for item in assignments}))).all()
     ) if assignments else {}
-    names = dict(
-        db.execute(select(User.id, User.name).where(User.id.in_({item.student_id for item in assignments}))).all()
-    ) if assignments else {}
+    people = {item.student_id for item in assignments} | {item.teacher_id for item in assignments}
+    names = dict(db.execute(select(User.id, User.name).where(User.id.in_(people))).all()) if assignments else {}
     stats = {
         row.assignment_id: row
         for row in db.execute(
@@ -225,9 +255,29 @@ def assignment_rows(db: Session, assignments: list[Assignment]) -> list[dict]:
             .group_by(PracticeRecording.assignment_id)
         )
     } if ids else {}
+    quiz_stats = {
+        row.assignment_id: row
+        for row in db.execute(
+            select(
+                QuizAttempt.assignment_id,
+                func.count().label("count"),
+                func.max(QuizAttempt.submitted_at).label("latest"),
+            )
+            .where(QuizAttempt.assignment_id.in_(ids))
+            .group_by(QuizAttempt.assignment_id)
+        )
+    } if ids else {}
+    question_counts = dict(
+        db.execute(
+            select(AssignmentQuizQuestion.assignment_id, func.count())
+            .where(AssignmentQuizQuestion.assignment_id.in_(ids))
+            .group_by(AssignmentQuizQuestion.assignment_id)
+        ).all()
+    ) if ids else {}
     rows = []
     for item in assignments:
-        stat = stats.get(item.id)
+        # 演奏作業算錄音次數，題庫作業算作答次數
+        stat = quiz_stats.get(item.id) if item.kind == "quiz" else stats.get(item.id)
         rows.append(
             {
                 "id": item.id,
@@ -235,6 +285,7 @@ def assignment_rows(db: Session, assignments: list[Assignment]) -> list[dict]:
                 "course_title": courses.get(item.course_id, "課程"),
                 "student_id": item.student_id,
                 "student_name": names.get(item.student_id, "學生"),
+                "teacher_name": names.get(item.teacher_id, "老師"),
                 "kind": item.kind,
                 "title": item.title,
                 "description": item.description,
@@ -244,6 +295,7 @@ def assignment_rows(db: Session, assignments: list[Assignment]) -> list[dict]:
                 "midi_bpm": item.midi_bpm,
                 "practice_bpm": item.practice_bpm,
                 "materials": materials[item.id],
+                "question_count": question_counts.get(item.id, 0),
                 "submission_count": stat.count if stat else 0,
                 "last_submitted_at": stat.latest if stat else None,
                 "created_at": item.created_at,
@@ -272,3 +324,111 @@ def list_student_assignments(db: Session, student_id: uuid.UUID) -> list[dict]:
         )
     )
     return assignment_rows(db, assignments)
+
+
+# ---------- 題庫作業：題目與作答
+
+
+def quiz_questions(db: Session, assignment_id: uuid.UUID) -> list[AssignmentQuizQuestion]:
+    return list(
+        db.scalars(
+            select(AssignmentQuizQuestion)
+            .where(AssignmentQuizQuestion.assignment_id == assignment_id)
+            .order_by(AssignmentQuizQuestion.position.asc())
+        )
+    )
+
+
+def submit_quiz_attempt(
+    db: Session, student_id: uuid.UUID, assignment_id: uuid.UUID, answers: dict[uuid.UUID, list[int]]
+) -> QuizAttempt:
+    """學生交一次作答。每一題都要作答；同一份作業可以重複練習，attempt_no 依序加一。"""
+    assignment = student_assignment(db, student_id, assignment_id)
+    if assignment.kind != "quiz":
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "演奏作業請用錄音繳交。")
+    questions = quiz_questions(db, assignment.id)
+    if not questions:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這份作業還沒有題目。")
+    known = {item.id for item in questions}
+    if set(answers) - known:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "有答案對不到這份作業的題目，請重新整理頁面。")
+    missing = [str(item.position) for item in questions if not answers.get(item.id)]
+    if missing:
+        raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"第 {'、'.join(missing)} 題還沒作答。")
+    for item in questions:
+        chosen = answers[item.id]
+        if any(not 0 <= value < len(item.options) for value in chosen):
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"第 {item.position} 題的選項不正確。")
+        if item.question_type != "multiple" and len(set(chosen)) != 1:
+            raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, f"第 {item.position} 題只能選一個答案。")
+
+    previous = db.scalar(
+        select(func.max(QuizAttempt.attempt_no)).where(
+            QuizAttempt.assignment_id == assignment.id, QuizAttempt.student_id == student_id
+        )
+    )
+    results = {item.id: grade(item.answers, answers[item.id]) for item in questions}
+    attempt = QuizAttempt(
+        id=uuid.uuid4(),
+        assignment_id=assignment.id,
+        student_id=student_id,
+        attempt_no=(previous or 0) + 1,
+        correct_count=sum(results.values()),
+        question_count=len(questions),
+    )
+    db.add(attempt)
+    db.flush()
+    for item in questions:
+        db.add(
+            QuizAttemptAnswer(
+                attempt_id=attempt.id,
+                question_id=item.id,
+                selected=sorted(set(answers[item.id])),
+                is_correct=results[item.id],
+            )
+        )
+    _commit(db)
+    db.refresh(attempt)
+    return attempt
+
+
+def quiz_attempt_rows(db: Session, assignment_id: uuid.UUID) -> list[dict]:
+    """一份作業的每次作答，附上答錯的題目（學生的答案、正確答案、解析）。舊的在前。"""
+    attempts = list(
+        db.scalars(
+            select(QuizAttempt).where(QuizAttempt.assignment_id == assignment_id).order_by(QuizAttempt.attempt_no.asc())
+        )
+    )
+    questions = {item.id: item for item in quiz_questions(db, assignment_id)}
+    wrong: dict[uuid.UUID, list[dict]] = {item.id: [] for item in attempts}
+    if attempts:
+        for answer in db.scalars(
+            select(QuizAttemptAnswer).where(
+                QuizAttemptAnswer.attempt_id.in_(list(wrong)), QuizAttemptAnswer.is_correct.is_(False)
+            )
+        ):
+            question = questions.get(answer.question_id)
+            if question is not None:
+                wrong[answer.attempt_id].append(
+                    {
+                        "question_id": question.id,
+                        "position": question.position,
+                        "question_type": question.question_type,
+                        "topic": question.topic,
+                        "question": question.question,
+                        "options": question.options,
+                        "selected": answer.selected,
+                        "answers": question.answers,
+                        "explanation": question.explanation,
+                    }
+                )
+    return [
+        {
+            "id": item.id,
+            "attempt_no": item.attempt_no,
+            "submitted_at": item.submitted_at,
+            "question_count": item.question_count,
+            "wrong": sorted(wrong[item.id], key=lambda row: row["position"]),
+        }
+        for item in attempts
+    ]

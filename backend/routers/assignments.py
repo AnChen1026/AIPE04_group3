@@ -1,5 +1,6 @@
-"""作業 API：老師發作業（可附參考 MIDI 與教材）、學生看作業、下載檔案、錄音繳交。"""
+"""作業 API：老師發作業（可附參考 MIDI 與教材，或用 AI 從教材出題）、學生看作業、下載檔案、錄音繳交、題庫作答。"""
 
+import json
 import uuid
 from datetime import datetime
 
@@ -13,7 +14,17 @@ from backend.dependencies.teacher import get_current_teacher
 from backend.models.teacher import TeacherDB
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
-from backend.schemas.student import AssignmentResponse, FeedbackResponse, RecordingResponse
+from backend.schemas.student import (
+    AssignmentResponse,
+    FeedbackResponse,
+    QuizAttemptIn,
+    QuizAttemptResponse,
+    QuizGenerateResponse,
+    RecordingResponse,
+    StudentQuizQuestionResponse,
+    TeacherQuizQuestionResponse,
+)
+from backend.services.ai_quiz import MAX_SOURCE_BYTES, QuizGenerationError, extract_text, generate_questions
 from backend.services.assignment import (
     MAX_MATERIAL_BYTES,
     create_assignment,
@@ -23,7 +34,10 @@ from backend.services.assignment import (
     material_for_student,
     material_for_teacher,
     own_assignment,
+    quiz_attempt_rows,
+    quiz_questions,
     student_assignment,
+    submit_quiz_attempt,
 )
 from backend.services.course import MAX_MIDI_BYTES
 from backend.services.practice import run_recording_analysis
@@ -62,10 +76,18 @@ def api_create_assignment(
     midi: UploadFile | None = File(None),
     practice_bpm: int | None = Form(None),
     materials: list[UploadFile] | None = File(None),
+    questions: str | None = Form(None),
     db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
-    """multipart：midi 是參考曲（演奏作業才有），materials 可以放多個教材檔（樂譜、講義、示範音檔）。"""
+    """multipart：midi 是參考曲（演奏作業才有），materials 可以放多個教材檔（樂譜、講義、示範音檔）。
+    題庫作業的 questions 是 JSON 字串：/teacher/quiz/generate 回傳、老師預覽確認過的題目陣列。"""
+    try:
+        question_list = json.loads(questions) if questions else None
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="題目資料格式不正確。")
+    if question_list is not None and not isinstance(question_list, list):
+        raise HTTPException(status_code=400, detail="題目資料格式不正確。")
     midi_file = (midi.filename or "reference.mid", midi.file.read(MAX_MIDI_BYTES + 1)) if midi and midi.filename else None
     files = [
         (item.filename or "material", item.content_type, item.file.read(MAX_MATERIAL_BYTES + 1))
@@ -74,7 +96,18 @@ def api_create_assignment(
     ]
     try:
         assignment = create_assignment(
-            db, teacher.user_id, course_id, student_id, kind, title, description, due_at, midi_file, files, practice_bpm
+            db,
+            teacher.user_id,
+            course_id,
+            student_id,
+            kind,
+            title,
+            description,
+            due_at,
+            midi_file,
+            files,
+            practice_bpm,
+            questions=question_list,
         )
     except StudentBusinessError as error:
         _raise(error)
@@ -119,6 +152,52 @@ def api_teacher_material(
     except StudentBusinessError as error:
         _raise(error)
     return file_response(material.file_path, media_type=material.content_type, filename=material.filename)
+
+
+@router.post("/teacher/quiz/generate", response_model=QuizGenerateResponse)
+def api_generate_quiz(
+    file: UploadFile = File(...),
+    count: int = Form(10),
+    types: str = Form("single"),
+    difficulty: str = Form("mixed"),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    """題庫作業上傳：讀老師的教材（PDF／TXT）請 AI 出題，只回傳預覽，不存。
+    types 用逗號分隔：single,multiple,truefalse；difficulty 是 easy／medium／hard／mixed。
+    「重新生成題目」就是再呼叫一次。老師確認後，把題目放進 POST /teacher/assignments 的 questions。"""
+    data = file.file.read(MAX_SOURCE_BYTES + 1)
+    try:
+        material = extract_text(file.filename or "", data)
+        questions = generate_questions(material, count, [item.strip() for item in types.split(",") if item.strip()], difficulty)
+    except QuizGenerationError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+    return {"source_filename": file.filename or "", "source_chars": len(material), "questions": questions}
+
+
+@router.get("/teacher/assignments/{assignment_id}/quiz", response_model=list[TeacherQuizQuestionResponse])
+def api_teacher_quiz(
+    assignment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    try:
+        assignment = own_assignment(db, teacher.user_id, assignment_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    return quiz_questions(db, assignment.id)
+
+
+@router.get("/teacher/assignments/{assignment_id}/quiz/attempts", response_model=list[QuizAttemptResponse])
+def api_teacher_quiz_attempts(
+    assignment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    teacher: TeacherDB = Depends(get_current_teacher),
+):
+    try:
+        assignment = own_assignment(db, teacher.user_id, assignment_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    return quiz_attempt_rows(db, assignment.id)
 
 
 # ---------- 學生
@@ -218,3 +297,48 @@ def _recording_response(db: Session, recording) -> RecordingResponse:
         submitted_at=recording.submitted_at,
         feedback=FeedbackResponse.model_validate(feedback) if feedback else None,
     )
+
+
+@router.get("/api/student/assignments/{assignment_id}/quiz", response_model=list[StudentQuizQuestionResponse])
+def api_student_quiz(
+    assignment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    student: User = Depends(student_only),
+):
+    """題庫作業的題目：不含答案與解析，有提示。"""
+    try:
+        assignment = student_assignment(db, student.id, assignment_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    return quiz_questions(db, assignment.id)
+
+
+@router.get("/api/student/assignments/{assignment_id}/quiz/attempts", response_model=list[QuizAttemptResponse])
+def api_student_quiz_attempts(
+    assignment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    student: User = Depends(student_only),
+):
+    try:
+        assignment = student_assignment(db, student.id, assignment_id)
+    except StudentBusinessError as error:
+        _raise(error)
+    return quiz_attempt_rows(db, assignment.id)
+
+
+@router.post("/api/student/assignments/{assignment_id}/quiz/attempts", response_model=QuizAttemptResponse, status_code=201)
+def api_submit_quiz(
+    assignment_id: uuid.UUID,
+    payload: QuizAttemptIn,
+    db: Session = Depends(get_db),
+    student: User = Depends(student_only),
+):
+    """交一次題庫作答，回傳這次答錯的題目、正確答案與解析。"""
+    answers: dict[uuid.UUID, list[int]] = {}
+    for item in payload.answers:
+        answers[item.question_id] = item.selected
+    try:
+        attempt = submit_quiz_attempt(db, student.id, assignment_id, answers)
+    except StudentBusinessError as error:
+        _raise(error)
+    return next(row for row in quiz_attempt_rows(db, assignment_id) if row["id"] == attempt.id)

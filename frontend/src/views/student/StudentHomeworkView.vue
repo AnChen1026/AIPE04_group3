@@ -3,9 +3,9 @@ import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchMyAssignments } from '@/api/student'
 import type { Assignment } from '@/types/api'
-import { ASSIGNMENT_KIND_LABELS, dueText, toneClass } from '@/utils/format'
+import { ASSIGNMENT_KIND_LABELS, assignmentTone, dueText } from '@/utils/format'
 
-// 設計稿的學生「作業狀態」：老師發給自己的每一份作業。演奏作業可以上傳錄音，題庫作業的作答尚未開放
+// 設計稿的學生「作業狀態」：老師發給自己的每一份作業。演奏作業按「上傳」錄音繳交，題庫作業按「作答」寫 AI 出的題目
 const assignments = ref<Assignment[]>([])
 const keyword = ref('')
 const filter = ref<'all' | 'missing' | 'submitted'>('all')
@@ -18,19 +18,24 @@ const filters = [
   { value: 'submitted', label: '已繳交' },
 ] as const
 
-const courseKeys = computed(() => [...new Set(assignments.value.map((item) => item.course_id))])
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   return assignments.value.filter(
     (item) =>
       (filter.value === 'all' || (filter.value === 'submitted') === item.submission_count > 0) &&
-      (!text || [item.course_title, item.title].some((value) => value.toLowerCase().includes(text))),
+      (!text || [item.course_title, item.title, item.teacher_name].some((value) => value.toLowerCase().includes(text))),
   )
 })
 
 function statusText(item: Assignment) {
-  if (item.kind === 'quiz') return '題庫作業'
+  if (item.kind === 'quiz') return item.submission_count ? `作業已作答（${item.submission_count} 次）` : '作業未作答'
   return item.submission_count ? '作業已繳交' : '作業未繳交'
+}
+
+// 「查看詳情」：演奏作業到作業頁的繳交紀錄，題庫作業到作業分析看每次作答的錯題
+function detailLink(item: Assignment) {
+  if (item.kind === 'quiz') return { name: 'student-analysis-attempts', params: { kind: 'quiz', id: item.id } }
+  return { path: `/student/homework/${item.id}`, hash: '#history' }
 }
 
 onMounted(async () => {
@@ -76,11 +81,11 @@ onMounted(async () => {
     老師還沒有發作業給你。老師發布後，會出現在這裡。
   </div>
   <div v-else-if="loaded && shown.length === 0" class="card empty">沒有符合的作業。</div>
-  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="toneClass(item.course_id, courseKeys)">
+  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="assignmentTone(item)">
     <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
     <div class="tone-card__cell">
       <p class="tone-card__title">{{ item.course_title }}</p>
-      <p class="tone-card__line">{{ item.title }}</p>
+      <p class="tone-card__line">{{ item.teacher_name }}老師</p>
     </div>
     <div class="tone-card__cell">
       <p class="tone-card__title">{{ statusText(item) }}</p>
@@ -88,8 +93,8 @@ onMounted(async () => {
     </div>
     <div class="homework__actions">
       <RouterLink v-if="item.kind === 'performance'" :to="`/student/homework/${item.id}`" class="tone-btn">上傳</RouterLink>
-      <button v-else type="button" class="tone-btn" disabled title="題庫作答尚未開放">作答</button>
-      <RouterLink :to="{ path: `/student/homework/${item.id}`, hash: '#history' }" class="tone-btn">查看詳情</RouterLink>
+      <RouterLink v-else :to="{ name: 'student-quiz', params: { id: item.id } }" class="tone-btn">作答</RouterLink>
+      <RouterLink :to="detailLink(item)" class="tone-btn">查看詳情</RouterLink>
     </div>
   </article>
 </template>

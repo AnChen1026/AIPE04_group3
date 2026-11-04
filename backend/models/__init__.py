@@ -1,7 +1,7 @@
 # SQLAlchemy Model，定義資料庫 Table 與欄位關係。
 # 定義 PostgreSQL 資料表在 Python 裡的樣子。
 
-from backend.models.assignment import Assignment, AssignmentMaterial
+from backend.models.assignment import Assignment, AssignmentMaterial, AssignmentQuizQuestion, QuizAttempt, QuizAttemptAnswer
 from backend.models.auth_identity import AuthIdentity
 from backend.models.base import Base
 from backend.models.material import MaterialDB
@@ -16,6 +16,9 @@ from backend.models.user import User
 __all__ = [
     "Assignment",
     "AssignmentMaterial",
+    "AssignmentQuizQuestion",
+    "QuizAttempt",
+    "QuizAttemptAnswer",
     "AuthIdentity",
     "Base",
     "MaterialDB",

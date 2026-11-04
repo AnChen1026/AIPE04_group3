@@ -126,6 +126,31 @@ const router = createRouter({
         { path: 'courses', name: 'student-courses', component: () => import('@/views/student/StudentCoursesView.vue'), meta: { title: '課程資訊' } },
         { path: 'homework', name: 'student-homework', component: () => import('@/views/student/StudentHomeworkView.vue'), meta: { title: '作業' } },
         { path: 'homework/analysis', name: 'student-analysis', component: () => import('@/views/student/StudentAnalysisView.vue'), meta: { title: '作業分析' } },
+        {
+          path: 'homework/analysis/:kind(performance|quiz)',
+          name: 'student-analysis-list',
+          component: () => import('@/views/student/StudentAnalysisListView.vue'),
+          meta: { title: '作業分析' },
+        },
+        {
+          path: 'homework/analysis/:kind(performance|quiz)/:id',
+          name: 'student-analysis-attempts',
+          component: () => import('@/views/student/StudentAnalysisAttemptsView.vue'),
+          meta: { title: '作業分析' },
+        },
+        {
+          path: 'homework/analysis/:kind(performance|quiz)/:id/:attempt(\\d+)',
+          name: 'student-analysis-detail',
+          component: () => import('@/views/student/StudentAnalysisDetailView.vue'),
+          meta: { title: '詳細分析' },
+        },
+        {
+          path: 'homework/analysis/:kind(performance|quiz)/:id/:attempt(\\d+)/compare',
+          name: 'student-analysis-compare',
+          component: () => import('@/views/student/StudentAnalysisCompareView.vue'),
+          meta: { title: '練習對比' },
+        },
+        { path: 'homework/:id/quiz', name: 'student-quiz', component: () => import('@/views/student/StudentQuizView.vue'), meta: { title: '題庫作業' } },
         { path: 'homework/:id', name: 'student-assignment', component: () => import('@/views/student/StudentAssignmentView.vue'), meta: { title: '作業' } },
         {
           path: 'chat',

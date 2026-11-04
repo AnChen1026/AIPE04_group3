@@ -1,141 +1,234 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import FeedbackView from '@/components/console/FeedbackView.vue'
 import ScoreCompare from '@/components/console/ScoreCompare.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
+import QuizWrongList from '@/components/console/QuizWrongList.vue'
 import {
   deleteAssignment,
+  fetchAssignmentQuiz,
+  fetchAssignmentQuizAttempts,
   fetchAssignments,
   fetchCourseRecordings,
-  teacherAssignmentMidiUrl,
-  teacherMaterialUrl,
   teacherScoreSheetUrl,
 } from '@/api/teacher'
 import { apiUrl } from '@/api/http'
-import type { Assignment, TeacherRecording } from '@/types/api'
-import { ASSIGNMENT_KIND_LABELS, dueText, fileSizeText, formatDateTime } from '@/utils/format'
+import type { Assignment, QuizAttempt, QuizQuestion, TeacherRecording } from '@/types/api'
+import { QUIZ_TYPE_LABELS, assignmentTone, dueText, formatDateTime, optionLetters } from '@/utils/format'
 
-// 設計稿的「學生作業詳情」：這份作業給誰、內容與期限、附的檔案，以及學生每次繳交的錄音與回饋
+// 設計稿的「學生作業詳情」：這位學生的演奏作業／題庫作業兩個分頁，每份作業一張卡片，
+// 按右上角放大鏡展開：演奏作業看每次錄音與回饋，題庫作業看題目與每次作答的錯題。
+// 網址的 id 是目前展開的作業，「刪除作業」刪的就是它。
 const route = useRoute()
 const router = useRouter()
-const assignmentId = String(route.params.id)
-const assignment = ref<Assignment | null>(null)
+const all = ref<Assignment[]>([])
+const tab = ref<Assignment['kind']>('performance')
 const recordings = ref<TeacherRecording[]>([])
+const questions = ref<QuizQuestion[]>([])
+const attempts = ref<QuizAttempt[]>([])
 const error = ref('')
+const loading = ref(false)
 const confirming = ref(false)
+const showQuestions = ref(false)
 // 正在看哪一筆的對照樂譜
 const openSheet = ref('')
 let timer = 0
 
-const submitted = computed(() => recordings.value.length > 0)
+const openId = computed(() => String(route.params.id))
+const current = computed(() => all.value.find((item) => item.id === openId.value) ?? null)
+const shown = computed(() =>
+  current.value ? all.value.filter((item) => item.student_id === current.value!.student_id && item.kind === tab.value) : [],
+)
 
-async function load() {
+function statusText(item: Assignment) {
+  if (item.kind === 'quiz') return item.submission_count ? `學生已作答 ${item.submission_count} 次` : '學生尚未作答'
+  return item.submission_count ? `學生已繳交 ${item.submission_count} 次` : '作業尚未繳交'
+}
+
+async function loadRecords() {
   window.clearTimeout(timer)
+  const item = current.value
+  if (!item) return
+  loading.value = true
   try {
-    if (!assignment.value) {
-      assignment.value = (await fetchAssignments()).find((item) => item.id === assignmentId) ?? null
-      if (!assignment.value) {
-        error.value = '找不到這份作業。'
-        return
+    if (item.kind === 'performance') {
+      recordings.value = (await fetchCourseRecordings(item.course_id)).filter((row) => row.assignment_id === item.id)
+      // 還有錄音在分析時，每 5 秒更新一次
+      if (recordings.value.some((row) => row.status === 'pending' || row.status === 'processing')) {
+        timer = window.setTimeout(loadRecords, 5000)
       }
+    } else {
+      ;[questions.value, attempts.value] = await Promise.all([fetchAssignmentQuiz(item.id), fetchAssignmentQuizAttempts(item.id)])
     }
-    recordings.value = (await fetchCourseRecordings(assignment.value.course_id)).filter((item) => item.assignment_id === assignmentId)
   } catch (problem) {
-    error.value = problem instanceof Error ? problem.message : '讀不到作業。'
+    error.value = problem instanceof Error ? problem.message : '讀不到繳交紀錄。'
+  } finally {
+    loading.value = false
   }
-  // 還有錄音在分析時，每 5 秒更新一次
-  if (recordings.value.some((item) => item.status === 'pending' || item.status === 'processing')) {
-    timer = window.setTimeout(load, 5000)
-  }
+}
+
+function toggle(item: Assignment) {
+  if (item.id === openId.value) return
+  router.replace({ name: 'teacher-assignment', params: { id: item.id } })
+}
+
+function switchTab(kind: Assignment['kind']) {
+  tab.value = kind
+  const first = shown.value[0]
+  if (first && current.value?.kind !== kind) toggle(first)
 }
 
 async function remove() {
   confirming.value = false
   try {
-    await deleteAssignment(assignmentId)
+    await deleteAssignment(openId.value)
     router.push('/teacher/practice')
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '作業沒有刪除。'
   }
 }
 
-onMounted(load)
+watch(
+  openId,
+  async () => {
+    error.value = ''
+    recordings.value = []
+    questions.value = []
+    attempts.value = []
+    showQuestions.value = false
+    try {
+      if (!all.value.some((item) => item.id === openId.value)) all.value = await fetchAssignments()
+    } catch (problem) {
+      error.value = problem instanceof Error ? problem.message : '讀不到作業。'
+      return
+    }
+    if (!current.value) {
+      error.value = '找不到這份作業。'
+      return
+    }
+    tab.value = current.value.kind
+    await loadRecords()
+  },
+  { immediate: true },
+)
+
 onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
   <PageHeader title="學生作業詳情">
     <RouterLink to="/teacher/practice" class="btn btn--ghost">返回</RouterLink>
-    <button v-if="assignment" type="button" class="btn btn--danger" @click="confirming = true">刪除作業</button>
+    <button v-if="current" type="button" class="btn btn--danger" @click="confirming = true">刪除作業</button>
   </PageHeader>
-  <p v-if="error" class="error-text">{{ error }}</p>
 
-  <template v-if="assignment">
-    <article class="tone-card detail">
-      <p class="tone-card__cell tone-card__title detail__who">{{ assignment.student_name }}</p>
+  <div class="chip-group detail__tabs" role="tablist" aria-label="作業類型">
+    <button type="button" role="tab" class="chip" :aria-pressed="tab === 'performance'" :aria-selected="tab === 'performance'" @click="switchTab('performance')">
+      演奏作業
+    </button>
+    <button type="button" role="tab" class="chip" :aria-pressed="tab === 'quiz'" :aria-selected="tab === 'quiz'" @click="switchTab('quiz')">
+      題庫作業
+    </button>
+  </div>
+  <p v-if="error" class="error-text" role="alert">{{ error }}</p>
+
+  <div v-if="current && shown.length === 0" class="card empty">
+    {{ current.student_name }}還沒有{{ tab === 'quiz' ? '題庫' : '演奏' }}作業。
+  </div>
+
+  <template v-for="item in shown" :key="item.id">
+    <article class="tone-card detail" :class="assignmentTone(item)">
+      <p class="tone-card__cell tone-card__title detail__who">{{ item.student_name }}</p>
       <div class="tone-card__cell">
         <p class="tone-card__title">作業內容</p>
-        <p class="tone-card__line">{{ assignment.title }}</p>
+        <p class="tone-card__line">{{ item.title }}</p>
       </div>
       <div class="tone-card__cell">
-        <p class="tone-card__title">
-          {{ assignment.kind === 'quiz' ? '題庫作業' : submitted ? `學生已繳交 ${recordings.length} 次` : '作業尚未繳交' }}
-        </p>
-        <p class="tone-card__line">{{ dueText(assignment.due_at) }}</p>
+        <p class="tone-card__title">{{ statusText(item) }}</p>
+        <p class="tone-card__line">{{ dueText(item.due_at) }}</p>
       </div>
+      <button
+        type="button"
+        class="detail__open"
+        :aria-expanded="item.id === openId"
+        :aria-label="`查看「${item.title}」的${item.kind === 'quiz' ? '作答' : '繳交'}紀錄`"
+        @click="toggle(item)"
+      >
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4" /><path d="M8 8h6M8 12h3" />
+          <circle cx="16.5" cy="16.5" r="3.5" /><path d="m19 19 2.5 2.5" />
+        </svg>
+      </button>
     </article>
 
-    <section class="card files">
-      <h2 class="card__title">{{ ASSIGNMENT_KIND_LABELS[assignment.kind] }}・{{ assignment.course_title }}</h2>
-      <p v-if="assignment.description" class="files__note">{{ assignment.description }}</p>
-      <ul class="files__list">
-        <li v-if="assignment.has_midi">
-          <span>
-            參考 MIDI：{{ assignment.midi_filename }}
-            <small v-if="assignment.practice_bpm || assignment.midi_bpm" class="muted">
-              （{{ assignment.practice_bpm ? `練習速度 ${assignment.practice_bpm}` : `原曲 ${Math.round(assignment.midi_bpm!)}` }} BPM）
-            </small>
-          </span>
-          <a :href="teacherAssignmentMidiUrl(assignment.id)" class="btn btn--ghost btn--small">下載</a>
-        </li>
-        <li v-for="item in assignment.materials" :key="item.id">
-          <span>教材：{{ item.filename }} <small class="muted">{{ fileSizeText(item.file_size_bytes) }}</small></span>
-          <a :href="teacherMaterialUrl(item.id)" class="btn btn--ghost btn--small">下載</a>
-        </li>
-        <li v-if="!assignment.has_midi && assignment.materials.length === 0" class="muted">這份作業沒有附檔案。</li>
-      </ul>
-    </section>
+    <template v-if="item.id === openId">
+      <section v-if="item.kind === 'performance'" class="card">
+        <h2 class="card__title">繳交紀錄</h2>
+        <p v-if="loading && recordings.length === 0" class="muted">讀取中…</p>
+        <p v-else-if="recordings.length === 0" class="muted">學生還沒有繳交。</p>
+        <article v-for="row in recordings" :key="row.id" class="recording">
+          <div class="recording__head">
+            <strong>{{ formatDateTime(row.submitted_at) }}</strong>
+            <span v-if="row.metronome_bpm" class="badge badge--soft">節拍器 {{ Math.round(row.metronome_bpm) }} BPM</span>
+            <button
+              v-if="row.feedback?.has_score_sheet"
+              type="button"
+              class="btn btn--ghost btn--small"
+              :aria-expanded="openSheet === row.id"
+              @click="openSheet = openSheet === row.id ? '' : row.id"
+            >
+              {{ openSheet === row.id ? '收起對照譜' : '看對照譜' }}
+            </button>
+          </div>
+          <audio class="recording__audio" controls preload="none" :src="apiUrl(`/teacher/recordings/${row.id}/audio`)"></audio>
+          <FeedbackView :recording="row" />
+          <ScoreCompare v-if="openSheet === row.id" :url="teacherScoreSheetUrl(row.id)" />
+        </article>
+      </section>
 
-    <section v-if="assignment.kind === 'performance'" class="card">
-      <h2 class="card__title">繳交紀錄</h2>
-      <p v-if="recordings.length === 0" class="muted">學生還沒有繳交。</p>
-      <article v-for="item in recordings" :key="item.id" class="recording">
-        <div class="recording__head">
-          <strong>{{ formatDateTime(item.submitted_at) }}</strong>
-          <span v-if="item.metronome_bpm" class="badge badge--soft">節拍器 {{ Math.round(item.metronome_bpm) }} BPM</span>
-          <button
-            v-if="item.feedback?.has_score_sheet"
-            type="button"
-            class="btn btn--ghost btn--small"
-            :aria-expanded="openSheet === item.id"
-            @click="openSheet = openSheet === item.id ? '' : item.id"
-          >
-            {{ openSheet === item.id ? '收起對照譜' : '看對照譜' }}
-          </button>
-        </div>
-        <audio class="recording__audio" controls preload="none" :src="apiUrl(`/teacher/recordings/${item.id}/audio`)"></audio>
-        <FeedbackView :recording="item" />
-        <ScoreCompare v-if="openSheet === item.id" :url="teacherScoreSheetUrl(item.id)" />
-      </article>
-    </section>
+      <template v-else>
+        <section class="card">
+          <div class="detail__bar">
+            <h2 class="card__title">題目（共 {{ questions.length }} 題）</h2>
+            <button type="button" class="btn btn--ghost btn--small" :aria-expanded="showQuestions" @click="showQuestions = !showQuestions">
+              {{ showQuestions ? '收起題目' : '查看題目與答案' }}
+            </button>
+          </div>
+          <ol v-if="showQuestions" class="questions">
+            <li v-for="question in questions" :key="question.id">
+              <p>
+                <span class="badge badge--soft">{{ QUIZ_TYPE_LABELS[question.question_type] }}</span>
+                {{ question.question }}
+              </p>
+              <p class="muted">
+                {{ question.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`).join('　') }}
+              </p>
+              <p class="questions__answer">答案：{{ optionLetters(question.answers ?? []) }}</p>
+            </li>
+          </ol>
+        </section>
+
+        <section class="card">
+          <h2 class="card__title">作答紀錄</h2>
+          <p v-if="loading && attempts.length === 0" class="muted">讀取中…</p>
+          <p v-else-if="attempts.length === 0" class="muted">學生還沒有作答。</p>
+          <details v-for="attempt in [...attempts].reverse()" :key="attempt.id" class="attempt" :open="attempt === attempts[attempts.length - 1]">
+            <summary>
+              <strong>第 {{ attempt.attempt_no }} 次練習</strong>
+              <span class="muted">{{ formatDateTime(attempt.submitted_at) }}・答錯 {{ attempt.wrong.length }} 題</span>
+            </summary>
+            <QuizWrongList :items="attempt.wrong" />
+          </details>
+        </section>
+      </template>
+    </template>
   </template>
 
   <NoticeDialog
     :open="confirming"
     message="刪除這份作業？"
-    detail="參考 MIDI 與教材檔會一起刪除。學生已繳交的錄音與回饋會保留。"
+    :detail="current?.kind === 'quiz' ? '題目與學生的作答紀錄會一起刪除。' : '參考 MIDI 與教材檔會一起刪除。學生已繳交的錄音與回饋會保留。'"
     confirm-text="刪除"
     cancel-text="取消"
     danger
@@ -145,8 +238,15 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </template>
 
 <style scoped>
+.detail__tabs {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--home-line);
+}
+
 .detail {
-  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1.4fr);
+  position: relative;
+  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1.4fr) auto;
   margin-bottom: 18px;
 }
 
@@ -154,29 +254,34 @@ onBeforeUnmount(() => window.clearTimeout(timer))
   text-align: center;
 }
 
-.files__note {
-  margin: -4px 0 10px;
-  color: var(--home-muted);
-  white-space: pre-wrap;
+.detail__open {
+  align-self: start;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--tone-ink);
+  opacity: 0.6;
+  cursor: pointer;
 }
 
-.files__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.detail__open[aria-expanded='true'],
+.detail__open:hover {
+  opacity: 1;
 }
 
-.files__list li {
+.detail__bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--home-line);
 }
 
-.files__list li:first-child {
-  border-top: 0;
+.detail__bar .card__title {
+  margin: 0;
+}
+
+section.card {
+  margin-bottom: 18px;
 }
 
 .recording + .recording {
@@ -199,9 +304,46 @@ onBeforeUnmount(() => window.clearTimeout(timer))
   margin: 10px 0;
 }
 
+.questions {
+  margin: 12px 0 0;
+  padding-left: 22px;
+}
+
+.questions li + li {
+  margin-top: 12px;
+}
+
+.questions p {
+  margin: 2px 0;
+}
+
+.questions__answer {
+  color: #3f8f2a;
+}
+
+.attempt {
+  padding: 12px 0;
+  border-top: 1px solid var(--home-line);
+}
+
+.attempt summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
 @media (max-width: 720px) {
   .detail__who {
     text-align: left;
+  }
+
+  .detail__open {
+    position: absolute;
+    top: 14px;
+    right: 16px;
   }
 }
 </style>

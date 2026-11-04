@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchAssignments } from '@/api/teacher'
 import type { Assignment } from '@/types/api'
-import { ASSIGNMENT_KIND_LABELS, dueText, toneClass } from '@/utils/format'
+import { ASSIGNMENT_KIND_LABELS, assignmentTone, dueText } from '@/utils/format'
 
 // 設計稿的「作業狀態」：老師發出的每一份作業，學生有沒有繳交。按「新增」到作業上傳，「查看詳情」看檔案與每次錄音的回饋
 const route = useRoute()
@@ -22,7 +22,6 @@ const filters = [
 
 // 網址帶 ?course= 時只看那門課（從課表的「查看作業分析」進來）
 const onlyCourse = computed(() => (typeof route.query.course === 'string' ? route.query.course : ''))
-const courseKeys = computed(() => [...new Set(assignments.value.map((item) => item.course_id))])
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   return assignments.value.filter(
@@ -34,8 +33,8 @@ const shown = computed(() => {
 })
 
 function statusText(item: Assignment) {
-  if (item.kind === 'quiz') return '題庫作業已發布'
-  return item.submission_count ? `學生已繳交（${item.submission_count} 次）` : '作業已上傳，學生未繳交'
+  if (item.kind === 'quiz') return item.submission_count ? `題庫已上傳，學生已作答（${item.submission_count} 次）` : '題庫已上傳，學生未作答'
+  return item.submission_count ? `作業已上傳，學生已繳交（${item.submission_count} 次）` : '作業已上傳，學生未繳交'
 }
 
 onMounted(async () => {
@@ -81,7 +80,7 @@ onMounted(async () => {
   <div v-if="loaded && shown.length === 0" class="card empty">
     {{ assignments.length === 0 ? '還沒有發過作業。按右上角「新增」替已綁定的學生發第一份作業。' : '沒有符合的作業。' }}
   </div>
-  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="toneClass(item.course_id, courseKeys)">
+  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="assignmentTone(item)">
     <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
     <div class="tone-card__cell">
       <p class="tone-card__title">{{ item.course_title }}</p>

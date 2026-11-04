@@ -1,28 +1,24 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
-import AudioRecorder from '@/components/console/AudioRecorder.vue'
 import FeedbackView from '@/components/console/FeedbackView.vue'
 import ScoreCompare from '@/components/console/ScoreCompare.vue'
-import {
-  fetchAssignmentRecordings,
-  fetchMyAssignments,
-  studentAssignmentMidiUrl,
-  studentMaterialUrl,
-  studentScoreSheetUrl,
-  submitAssignment,
-} from '@/api/student'
+import RecordDialog from '@/components/console/RecordDialog.vue'
+import { fetchAssignmentRecordings, fetchMyAssignments, studentScoreSheetUrl, submitAssignment } from '@/api/student'
 import { apiUrl } from '@/api/http'
 import type { Assignment, Recording } from '@/types/api'
-import { ASSIGNMENT_KIND_LABELS, dueText, fileSizeText, formatDateTime } from '@/utils/format'
+import { dueText, fileSizeText, formatDateTime } from '@/utils/format'
 
-// 一份作業：下載老師給的參考 MIDI 與教材，演奏作業錄音繳交後會收到音高、節奏與文字回饋
+// 設計稿的學生「作業管理」：演奏作業上傳。課程、老師、上傳作業（選擇檔案或錄製音檔），按「儲存」繳交。
+// 繳交後在下面的繳交紀錄看回饋與對照樂譜，也可以到「作業分析」看每次練習。
 const route = useRoute()
+const router = useRouter()
 const assignmentId = String(route.params.id)
 const assignment = ref<Assignment | null>(null)
 const recordings = ref<Recording[]>([])
-const recorder = ref<InstanceType<typeof AudioRecorder> | null>(null)
+const take = ref<{ audio: Blob; filename: string } | null>(null)
+const recording = ref(false)
 const uploading = ref(false)
 const error = ref('')
 const notice = ref('')
@@ -43,13 +39,35 @@ async function loadRecordings() {
   }
 }
 
-async function submit(audio: Blob, filename: string, metronomeBpm: number | null) {
+function onFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (file.size > 20 * 1024 * 1024) {
+    error.value = '音檔最大 20 MB。'
+    return
+  }
+  error.value = ''
+  take.value = { audio: file, filename: file.name }
+}
+
+function onRecorded(audio: Blob, filename: string) {
+  take.value = { audio, filename: `錄音-${new Date().toLocaleTimeString('zh-TW', { hour12: false })}${filename.slice(filename.lastIndexOf('.'))}` }
+  recording.value = false
+}
+
+async function save() {
   error.value = ''
   notice.value = ''
+  if (!take.value) {
+    error.value = '請先選擇音檔或錄製音檔。'
+    return
+  }
   uploading.value = true
   try {
-    await submitAssignment(assignmentId, audio, filename, metronomeBpm)
-    recorder.value?.discard()
+    await submitAssignment(assignmentId, take.value.audio, take.value.filename)
+    take.value = null
     notice.value = '已繳交，分析大約需要半分鐘。'
     await loadRecordings()
   } catch (problem) {
@@ -66,7 +84,11 @@ onMounted(async () => {
       error.value = '找不到這份作業。'
       return
     }
-    if (assignment.value.kind === 'performance') await loadRecordings()
+    if (assignment.value.kind === 'quiz') {
+      router.replace({ name: 'student-quiz', params: { id: assignmentId } })
+      return
+    }
+    await loadRecordings()
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到作業。'
   }
@@ -81,100 +103,153 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader :title="(assignment && ASSIGNMENT_KIND_LABELS[assignment.kind]) || '作業'">
+  <PageHeader title="作業管理">
     <RouterLink to="/student/homework" class="btn btn--ghost">返回</RouterLink>
+    <button type="button" class="btn btn--primary" :disabled="uploading || !assignment" @click="save">{{ uploading ? '繳交中…' : '儲存' }}</button>
   </PageHeader>
+
+  <div class="chip-group upload__tabs">
+    <span class="chip" aria-pressed="true">演奏作業上傳</span>
+  </div>
   <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
   <template v-if="assignment">
-    <section class="card">
-      <h2 class="card__title">{{ assignment.title }}</h2>
-      <p class="muted info">{{ assignment.course_title }}・{{ dueText(assignment.due_at) }}</p>
-      <p v-if="assignment.description" class="info__note">{{ assignment.description }}</p>
-      <ul class="files">
-        <li v-if="assignment.has_midi">
-          <span>參考曲：{{ assignment.midi_filename }}</span>
-          <a :href="studentAssignmentMidiUrl(assignment.id)" class="btn btn--ghost btn--small">下載 MIDI</a>
-        </li>
-        <li v-for="item in assignment.materials" :key="item.id">
-          <span>教材：{{ item.filename }} <small class="muted">{{ fileSizeText(item.file_size_bytes) }}</small></span>
-          <a :href="studentMaterialUrl(item.id)" class="btn btn--ghost btn--small">下載</a>
-        </li>
-      </ul>
-    </section>
-
-    <template v-if="assignment.kind === 'performance'">
-      <section class="card">
-        <h2 class="card__title">錄音繳交</h2>
-        <p class="muted info">照參考曲錄一段，系統會分開看音高和節奏，給這一次的文字回饋，也會把你彈的轉成樂譜，和答案上下對照。</p>
-        <AudioRecorder
-          ref="recorder"
-          :busy="uploading"
-          :default-bpm="assignment.practice_bpm ?? assignment.midi_bpm ?? 120"
-          @submit="submit"
-        />
+    <div class="upload">
+      <div class="field">
+        <span class="field__label">課程名稱</span>
+        <p class="readonly">{{ assignment.course_title }}</p>
+      </div>
+      <div class="field">
+        <span class="field__label">老師名稱</span>
+        <p class="readonly">{{ assignment.teacher_name }}老師</p>
+      </div>
+      <div class="field">
+        <span class="field__label">作業內容</span>
+        <p class="readonly">{{ assignment.title }}<span class="muted">・{{ dueText(assignment.due_at) }}</span></p>
+        <p v-if="assignment.description" class="note">{{ assignment.description }}</p>
+      </div>
+      <div class="field">
+        <span class="field__label">上傳作業</span>
+        <div class="file-row">
+          <span class="file-row__name" :class="{ 'file-row__name--set': take }">
+            {{ take ? `${take.filename}（${fileSizeText(take.audio.size)}）` : '照老師的作業彈一次，錄音或選一個音檔' }}
+          </span>
+          <button v-if="take" type="button" class="file-row__action" @click="take = null">移除</button>
+        </div>
+        <div class="file-row__links">
+          <label class="file-row__action">
+            選擇檔案
+            <input type="file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm" class="visually-hidden" @change="onFile" />
+          </label>
+          <button type="button" class="file-row__action" @click="recording = true">錄製音檔</button>
+        </div>
         <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      </section>
+      </div>
+    </div>
 
-      <section id="history" class="card">
-        <h2 class="card__title">繳交紀錄</h2>
-        <p v-if="recordings.length === 0" class="muted">還沒有繳交過。</p>
-        <article v-for="item in recordings" :key="item.id" class="history">
-          <header>
-            <strong>{{ formatDateTime(item.submitted_at) }}</strong>
-            <span v-if="item.metronome_bpm" class="badge badge--soft">節拍器 {{ Math.round(item.metronome_bpm) }} BPM</span>
-            <audio controls preload="none" :src="apiUrl(`/api/student/recordings/${item.id}/audio`)"></audio>
-            <button
-              v-if="item.feedback?.has_score_sheet"
-              type="button"
-              class="btn btn--ghost btn--small"
-              :aria-expanded="openSheet === item.id"
-              @click="openSheet = openSheet === item.id ? '' : item.id"
-            >
-              {{ openSheet === item.id ? '收起對照譜' : '看對照譜' }}
-            </button>
-          </header>
-          <FeedbackView :recording="item" />
-          <ScoreCompare v-if="openSheet === item.id" :url="studentScoreSheetUrl(item.id)" />
-        </article>
-      </section>
-    </template>
-
-    <section v-else class="card">
-      <h2 class="card__title">作答</h2>
-      <p class="muted">題庫作答尚未開放，先下載上面的教材練習。</p>
+    <section id="history" class="card">
+      <h2 class="card__title">繳交紀錄</h2>
+      <p v-if="recordings.length === 0" class="muted">還沒有繳交過。</p>
+      <article v-for="item in recordings" :key="item.id" class="history">
+        <header>
+          <strong>{{ formatDateTime(item.submitted_at) }}</strong>
+          <audio controls preload="none" :src="apiUrl(`/api/student/recordings/${item.id}/audio`)"></audio>
+          <button
+            v-if="item.feedback?.has_score_sheet"
+            type="button"
+            class="btn btn--ghost btn--small"
+            :aria-expanded="openSheet === item.id"
+            @click="openSheet = openSheet === item.id ? '' : item.id"
+          >
+            {{ openSheet === item.id ? '收起對照譜' : '看對照譜' }}
+          </button>
+        </header>
+        <FeedbackView :recording="item" />
+        <ScoreCompare v-if="openSheet === item.id" :url="studentScoreSheetUrl(item.id)" />
+      </article>
     </section>
   </template>
+
+  <RecordDialog :open="recording" hint="錄好後按「確認送出」放進上傳作業，再按右上角「儲存」繳交" @close="recording = false" @done="onRecorded" />
 </template>
 
 <style scoped>
-.info {
-  margin: -6px 0 12px;
-  font-size: 14px;
+.upload__tabs {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--home-line);
 }
 
-.info__note {
-  margin: 0 0 12px;
+.upload {
+  max-width: 720px;
+  margin-bottom: 22px;
+}
+
+.readonly {
+  margin: 0;
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid var(--home-line);
+  border-radius: var(--radius-pill);
+  background: #fff;
+}
+
+.note {
+  margin: 8px 0 0;
+  padding: 0 16px;
+  color: var(--home-muted);
+  font-size: 14px;
   white-space: pre-wrap;
 }
 
-.files {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.files li {
+.file-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--home-line);
+  gap: 16px;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--home-line);
+  border-radius: var(--radius-pill);
+  background: #fff;
+}
+
+.file-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--home-muted);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row__name--set {
+  color: var(--home-ink);
+}
+
+.file-row__links {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.file-row__action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--home-accent);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.file-row__action:hover {
+  text-decoration: underline;
 }
 
 .notice {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   color: var(--home-accent-dark);
   font-size: 14px;
 }
