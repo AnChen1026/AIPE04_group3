@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import PageHeader from '@/components/console/PageHeader.vue'
 
-// 設計稿的「作業分析」入口：演奏作業看每次錄音的音高、節奏與回饋；題庫作業（錯題、答案、解析）由組員的 AI 測驗負責，先留位置
+// 設計稿的「作業分析」入口：演奏作業看每次錄音的音高、節奏與回饋；題庫作業看每次作答的錯題、答案與解析
 </script>
 
 <template>
@@ -10,17 +10,16 @@ import PageHeader from '@/components/console/PageHeader.vue'
   </PageHeader>
 
   <div class="kinds">
-    <RouterLink :to="{ path: '/student/homework', query: {} }" class="kind kind--play">
+    <RouterLink :to="{ name: 'student-analysis-list', params: { kind: 'performance' } }" class="kind kind--play">
       <span class="kind__icon" aria-hidden="true">♪</span>
       <strong>演奏作業</strong>
       <span class="kind__hint">音高 · 節奏 · 回饋</span>
     </RouterLink>
-    <div class="kind kind--quiz" aria-disabled="true">
+    <RouterLink :to="{ name: 'student-analysis-list', params: { kind: 'quiz' } }" class="kind kind--quiz">
       <span class="kind__icon" aria-hidden="true">☰</span>
       <strong>題庫作業</strong>
       <span class="kind__hint">錯題 · 答案 · 解析</span>
-      <span class="badge badge--muted">尚未開放</span>
-    </div>
+    </RouterLink>
   </div>
 </template>
 
@@ -75,6 +74,11 @@ import PageHeader from '@/components/console/PageHeader.vue'
   border-color: #b9b4ad;
   background: #f4f4f3;
   color: #1f66b8;
+  transition: filter 0.2s ease;
+}
+
+.kind--quiz:hover {
+  filter: brightness(0.97);
 }
 
 @media (max-width: 640px) {

@@ -237,10 +237,71 @@ export interface Assignment {
   // 參考 MIDI 的速度，以及老師指定的練習速度（學生的節拍器預設用練習速度）
   midi_bpm: number | null
   practice_bpm: number | null
+  teacher_name: string
   materials: AssignmentMaterial[]
+  // 題庫作業有幾題
+  question_count: number
+  // 演奏作業是錄音繳交次數，題庫作業是作答次數
   submission_count: number
   last_submitted_at: string | null
   created_at: string
+}
+
+// 題庫作業的題型：單選、多選、是非
+export type QuizQuestionType = 'single' | 'multiple' | 'truefalse'
+export type QuizDifficulty = 'easy' | 'medium' | 'hard' | 'mixed'
+
+// AI 出題預覽、老師確認後要存的一題
+export interface QuizDraftQuestion {
+  type: QuizQuestionType
+  difficulty: QuizDifficulty | null
+  topic: string | null
+  question: string
+  options: string[]
+  answers: number[]
+  hint: string | null
+  explanation: string | null
+}
+
+export interface QuizGenerateResult {
+  source_filename: string
+  source_chars: number
+  questions: QuizDraftQuestion[]
+}
+
+// 學生作答時看到的一題（沒有答案）；老師看到的多了 answers 與 explanation
+export interface QuizQuestion {
+  id: string
+  position: number
+  question_type: QuizQuestionType
+  difficulty: QuizDifficulty | null
+  topic: string | null
+  question: string
+  options: string[]
+  hint: string | null
+  answers?: number[]
+  explanation?: string | null
+}
+
+export interface QuizWrongAnswer {
+  question_id: string
+  position: number
+  question_type: QuizQuestionType
+  topic: string | null
+  question: string
+  options: string[]
+  selected: number[]
+  answers: number[]
+  explanation: string | null
+}
+
+// 一次題庫作答：不給分數，只列答錯的題目
+export interface QuizAttempt {
+  id: string
+  attempt_no: number
+  submitted_at: string
+  question_count: number
+  wrong: QuizWrongAnswer[]
 }
 
 // 平台管理員和一位老師或學生的對話

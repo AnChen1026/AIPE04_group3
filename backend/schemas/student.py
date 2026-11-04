@@ -202,10 +202,87 @@ class AssignmentResponse(BaseModel):
     midi_filename: str | None = None
     midi_bpm: float | None = None
     practice_bpm: int | None = None
+    teacher_name: str = ""
     materials: list[AssignmentMaterialResponse]
+    # 題庫作業有幾題；演奏作業是 0
+    question_count: int = 0
+    # 演奏作業是錄音繳交次數，題庫作業是作答次數
     submission_count: int
     last_submitted_at: datetime | None = None
     created_at: datetime
+
+
+class QuizQuestionIn(BaseModel):
+    """老師在預覽確認、要存進作業的一題（也是 AI 出題回傳的格式）。"""
+
+    type: str
+    difficulty: str | None = None
+    topic: str | None = None
+    question: str
+    options: list[str]
+    answers: list[int]
+    hint: str | None = None
+    explanation: str | None = None
+
+
+class QuizGenerateResponse(BaseModel):
+    source_filename: str
+    source_chars: int
+    questions: list[QuizQuestionIn]
+
+
+class StudentQuizQuestionResponse(BaseModel):
+    """學生作答時看到的一題：沒有答案和解析。"""
+
+    id: uuid.UUID
+    position: int
+    question_type: str
+    difficulty: str | None = None
+    topic: str | None = None
+    question: str
+    options: list[str]
+    hint: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class TeacherQuizQuestionResponse(StudentQuizQuestionResponse):
+    answers: list[int]
+    explanation: str | None = None
+
+
+class QuizAnswerIn(BaseModel):
+    question_id: uuid.UUID
+    selected: list[int]
+
+
+class QuizAttemptIn(BaseModel):
+    answers: list[QuizAnswerIn]
+
+
+class QuizWrongAnswerResponse(BaseModel):
+    """一次作答裡答錯的一題。"""
+
+    question_id: uuid.UUID
+    position: int
+    question_type: str
+    topic: str | None = None
+    question: str
+    options: list[str]
+    selected: list[int]
+    answers: list[int]
+    explanation: str | None = None
+
+
+class QuizAttemptResponse(BaseModel):
+    """一次題庫作答。不給分數，只列答錯的題目。"""
+
+    id: uuid.UUID
+    attempt_no: int
+    submitted_at: datetime
+    question_count: int
+    wrong: list[QuizWrongAnswerResponse]
 
 
 class AvailabilitySlotIn(BaseModel):

@@ -135,3 +135,28 @@ export const TAIWAN_CITIES = [
   '台北市', '新北市', '基隆市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '台中市', '彰化縣', '南投縣',
   '雲林縣', '嘉義市', '嘉義縣', '台南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '台東縣', '澎湖縣', '金門縣', '連江縣',
 ]
+
+// 作業卡片的顏色照設計稿依狀態分：演奏未繳交橘色、題庫未作答綠色、已繳交藍色
+export function assignmentTone(item: { kind: string; submission_count: number }): string {
+  if (item.submission_count > 0) return 'tone-card--2'
+  return item.kind === 'quiz' ? 'tone-card--1' : ''
+}
+
+export const QUIZ_TYPE_LABELS: Record<string, string> = { single: '單選題', multiple: '多選題', truefalse: '是非題' }
+export const QUIZ_DIFFICULTY_LABELS: Record<string, string> = { easy: '簡單', medium: '中等', hard: '困難', mixed: '混合' }
+
+// 選項代號：A、B、C、D
+export function optionLetter(index: number): string {
+  return String.fromCharCode(65 + index)
+}
+
+// 「A、C」：把選項位置換成代號
+export function optionLetters(indexes: number[]): string {
+  return indexes.map(optionLetter).join('、')
+}
+
+// 只要日期：2026-08-18
+export function dateOnly(value: string): string {
+  const date = new Date(value)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}

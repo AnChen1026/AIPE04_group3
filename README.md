@@ -106,6 +106,7 @@ docker compose stop
 | `ADMIN_EMAIL`、`ADMIN_PASSWORD` | 啟動時建立管理員帳號 |
 | `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI` | Google 登入 |
 | `GEMINI_API_KEY`、`OPENAI_API_KEY`、`LLM_PROVIDER` | 練習回饋與課前摘要的文字生成 |
+| `QUIZ_GENERATION_LLM_PROVIDER` | AI 出題用哪家，沒寫就用 openai（需要 `OPENAI_API_KEY`） |
 
 ## 測試
 

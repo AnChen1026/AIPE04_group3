@@ -28,6 +28,7 @@ def file_columns(revision):
         "018_merge_availability_storage",
         "019_weekly_schedule",
         "020_course_embeddings",
+        "021_assignment_quiz",
     }:
         return [*FILE_COLUMNS, ("practice_feedbacks", "score_sheet_path")]
     raise OpsError("unsupported_application_schema_revision")

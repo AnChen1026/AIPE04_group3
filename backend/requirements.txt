@@ -38,3 +38,6 @@ google-genai>=1.0.0
 
 # 練習回饋的上下對照樂譜（MusicXML）
 music21>=9.1
+
+# 題庫作業：從老師上傳的 PDF 讀出文字給 AI 出題
+pymupdf>=1.24

@@ -1,6 +1,12 @@
 import { apiUrl, request } from './http'
 import type {
   Assignment,
+  QuizAttempt,
+  QuizDifficulty,
+  QuizDraftQuestion,
+  QuizGenerateResult,
+  QuizQuestion,
+  QuizQuestionType,
   BoundStudent,
   Conversation,
   Course,
@@ -138,6 +144,8 @@ export interface AssignmentInput {
   materials?: File[]
   // 練習速度（BPM），沒填就用 MIDI 的速度
   practice_bpm?: number | null
+  // 題庫作業：AI 出題後老師確認的題目
+  questions?: QuizDraftQuestion[]
 }
 
 export const fetchAssignments = () => request<Assignment[]>('/teacher/assignments')
@@ -154,8 +162,29 @@ export function createAssignment(input: AssignmentInput) {
   if (input.midi) form.append('midi', input.midi)
   if (input.practice_bpm) form.append('practice_bpm', String(input.practice_bpm))
   for (const file of input.materials ?? []) form.append('materials', file)
+  if (input.questions?.length) form.append('questions', JSON.stringify(input.questions))
   return request<Assignment>('/teacher/assignments', { method: 'POST', body: form })
 }
+
+// ---------- 題庫作業：上傳教材請 AI 出題（只預覽、不存），重新生成就是再呼叫一次
+export interface QuizGenerateInput {
+  file: File
+  count: number
+  types: QuizQuestionType[]
+  difficulty: QuizDifficulty
+}
+
+export function generateQuiz(input: QuizGenerateInput) {
+  const form = new FormData()
+  form.append('file', input.file)
+  form.append('count', String(input.count))
+  form.append('types', input.types.join(','))
+  form.append('difficulty', input.difficulty)
+  return request<QuizGenerateResult>('/teacher/quiz/generate', { method: 'POST', body: form })
+}
+
+export const fetchAssignmentQuiz = (id: string) => request<QuizQuestion[]>(`/teacher/assignments/${id}/quiz`)
+export const fetchAssignmentQuizAttempts = (id: string) => request<QuizAttempt[]>(`/teacher/assignments/${id}/quiz/attempts`)
 
 export const teacherAssignmentMidiUrl = (id: string) => apiUrl(`/teacher/assignments/${id}/midi`)
 export const teacherMaterialUrl = (id: string) => apiUrl(`/teacher/assignment-materials/${id}`)

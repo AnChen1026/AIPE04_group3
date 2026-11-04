@@ -6,6 +6,7 @@
 .env 設定：
   LLM_PROVIDER=gemini              全站預設用哪家，沒寫就是 gemini（也可以寫 openai）
   PRACTICE_FEEDBACK_LLM_PROVIDER=  只換某個功能，例如練習回饋改用 openai，課前摘要不受影響
+  QUIZ_GENERATION_LLM_PROVIDER=    AI 出題用哪家；沒寫就用 openai（Gemini 常回 503 忙碌）
   GEMINI_API_KEY、GEMINI_MODEL
   OPENAI_API_KEY、OPENAI_MODEL
   LLM_TIMEOUT_SECONDS=20
@@ -23,8 +24,11 @@ logger = logging.getLogger(__name__)
 # 功能名稱：用在 <功能>_LLM_PROVIDER 設定
 FEATURE_PRACTICE_FEEDBACK = "practice_feedback"
 FEATURE_LESSON_SUMMARY = "lesson_summary"
+FEATURE_QUIZ_GENERATION = "quiz_generation"
 
 DEFAULT_PROVIDER = "gemini"
+# 有些功能自己的預設，不跟全站的 LLM_PROVIDER：AI 出題一次要回很多題，Gemini 忙碌時常失敗，預設用 OpenAI
+FEATURE_DEFAULT_PROVIDERS = {FEATURE_QUIZ_GENERATION: "openai"}
 DEFAULT_MODELS = {"gemini": "gemini-3.8-flash", "openai": "gpt-4o-mini"}
 KEY_NAMES = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}
 DEFAULT_MODEL = DEFAULT_MODELS["gemini"]
@@ -51,9 +55,13 @@ def generate_text(system_instruction: str, content: str, feature: str | None = N
 
 
 def generate_text_with_reason(
-    system_instruction: str, content: str, feature: str | None = None, temperature: float = 0.3
+    system_instruction: str,
+    content: str,
+    feature: str | None = None,
+    temperature: float = 0.3,
+    timeout_seconds: float | None = None,
 ) -> tuple[str | None, str | None]:
-    """回傳 (文字, 失敗原因)。成功時失敗原因是 None。"""
+    """回傳 (文字, 失敗原因)。成功時失敗原因是 None。timeout_seconds 給比較久的工作（例如一次出很多題）用，不給就照 .env。"""
     provider = provider_for(feature)
     call = PROVIDERS.get(provider)
     if call is None:
@@ -62,7 +70,7 @@ def generate_text_with_reason(
     if api_key is None:
         return None, f"沒有設定 {KEY_NAMES[provider]}。"
     model = read_env_value(f"{provider.upper()}_MODEL") or DEFAULT_MODELS[provider]
-    timeout = _timeout_seconds()
+    timeout = max(_timeout_seconds(), timeout_seconds or 0)
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
@@ -81,8 +89,9 @@ def generate_text_with_reason(
 
 
 def provider_for(feature: str | None) -> str:
-    """先看這個功能自己的設定，再看全站預設。"""
+    """先看這個功能自己的設定，再看這個功能的預設（FEATURE_DEFAULT_PROVIDERS），最後才是全站預設。"""
     chosen = read_env_value(f"{feature.upper()}_LLM_PROVIDER") if feature else None
+    chosen = chosen or FEATURE_DEFAULT_PROVIDERS.get(feature or "")
     return (chosen or read_env_value("LLM_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
 
 
