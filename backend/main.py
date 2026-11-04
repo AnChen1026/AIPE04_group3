@@ -27,6 +27,7 @@ from backend.routers.teacher_quizzes import router as teacher_quizzes_router
 from backend.routers.teacher_students import router as teacher_students_router
 from backend.routers.teacher_studio import router as teacher_studio_router
 from backend.services.admin import seed_admin_if_needed
+from backend.services.demo_accounts import seed_demo_accounts_if_needed
 from backend.services import teacher_sync  # 註冊老師資料同步，讓老師登入時補上 teacher_profiles
 
 app = FastAPI()
@@ -79,10 +80,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    """本機測試：若 .env 有管理員帳密就建立 admin 帳號。資料表一律用 alembic upgrade head 建立。"""
+    """本機測試：若 .env 有管理員、demo 帳密就建立帳號。資料表一律用 alembic upgrade head 建立。"""
     db = SessionLocal()
     try:
         seed_admin_if_needed(db)
+        seed_demo_accounts_if_needed(db)
     finally:
         db.close()
 
