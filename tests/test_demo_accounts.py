@@ -51,6 +51,13 @@ def test_demo_accounts_are_bound_with_schedule(db, demo_env):
     messages = student_client.get(f"/api/student/conversations/{conversations[0]['id']}/messages").json()
     assert len(messages) == len(demo_accounts.MESSAGES)
 
+    assignments = {item["kind"]: item for item in student_client.get("/api/student/assignments").json()}
+    assert assignments["performance"]["submission_count"] == len(demo_accounts.RECORDING_FEEDBACK)
+    assert assignments["quiz"]["question_count"] == len(demo_accounts.QUIZ_QUESTIONS)
+    assert assignments["quiz"]["submission_count"] == 1
+    recordings = student_client.get(f"/api/student/courses/{course_id}/recordings").json()
+    assert {item["status"] for item in recordings} == {"completed"}
+
     teacher_client = login_as(TEACHER_EMAIL)
     requests = teacher_client.get("/teacher/change-requests").json()
     assert sorted(item["request_type"] for item in requests) == ["booking", "leave"]
