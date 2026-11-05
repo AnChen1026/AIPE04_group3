@@ -8,6 +8,11 @@
 | ② | **音訊評分＋練習回饋** | 學生上傳錄音後，系統比對音高、節奏，寫一段文字回饋 |
 | ③ | **AI 找課** | 首頁右下角「AI 找課」 |
 
+> **這份文件只講「在自己電腦上跑」，雲端共用環境照舊**
+> - 這裡的步驟是給組員在自己電腦開發、測試用的：資料庫是 Docker 裡的 PostgreSQL，AI 走本機閘道（`host.docker.internal`）。
+> - 共用測試站（Render）、Supabase 資料庫與 Storage、接 Ollie Mac 上模型的 ngrok 通道都**沒有移除，也沒有改動**，用法照舊看 [deployment.md](deployment.md) 和 [ai-startup-checklist.md](ai-startup-checklist.md)。
+> - 雲端要部署新版本前，記得先跑 `python -m scripts.cloud_command --config .env.cloud.json migrate`，因為這版多了 AI 出題背景工作的資料表（`022_quiz_generation_jobs`）。
+
 > **怎麼看這份文件**
 > - 一次只做一步，做完把 `[ ]` 想成打勾。
 > - 每步最後有「✅ 看到這個就對了」。**沒看到就不要往下**，去最後的〈出問題時〉查。
