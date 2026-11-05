@@ -82,6 +82,7 @@ const items = computed<TimetableItem[]>(() => [
       colorKey: 'availability',
       slot: slot.status as 'open' | 'held',
       draggable: slot.status === 'open',
+      resizable: slot.status === 'open',
     })),
 ])
 
@@ -123,7 +124,7 @@ async function load() {
 }
 
 // ---------- 編輯時段：把上方三種框拖到週課表上
-// 可預約：拖到空格新增一小時的時段；已有的可預約框可以拖到別的格子。放下的位置對齊 15 分鐘
+// 可預約：拖到空格新增一小時的時段；已有的可預約框可以拖到別的格子，拉底部可以改長度。放下的位置對齊 15 分鐘
 // 已預約：拖到空格或可預約框，選學生和時間後直接排進課表；拖到待完成約課的框就是完成約課
 // 取消預約：拖到框上。可預約的刪掉；待完成約課的退回；已排的課取消，來自時段的話時段回到可預約
 // 另外兩個按鈕：設定老師每週固定可上課的時間、設定學生的固定上課時間
@@ -167,6 +168,13 @@ async function run(action: () => Promise<unknown>) {
 function moveTo(slot: TeacherAvailabilitySlot, at: Date) {
   const length = new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime()
   return run(() => moveSlot(slot.id, at.toISOString(), new Date(at.getTime() + length).toISOString()))
+}
+
+// 拉可預約框底部的把手改結束時間，開始時間不變
+function onResize(itemId: string, endsAt: Date) {
+  const slot = slotOf(itemId)
+  if (!slot) return
+  run(() => moveSlot(slot.id, slot.starts_at, endsAt.toISOString()))
 }
 
 function onDrop(at: Date, data: string) {
@@ -393,7 +401,8 @@ watch(
       <button type="button" class="btn btn--ghost btn--small" @click="recurringOpen = true">固定上課時間</button>
     </div>
     <p class="muted palette__hint">
-      把「可預約」拖到格子開放一小時，時間以 15 分鐘為單位，可預約的框也能直接拖到別的格子；
+      把「可預約」拖到格子開放一小時，時間以 15 分鐘為單位，可預約的框也能直接拖到別的格子，
+      拉框的底部可以拉長或縮短；
       和學生約好了就把「已預約」拖過去選學生；「取消預約」拖到框上取消。
       每週都一樣的時間用「設定固定時間」；學生每週固定的課用「固定上課時間」。
     </p>
@@ -408,6 +417,7 @@ watch(
     @select="openLesson"
     @drop="onDrop"
     @drop-on-item="onDropOnItem"
+    @resize="onResize"
   />
   <MonthCalendar v-else-if="mode === 'month'" :month="anchor" :items="items" @select="openLesson" @day="showDay" />
   <template v-else>
