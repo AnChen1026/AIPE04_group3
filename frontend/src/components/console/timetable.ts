@@ -12,6 +12,8 @@ export interface TimetableItem {
   slot?: 'open' | 'held'
   // 編輯時段時可以拖動
   draggable?: boolean
+  // 編輯時段時可以拉底部的把手改結束時間
+  resizable?: boolean
 }
 
 // 暖色系的課程顏色，和首頁的米白、木色同一組

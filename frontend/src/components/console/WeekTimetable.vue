@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { addDays, formatTime, sameDay } from '@/utils/format'
 import { lessonColor, type TimetableItem } from './timetable'
 
@@ -10,6 +10,7 @@ const emit = defineEmits<{
   select: [id: string]
   drop: [at: Date, data: string]
   dropOnItem: [id: string, data: string, at: Date]
+  resize: [id: string, endsAt: Date]
 }>()
 
 const HOUR_HEIGHT = 52
@@ -41,9 +42,49 @@ function itemsOn(day: Date) {
   return weekItems.value.filter((item) => sameDay(new Date(item.starts_at), day))
 }
 
+// 拉長、縮短時段：按住底部把手上下拖，結束時間以 15 分鐘為單位，
+// 最短 15 分鐘，最長到當天下一個框的開頭（沒有就到午夜）。放開才送出
+const QUARTER = 15 * 60_000
+const resizing = ref<{ id: string; startY: number; originalEnd: number; min: number; max: number; end: number } | null>(null)
+
+function endOf(item: TimetableItem) {
+  return resizing.value?.id === item.id ? new Date(resizing.value.end) : new Date(item.ends_at)
+}
+
+function startResize(event: PointerEvent, item: TimetableItem, day: Date) {
+  const start = new Date(item.starts_at).getTime()
+  const midnight = addDays(new Date(day.getFullYear(), day.getMonth(), day.getDate()), 1).getTime()
+  const nextStart = itemsOn(day)
+    .map((other) => new Date(other.starts_at).getTime())
+    .filter((time) => time > start)
+  const originalEnd = new Date(item.ends_at).getTime()
+  resizing.value = {
+    id: item.id,
+    startY: event.clientY,
+    originalEnd,
+    min: start + QUARTER,
+    max: Math.min(midnight, ...nextStart),
+    end: originalEnd,
+  }
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function moveResize(event: PointerEvent) {
+  const state = resizing.value
+  if (!state) return
+  const quarters = Math.round((event.clientY - state.startY) / (HOUR_HEIGHT / 4))
+  state.end = Math.min(state.max, Math.max(state.min, state.originalEnd + quarters * QUARTER))
+}
+
+function endResize() {
+  const state = resizing.value
+  resizing.value = null
+  if (state && state.end !== state.originalEnd) emit('resize', state.id, new Date(state.end))
+}
+
 function blockStyle(item: TimetableItem) {
   const start = new Date(item.starts_at)
-  const end = new Date(item.ends_at)
+  const end = endOf(item)
   const firstHour = hours.value[0] ?? 9
   const top = (start.getHours() - firstHour + start.getMinutes() / 60) * HOUR_HEIGHT
   const height = Math.max(((end.getTime() - start.getTime()) / 3_600_000) * HOUR_HEIGHT - 4, 26)
@@ -75,6 +116,10 @@ function onItemDrop(event: DragEvent, item: TimetableItem, day: Date) {
 }
 
 function onItemDragStart(event: DragEvent, item: TimetableItem) {
+  if (resizing.value) {
+    event.preventDefault()
+    return
+  }
   event.dataTransfer?.setData('text/plain', item.id)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
 }
@@ -118,9 +163,10 @@ function allowDrop(event: DragEvent) {
             'week__block--cancelled': item.cancelled,
             'week__block--open': item.slot === 'open',
             'week__block--held': item.slot === 'held',
+            'week__block--resizing': resizing?.id === item.id,
           }"
           :style="blockStyle(item)"
-          :draggable="editable && item.draggable"
+          :draggable="editable && item.draggable && !resizing"
           @click="emit('select', item.id)"
           @dragstart="onItemDragStart($event, item)"
           @dragover="allowDrop"
@@ -128,7 +174,18 @@ function allowDrop(event: DragEvent) {
         >
           <strong>{{ item.title }}</strong>
           <span v-if="item.subtitle">{{ item.subtitle }}</span>
-          <span>{{ formatTime(item.starts_at) }}－{{ formatTime(item.ends_at) }}</span>
+          <span>{{ formatTime(item.starts_at) }}－{{ formatTime(endOf(item).toISOString()) }}</span>
+          <span
+            v-if="editable && item.resizable"
+            class="week__resize"
+            title="上下拖動調整結束時間"
+            draggable="false"
+            @pointerdown.stop.prevent="startResize($event, item, day)"
+            @pointermove="moveResize"
+            @pointerup="endResize"
+            @pointercancel="resizing = null"
+            @click.stop
+          />
         </button>
       </div>
     </div>
@@ -264,6 +321,42 @@ function allowDrop(event: DragEvent) {
 
 .week__block[draggable='true'] {
   cursor: grab;
+}
+
+/* 底部的把手：滑過時出現一條短線，上下拖動改結束時間 */
+.week__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 10px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.week__resize::after {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: 28px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease;
+  content: '';
+}
+
+.week__block:hover .week__resize::after,
+.week__block--resizing .week__resize::after {
+  opacity: 0.6;
+}
+
+.week__block--resizing {
+  z-index: 2;
+  box-shadow: 0 6px 16px rgba(62, 52, 44, 0.14);
+  transition: none;
 }
 
 .week__block--cancelled {
