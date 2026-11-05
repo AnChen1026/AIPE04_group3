@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import RecordDialog from '@/components/console/RecordDialog.vue'
 import QuizQuestionCard from '@/components/console/QuizQuestionCard.vue'
 import { useLeaveGuard } from '@/composables/useLeaveGuard'
 import {
@@ -20,7 +19,7 @@ import type { Assignment, BoundStudent, Course, QuizDifficulty, QuizDraftQuestio
 import { QUIZ_DIFFICULTY_LABELS, QUIZ_TYPE_LABELS, fileSizeText, formatDateTime } from '@/utils/format'
 
 // 設計稿的「作業管理」：演奏作業上傳／題庫作業上傳兩個分頁。
-// 演奏作業：選課程與學生、期限、參考 MIDI 與教材（教材可以當場錄示範音檔）。
+// 演奏作業：選課程與學生、期限、參考 MIDI。
 // 題庫作業：上傳教材（PDF／TXT）＋出題設定，按「AI 生成題目並預覽」在背景出題（本機千問可能要好幾分鐘，可以先離開），
 // 完成後在「AI 出題紀錄」按「審查」看題目、可以直接點選項改正確答案或刪題，「儲存題目」後再「儲存作業」發給學生。
 const route = useRoute()
@@ -30,8 +29,6 @@ const students = ref<BoundStudent[]>([])
 const kind = ref<Assignment['kind']>('performance')
 const form = reactive({ courseId: '', studentId: '', title: '', dueDate: '', description: '' })
 const midi = ref<File | null>(null)
-const materials = ref<File[]>([])
-const recording = ref(false)
 const errors = reactive<Record<string, string>>({})
 const serverError = ref('')
 const saving = ref(false)
@@ -95,25 +92,13 @@ watch(
     if (!studentOptions.value.some((student) => student.id === form.studentId)) form.studentId = studentOptions.value[0]?.id ?? ''
   },
 )
-watch([() => form.title, () => form.dueDate, () => form.description, midi, materials, () => quiz.file, questions], () => (dirty.value = true), {
+watch([() => form.title, () => form.dueDate, () => form.description, midi, () => quiz.file, questions], () => (dirty.value = true), {
   deep: true,
 })
 
 function onMidi(event: Event) {
   midi.value = (event.target as HTMLInputElement).files?.[0] ?? null
   delete errors.midi
-}
-
-function onMaterials(event: Event) {
-  const input = event.target as HTMLInputElement
-  materials.value.push(...Array.from(input.files ?? []))
-  input.value = ''
-}
-
-// 「錄製音檔」：老師錄的示範也當成一份教材
-function addRecording(audio: Blob, filename: string) {
-  materials.value.push(new File([audio], `示範錄音-${new Date().toLocaleTimeString('zh-TW', { hour12: false })}${filename.slice(filename.lastIndexOf('.'))}`, { type: audio.type }))
-  recording.value = false
 }
 
 function onQuizFile(event: Event) {
@@ -308,7 +293,6 @@ async function save() {
       description: form.description.trim(),
       due_at: form.dueDate ? new Date(`${form.dueDate}T23:59:00`).toISOString() : null,
       midi: kind.value === 'performance' ? midi.value : null,
-      materials: kind.value === 'performance' ? materials.value : [],
       questions: kind.value === 'quiz' ? questions.value : undefined,
       quiz_job_id: kind.value === 'quiz' ? reviewing.value?.id : null,
     })
@@ -326,7 +310,6 @@ function again() {
   done.value = false
   Object.assign(form, { title: '', dueDate: '', description: '' })
   midi.value = null
-  materials.value = []
   quiz.file = null
   preview.value = []
   questions.value = []
@@ -474,26 +457,6 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
           <p v-if="errors.midi" class="error-text">{{ errors.midi }}</p>
         </div>
         <div class="field">
-          <span class="field__label">上傳作業</span>
-          <ul v-if="materials.length" class="materials">
-            <li v-for="(file, index) in materials" :key="`${file.name}-${index}`">
-              <span>{{ file.name }}</span>
-              <span class="muted">{{ fileSizeText(file.size) }}</span>
-              <button type="button" class="btn btn--ghost btn--small" @click="materials.splice(index, 1)">移除</button>
-            </li>
-          </ul>
-          <div class="file-row">
-            <span class="file-row__name">樂譜、講義、示範音檔都可以，最多 10 個、每個 30 MB 以內</span>
-          </div>
-          <div class="file-row__links">
-            <label class="file-row__action">
-              選擇檔案
-              <input type="file" multiple class="visually-hidden" @change="onMaterials" />
-            </label>
-            <button type="button" class="file-row__action" @click="recording = true">錄製音檔</button>
-          </div>
-        </div>
-        <div class="field">
           <label class="field__label" for="assignment-description">備註（選填）</label>
           <textarea id="assignment-description" v-model="form.description" class="textarea" maxlength="2000" placeholder="想提醒學生的練習重點"></textarea>
         </div>
@@ -623,8 +586,6 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
     </form>
   </template>
 
-  <RecordDialog :open="recording" hint="錄好的示範會當成一份教材給學生" @close="recording = false" @done="addRecording" />
-
   <NoticeDialog
     :open="done"
     message="更新成功！"
@@ -700,13 +661,6 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
   white-space: nowrap;
 }
 
-.file-row__links {
-  display: flex;
-  justify-content: flex-end;
-  gap: 16px;
-  margin-top: 6px;
-}
-
 .file-row__action {
   padding: 0;
   border: 0;
@@ -719,28 +673,6 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
 
 .file-row__action:hover {
   text-decoration: underline;
-}
-
-.materials {
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-}
-
-.materials li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 0;
-  font-size: 14px;
-}
-
-.materials li span:first-child {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .dropzone {
