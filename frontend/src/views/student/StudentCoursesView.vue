@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import ConsoleIcon from '@/components/console/ConsoleIcon.vue'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import TeacherSlotPicker from '@/components/console/TeacherSlotPicker.vue'
@@ -46,28 +47,31 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="課程資訊">
-    <label class="search-input">
-      <span class="visually-hidden">搜尋課程</span>
-      <input v-model="keyword" class="input" type="search" placeholder="搜尋課程" />
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-      </svg>
-    </label>
-  </PageHeader>
+  <PageHeader title="課程資訊" />
 
-  <div class="chip-group courses__filters" role="group" aria-label="依狀態篩選">
-    <button
-      v-for="filter in filters"
-      :key="filter.value"
-      type="button"
-      class="chip"
-      :aria-pressed="status === filter.value"
-      @click="status = filter.value"
-    >
-      {{ filter.label }}
-    </button>
-  </div>
+  <PageToolbar>
+    <div class="chip-group" role="group" aria-label="依狀態篩選">
+      <button
+        v-for="filter in filters"
+        :key="filter.value"
+        type="button"
+        class="chip"
+        :aria-pressed="status === filter.value"
+        @click="status = filter.value"
+      >
+        {{ filter.label }}
+      </button>
+    </div>
+    <template #actions>
+      <label class="search-input">
+        <span class="visually-hidden">搜尋課程</span>
+        <input v-model="keyword" class="input" type="search" placeholder="搜尋課程" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </label>
+    </template>
+  </PageToolbar>
   <p v-if="error" class="error-text">{{ error }}</p>
 
   <div v-if="courses.loaded.value && shown.length === 0" class="card empty">
@@ -80,7 +84,9 @@ onMounted(async () => {
         <button v-if="conversation.bound" type="button" class="btn btn--primary btn--small" @click="slotCourse = conversation">
           預約上課時段
         </button>
-        <RouterLink :to="`/student/chat/${conversation.id}`" class="btn btn--ghost btn--small">查看老師</RouterLink>
+        <RouterLink :to="{ name: 'student-teacher', params: { id: conversation.teacher_id } }" class="btn btn--ghost btn--small">
+          查看老師
+        </RouterLink>
       </div>
     </header>
     <ul class="course__meta">
@@ -109,10 +115,6 @@ onMounted(async () => {
 <style scoped>
 .search-input {
   width: min(220px, 100%);
-}
-
-.courses__filters {
-  margin-bottom: 18px;
 }
 
 .course {

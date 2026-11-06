@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import ChatSplit from '@/components/console/ChatSplit.vue'
 import { fetchTeacherConversations } from '@/api/teacher'
@@ -10,6 +10,7 @@ import { formatShort } from '@/utils/format'
 
 // 左邊是對話列表，右邊直接顯示選到的對話（子路由 chat/:id、chat/admin）
 const route = useRoute()
+const router = useRouter()
 const conversations = ref<Conversation[]>([])
 // 和平台管理員的對話，固定在列表最上方
 const support = ref<SupportConversation | null>(null)
@@ -42,19 +43,33 @@ watch(
   () => window.setTimeout(load, 800),
 )
 
-onMounted(load)
+// 沒選對話就進來時，先打開和平台管理員的對話（UIUX 回饋）。
+// 手機上對話會蓋住整個列表，所以只在寬螢幕自動打開
+const WIDE = '(min-width: 901px)'
+function openAdminByDefault() {
+  if (route.name === 'teacher-chat' && window.matchMedia(WIDE).matches) router.replace({ name: 'teacher-support' })
+}
+
+watch(() => route.name, openAdminByDefault)
+
+onMounted(() => {
+  openAdminByDefault()
+  load()
+})
 onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="聊天管理" description="學生在課程按「洽詢」後會出現在這裡。決定收學生時，在對話裡發綁定碼。">
-    <label class="search-input">
-      <span class="visually-hidden">搜尋學生</span>
-      <input v-model="keyword" class="input" type="search" placeholder="搜尋學生" />
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-      </svg>
-    </label>
+  <PageHeader title="聊天管理">
+    <template #title-actions>
+      <label class="search-input">
+        <span class="visually-hidden">搜尋學生</span>
+        <input v-model="keyword" class="input" type="search" placeholder="搜尋學生" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </label>
+    </template>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
 

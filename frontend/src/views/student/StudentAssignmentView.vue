@@ -10,7 +10,7 @@ import { apiUrl } from '@/api/http'
 import type { Assignment, Recording } from '@/types/api'
 import { dueText, fileSizeText, formatDateTime } from '@/utils/format'
 
-// 設計稿的學生「作業管理」：演奏作業上傳。課程、老師、上傳作業（選擇檔案或錄製音檔），按「儲存」繳交。
+// 設計稿的學生「作業管理」：演奏作業上傳。課程、老師、上傳作業（選擇檔案或錄製音檔），按「上傳」繳交。
 // 繳交後在下面的繳交紀錄看回饋與對照樂譜，也可以到「作業分析」看每次練習。
 const route = useRoute()
 const router = useRouter()
@@ -103,14 +103,11 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="作業管理">
-    <RouterLink to="/student/homework" class="btn btn--ghost">返回</RouterLink>
-    <button type="button" class="btn btn--primary" :disabled="uploading || !assignment" @click="save">{{ uploading ? '繳交中…' : '儲存' }}</button>
+  <PageHeader title="演奏作業上傳">
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind: 'performance' } }" class="btn btn--ghost">返回</RouterLink>
+    <button type="button" class="btn btn--primary" :disabled="uploading || !assignment" @click="save">{{ uploading ? '上傳中…' : '上傳' }}</button>
   </PageHeader>
 
-  <div class="chip-group upload__tabs">
-    <span class="chip" aria-pressed="true">演奏作業上傳</span>
-  </div>
   <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
   <template v-if="assignment">
@@ -170,16 +167,10 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     </section>
   </template>
 
-  <RecordDialog :open="recording" hint="錄好後按「確認送出」放進上傳作業，再按右上角「儲存」繳交" @close="recording = false" @done="onRecorded" />
+  <RecordDialog :open="recording" hint="錄好後按「確認送出」放進上傳作業，再按右上角「上傳」繳交" @close="recording = false" @done="onRecorded" />
 </template>
 
 <style scoped>
-.upload__tabs {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--home-line);
-}
-
 .upload {
   max-width: 720px;
   margin-bottom: 22px;

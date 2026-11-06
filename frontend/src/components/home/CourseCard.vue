@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { CourseCardData } from '@/mocks/home'
+import { styleColor } from '@/utils/courseStyle'
 
 const props = defineProps<{
   course: CourseCardData
@@ -14,6 +15,9 @@ const coverPosition = computed(() => {
   if (props.course.category.includes('流行')) return 'center 100%'
   return 'center 68%'
 })
+
+// 風格標籤用固定的風格顏色，和課表、學生管理一致
+const categoryColor = computed(() => styleColor(props.course.category).ink)
 
 const price = computed(() =>
   props.course.price === null ? '價格未填' : `NT$ ${props.course.price.toLocaleString('zh-TW')}`,
@@ -34,7 +38,7 @@ const price = computed(() =>
       <span v-if="course.minutes !== null" class="course-card__chip course-card__chip--time">{{ course.minutes }} 分鐘</span>
     </div>
     <div class="course-card__body">
-      <p class="course-card__category">
+      <p class="course-card__category" :style="{ color: categoryColor }">
         {{ course.category }}<template v-if="course.format !== '未填'">・{{ course.format }}</template>
       </p>
       <h3>{{ course.title }}</h3>

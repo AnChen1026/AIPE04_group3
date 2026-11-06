@@ -1,149 +1,118 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import { fetchMyAssignments } from '@/api/student'
-import type { Assignment } from '@/types/api'
-import { ASSIGNMENT_KIND_LABELS, assignmentTone, dueText } from '@/utils/format'
+import { KIND_INFO, type AnalysisKind } from '@/composables/useAssignmentAttempts'
 
-// 設計稿的學生「作業狀態」：老師發給自己的每一份作業。演奏作業按「上傳」錄音繳交，題庫作業按「作答」寫 AI 出的題目
-const assignments = ref<Assignment[]>([])
-const keyword = ref('')
-const filter = ref<'all' | 'missing' | 'submitted'>('all')
-const loaded = ref(false)
-const error = ref('')
-
-const filters = [
-  { value: 'all', label: '全部' },
-  { value: 'missing', label: '未繳交' },
-  { value: 'submitted', label: '已繳交' },
-] as const
-
-const shown = computed(() => {
-  const text = keyword.value.trim().toLowerCase()
-  return assignments.value.filter(
-    (item) =>
-      (filter.value === 'all' || (filter.value === 'submitted') === item.submission_count > 0) &&
-      (!text || [item.course_title, item.title, item.teacher_name].some((value) => value.toLowerCase().includes(text))),
-  )
-})
-
-function statusText(item: Assignment) {
-  if (item.kind === 'quiz') return item.submission_count ? `作業已作答（${item.submission_count} 次）` : '作業未作答'
-  return item.submission_count ? '作業已繳交' : '作業未繳交'
-}
-
-// 「查看詳情」：演奏作業到作業頁的繳交紀錄，題庫作業到作業分析看每次作答的錯題
-function detailLink(item: Assignment) {
-  if (item.kind === 'quiz') return { name: 'student-analysis-attempts', params: { kind: 'quiz', id: item.id } }
-  return { path: `/student/homework/${item.id}`, hash: '#history' }
-}
+// 設計稿「學生-作業」：點「作業」先選類型，左邊演奏作業、右邊題庫作業。
+// 選了之後每份作業的繳交狀態和每次練習的分析在同一頁（StudentHomeworkKindView）
+const KINDS: AnalysisKind[] = ['performance', 'quiz']
+// 還沒繳交的份數，卡片上提醒一下
+const missing = ref<Record<AnalysisKind, number>>({ performance: 0, quiz: 0 })
 
 onMounted(async () => {
-  try {
-    assignments.value = await fetchMyAssignments()
-  } catch (problem) {
-    error.value = problem instanceof Error ? problem.message : '讀不到作業。'
-  } finally {
-    loaded.value = true
-  }
+  const list = await fetchMyAssignments().catch(() => [])
+  for (const kind of KINDS) missing.value[kind] = list.filter((item) => item.kind === kind && item.submission_count === 0).length
 })
 </script>
 
 <template>
-  <PageHeader title="作業狀態">
-    <label class="search-input">
-      <span class="visually-hidden">搜尋課程</span>
-      <input v-model="keyword" class="input" type="search" placeholder="搜尋課程" />
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-      </svg>
-    </label>
-  </PageHeader>
+  <PageHeader title="作業" />
 
-  <div class="homework__bar">
-    <div class="chip-group" role="group" aria-label="依繳交狀態篩選">
-      <button
-        v-for="item in filters"
-        :key="item.value"
-        type="button"
-        class="chip"
-        :aria-pressed="filter === item.value"
-        @click="filter = item.value"
-      >
-        {{ item.label }}
-      </button>
-    </div>
-    <RouterLink to="/student/homework/analysis" class="homework__analysis">查看作業分析</RouterLink>
+  <div class="kinds">
+    <RouterLink
+      v-for="kind in KINDS"
+      :key="kind"
+      :to="{ name: 'student-homework-kind', params: { kind } }"
+      class="kind"
+      :class="`kind--${kind}`"
+    >
+      <span class="kind__icon" aria-hidden="true">{{ KIND_INFO[kind].icon }}</span>
+      <strong>{{ KIND_INFO[kind].label }}</strong>
+      <span class="kind__hint">{{ KIND_INFO[kind].hint }}</span>
+      <span v-if="missing[kind]" class="kind__badge">{{ missing[kind] }} 份未繳交</span>
+    </RouterLink>
   </div>
-  <p v-if="error" class="error-text">{{ error }}</p>
-
-  <div v-if="loaded && assignments.length === 0" class="card empty">
-    老師還沒有發作業給你。老師發布後，會出現在這裡。
-  </div>
-  <div v-else-if="loaded && shown.length === 0" class="card empty">沒有符合的作業。</div>
-  <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="assignmentTone(item)">
-    <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
-    <div class="tone-card__cell">
-      <p class="tone-card__title">{{ item.course_title }}</p>
-      <p class="tone-card__line">{{ item.teacher_name }}老師</p>
-    </div>
-    <div class="tone-card__cell">
-      <p class="tone-card__title">{{ statusText(item) }}</p>
-      <p class="tone-card__line">{{ dueText(item.due_at) }}</p>
-    </div>
-    <div class="homework__actions">
-      <RouterLink v-if="item.kind === 'performance'" :to="`/student/homework/${item.id}`" class="tone-btn">上傳</RouterLink>
-      <RouterLink v-else :to="{ name: 'student-quiz', params: { id: item.id } }" class="tone-btn">作答</RouterLink>
-      <RouterLink :to="detailLink(item)" class="tone-btn">查看詳情</RouterLink>
-    </div>
-  </article>
 </template>
 
 <style scoped>
-.search-input {
-  width: min(220px, 100%);
+.kinds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 280px));
+  justify-content: center;
+  gap: 60px;
+  margin-top: 40px;
 }
 
-.homework__bar {
+/* 平常是淺灰卡片，滑過或鍵盤選到時換成淡綠底（設計稿兩張卡各畫了一次選到的樣子） */
+.kind {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--home-line);
+  justify-content: center;
+  gap: 14px;
+  aspect-ratio: 1;
+  max-height: 300px;
+  border: 1px solid #b9b4ad;
+  border-radius: 30px;
+  background: #f4f4f3;
+  text-align: center;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.homework__analysis {
+.kind:hover,
+.kind:focus-visible {
+  border-color: #9fc07a;
+  background: #e9eedf;
+}
+
+.kind strong {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.kind__icon {
+  font-size: 38px;
+  line-height: 1;
+}
+
+.kind__hint {
   color: var(--home-muted);
 }
 
-.homework__analysis:hover {
-  color: var(--home-accent);
+.kind--performance {
+  color: #3f8f2a;
 }
 
-.homework {
-  grid-template-columns: 130px minmax(0, 0.8fr) minmax(0, 1.6fr) auto;
+.kind--quiz {
+  color: #1f66b8;
 }
 
-.homework__type {
-  text-align: center;
+.kind__badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: #d9412f;
+  color: #fff;
+  font-size: 12px;
 }
 
-.homework__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-@media (max-width: 720px) {
-  .homework__type {
-    text-align: left;
+@media (max-width: 640px) {
+  .kinds {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
   }
 
-  .homework__actions {
-    flex-direction: row;
+  .kind strong {
+    font-size: 18px;
+  }
+
+  .kind__hint {
+    font-size: 12px;
   }
 }
 </style>

@@ -2,10 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import CalendarPager, { type CalendarMode } from '@/components/console/CalendarPager.vue'
 import DayStrip from '@/components/console/DayStrip.vue'
 import WeekTimetable from '@/components/console/WeekTimetable.vue'
 import MonthCalendar from '@/components/console/MonthCalendar.vue'
+import ScheduleLegend from '@/components/console/ScheduleLegend.vue'
 import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
@@ -19,6 +21,7 @@ import {
   deleteSlot,
   fetchChangeRequests,
   fetchLessonSummary,
+  fetchMyCourses,
   fetchMyLessons,
   fetchMySlots,
   fetchMyStudents,
@@ -37,8 +40,8 @@ import {
   minuteLabel,
   sameDay,
   startOfWeek,
-  toneClass,
 } from '@/utils/format'
+import { styleToneVars } from '@/utils/courseStyle'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,6 +56,13 @@ const error = ref('')
 const deciding = ref('')
 const requestError = ref('')
 const slots = ref<TeacherAvailabilitySlot[]>([])
+// 課程 ID → 課程風格，課表依風格上色。讀不到課程時就用中性色
+const courseStyles = ref(new Map<string, string | null>())
+
+async function loadCourseStyles() {
+  const list = await fetchMyCourses().catch(() => [])
+  courseStyles.value = new Map(list.map((course) => [course.id, course.style]))
+}
 
 const selected = ref<TeacherLesson | null>(null)
 const summary = ref<LessonSummary | null>(null)
@@ -68,7 +78,7 @@ const items = computed<TimetableItem[]>(() => [
     ends_at: lesson.ends_at,
     title: lesson.course_title,
     subtitle: lesson.student_name,
-    colorKey: lesson.course_id,
+    style: courseStyles.value.get(lesson.course_id),
     cancelled: lesson.status === 'cancelled',
   })),
   ...slots.value
@@ -79,7 +89,6 @@ const items = computed<TimetableItem[]>(() => [
       ends_at: slot.ends_at,
       title: slot.status === 'open' ? '可預約' : '待完成約課',
       subtitle: slot.status === 'held' ? `${slot.student_name ?? '學生'}・${slot.course_title ?? ''}` : undefined,
-      colorKey: 'availability',
       slot: slot.status as 'open' | 'held',
       draggable: slot.status === 'open',
       resizable: slot.status === 'open',
@@ -97,7 +106,6 @@ const dayLessons = computed(() =>
     .filter((lesson) => sameDay(new Date(lesson.starts_at), anchor.value))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
 )
-const courseKeys = computed(() => [...new Set(lessons.value.map((lesson) => lesson.course_id))])
 
 // 「共 N 堂課，已上 M 堂」：同一位學生同一門課、沒取消的課
 function progress(lesson: TeacherLesson) {
@@ -117,7 +125,12 @@ function showDay(date: Date) {
 async function load() {
   error.value = ''
   try {
-    ;[lessons.value, requests.value, slots.value] = await Promise.all([fetchMyLessons(), fetchChangeRequests(), fetchMySlots()])
+    ;[lessons.value, requests.value, slots.value] = await Promise.all([
+      fetchMyLessons(),
+      fetchChangeRequests(),
+      fetchMySlots(),
+      loadCourseStyles(),
+    ])
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到課表。'
   }
@@ -368,17 +381,16 @@ watch(
 </script>
 
 <template>
-  <PageHeader
-    title="課表"
-    description="點一堂課可以看課前摘要。學生的約課、請假、調課要在這裡確認後才會改動課表。按「編輯時段」開放可上課時段給已綁定的學生預約。"
-  >
-    <template #title-actions>
+  <PageHeader title="課表" />
+  <PageToolbar>
+    <ScheduleLegend v-if="mode !== 'day'" slots />
+    <template #actions>
+      <CalendarPager v-model="anchor" v-model:mode="mode" />
       <button type="button" class="btn btn--primary" :aria-pressed="editing" @click="toggleEditing">
         {{ editing ? '完成編輯' : '編輯時段' }}
       </button>
     </template>
-    <CalendarPager v-model="anchor" v-model:mode="mode" />
-  </PageHeader>
+  </PageToolbar>
   <p v-if="error" class="error-text">{{ error }}</p>
 
   <!-- 編輯時段時三種框放在週課表右側並固定住，捲到晚上的時段也拖得到；窄螢幕改放上方 -->
@@ -428,7 +440,7 @@ watch(
     v-for="lesson in dayLessons"
     :key="lesson.id"
     class="tone-card lesson-card"
-    :class="toneClass(lesson.course_id, courseKeys)"
+    :style="styleToneVars(courseStyles.get(lesson.course_id))"
   >
     <div class="tone-card__cell lesson-card__time">
       <p class="tone-card__title">{{ formatTime(lesson.starts_at) }} - {{ formatTime(lesson.ends_at) }}</p>

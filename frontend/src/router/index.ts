@@ -63,7 +63,8 @@ const router = createRouter({
             { path: '', name: 'teacher-settings', redirect: '/teacher/settings/profile' },
             { path: 'profile', name: 'teacher-profile', component: () => import('@/views/teacher/TeacherProfileView.vue'), meta: { title: '個人資料' } },
             { path: 'profile/edit', name: 'teacher-profile-edit', component: () => import('@/views/teacher/TeacherProfileEditView.vue'), meta: { title: '個人資料維護' } },
-            { path: 'account', name: 'teacher-account', component: () => import('@/views/teacher/TeacherAccountView.vue'), meta: { title: '基本資料' } },
+            // 基本資料已併進個人資料（UIUX 回饋），舊網址導過去
+            { path: 'account', redirect: '/teacher/settings/profile' },
             { path: 'password', name: 'teacher-password', component: () => import('@/views/teacher/TeacherPasswordView.vue'), meta: { title: '修改密碼' } },
           ],
         },
@@ -123,21 +124,20 @@ const router = createRouter({
         { path: '', name: 'student-home', component: () => import('@/views/student/StudentOverviewView.vue'), meta: { title: '資訊總覽' } },
         { path: 'schedule', name: 'student-schedule', component: () => import('@/views/student/StudentScheduleView.vue'), meta: { title: '課表' } },
         { path: 'teachers', name: 'student-teachers', component: () => import('@/views/student/StudentTeachersView.vue'), meta: { title: '老師' } },
+        { path: 'teachers/:id', name: 'student-teacher', component: () => import('@/views/student/StudentTeacherProfileView.vue'), meta: { title: '老師資料' } },
         { path: 'courses', name: 'student-courses', component: () => import('@/views/student/StudentCoursesView.vue'), meta: { title: '課程資訊' } },
         { path: 'homework', name: 'student-homework', component: () => import('@/views/student/StudentHomeworkView.vue'), meta: { title: '作業' } },
-        { path: 'homework/analysis', name: 'student-analysis', component: () => import('@/views/student/StudentAnalysisView.vue'), meta: { title: '作業分析' } },
+        // 選了演奏或題庫之後：每份作業的繳交狀態和每次練習的分析在同一頁
         {
-          path: 'homework/analysis/:kind(performance|quiz)',
-          name: 'student-analysis-list',
-          component: () => import('@/views/student/StudentAnalysisListView.vue'),
-          meta: { title: '作業分析' },
+          path: 'homework/:kind(performance|quiz)',
+          name: 'student-homework-kind',
+          component: () => import('@/views/student/StudentHomeworkKindView.vue'),
+          meta: { title: '作業' },
         },
-        {
-          path: 'homework/analysis/:kind(performance|quiz)/:id',
-          name: 'student-analysis-attempts',
-          component: () => import('@/views/student/StudentAnalysisAttemptsView.vue'),
-          meta: { title: '作業分析' },
-        },
+        // 舊的作業分析網址併進上面那一頁
+        { path: 'homework/analysis', redirect: { name: 'student-homework' } },
+        { path: 'homework/analysis/:kind(performance|quiz)', redirect: (to) => ({ name: 'student-homework-kind', params: { kind: to.params.kind } }) },
+        { path: 'homework/analysis/:kind(performance|quiz)/:id', redirect: (to) => ({ name: 'student-homework-kind', params: { kind: to.params.kind } }) },
         {
           path: 'homework/analysis/:kind(performance|quiz)/:id/:attempt(\\d+)',
           name: 'student-analysis-detail',

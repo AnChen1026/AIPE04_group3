@@ -5,7 +5,7 @@ import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import { fetchMyChangeRequests, joinWithCode } from '@/api/student'
 import { useBoundCourses } from '@/composables/useBoundCourses'
-import { toneClass } from '@/utils/format'
+import { styleToneVars } from '@/utils/courseStyle'
 
 // 設計稿的「已綁定的老師」：每門已綁定的課一列，可以上課申請或看課表。老師給的綁定碼也在這裡輸入
 const router = useRouter()
@@ -21,7 +21,6 @@ const joinError = ref('')
 const joined = ref<{ courseId: string; title: string } | null>(null)
 
 const styles = computed(() => [...new Set(courses.bound.value.map((item) => item.course_style).filter(Boolean))] as string[])
-const courseKeys = computed(() => courses.bound.value.map((item) => item.course_id))
 const inquiring = computed(() => courses.conversations.value.filter((item) => !item.bound))
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
@@ -108,9 +107,11 @@ onMounted(load)
     v-for="item in shown"
     :key="item.id"
     class="tone-card teacher"
-    :class="toneClass(item.course_id, courseKeys)"
+    :style="styleToneVars(item.course_style)"
   >
-    <p class="tone-card__cell tone-card__title">{{ item.teacher_name }}老師</p>
+    <p class="tone-card__cell tone-card__title">
+      <RouterLink :to="{ name: 'student-teacher', params: { id: item.teacher_id } }" class="teacher__name">{{ item.teacher_name }}老師</RouterLink>
+    </p>
     <div class="tone-card__cell teacher__info">
       <p class="tone-card__title">{{ item.course_title }}</p>
       <p class="tone-card__title">已有 {{ requestCounts[item.course_id] ?? 0 }} 筆上課申請</p>
@@ -143,6 +144,12 @@ onMounted(load)
 </template>
 
 <style scoped>
+.teacher__name {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .search-input {
   width: min(220px, 100%);
 }

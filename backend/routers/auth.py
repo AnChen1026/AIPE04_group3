@@ -226,6 +226,9 @@ def api_update_me(
     """JSON：更新基本資料。"""
     if user.role == "admin":
         raise HTTPException(status_code=403, detail="管理員不能修改基本資料。")
+    # 學生的性別可以不填；老師註冊時就必填，這裡也不能清掉
+    if user.role == "teacher" and profile_data.sex is None:
+        raise HTTPException(status_code=400, detail="請選擇性別。")
 
     try:
         update_user_profile(db, user, profile_data)

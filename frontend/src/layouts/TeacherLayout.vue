@@ -83,7 +83,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <ConsoleShell heading="教師管理後台" :items="items" home-to="/teacher" role-label="老師">
+  <ConsoleShell heading="教師管理後台" :items="items" home-to="/teacher" role-label="老師" :top-actions="false">
     <RouterView v-if="approved" />
     <TeacherApplicationForm v-else-if="!status" @submitted="onApplied" />
     <div v-else class="card pending">

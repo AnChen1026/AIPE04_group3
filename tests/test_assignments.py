@@ -175,3 +175,14 @@ def test_別人的對照樂譜看不到(setup, scoring, analysis_session, make_u
     assert student_client.get(f"/api/student/recordings/{recording['id']}/score-sheet").status_code == 404
     assert login(make_user("student")).get(f"/api/student/recordings/{recording['id']}/score-sheet").status_code == 404
     assert login(make_user("teacher")).get(f"/teacher/recordings/{recording['id']}/score-sheet").status_code == 404
+
+
+def test_發作業時在課程聊天室寫一則作業提醒(setup):
+    _, student, course, teacher_client, student_client = setup
+    response = create(teacher_client, course, student)
+    assert response.status_code == 201, response.text
+
+    conversation = next(item for item in student_client.get("/api/student/conversations").json() if item["course_id"] == str(course.id))
+    assert conversation["unread_count"] >= 1
+    messages = student_client.get(f"/api/student/conversations/{conversation['id']}/messages").json()
+    assert messages[-1]["body"] == "【作業提醒】老師發了新的演奏作業「練習給愛麗絲」，繳交期限：2026-11-05。請到「作業」查看。"

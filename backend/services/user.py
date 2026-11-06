@@ -67,6 +67,9 @@ def update_user_profile(db: Session, user: User, profile_data: UserUpdate) -> Us
         profile = db.query(TeacherDB).filter(TeacherDB.user_id == user.id).first()
         if profile is not None:
             profile.name = profile_data.name
+            # 學生看到的老師性別就是帳號性別
+            if profile_data.sex:
+                profile.gender = {"male": "男", "female": "女"}[profile_data.sex]
 
     try:
         db.commit()

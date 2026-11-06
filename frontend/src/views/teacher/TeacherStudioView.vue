@@ -2,13 +2,12 @@
 import { onMounted, reactive, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { fetchStudio, fetchTeacherProfile, saveStudio } from '@/api/teacher'
+import { fetchStudio, saveStudio } from '@/api/teacher'
 import { useAuthStore } from '@/stores/auth'
 import type { Studio } from '@/types/api'
-import { TAIWAN_CITIES } from '@/utils/format'
 
 // 工作室資料：審核通過後由老師自己填寫。編號由系統在第一次儲存時產生、之後不變，其他欄位都可以改。
-// 還沒建立時，先用老師的姓名與教學地區帶入預設值
+// 還沒建立時，先用老師的姓名帶入擁有者。教學地區已從畫面拿掉（UIUX 回饋），以前存過的值原樣保留
 const auth = useAuthStore()
 const studio = ref<Studio | null>(null)
 const loaded = ref(false)
@@ -60,10 +59,7 @@ onMounted(async () => {
     const current = await fetchStudio()
     if (current) fill(current)
     else {
-      const profile = await fetchTeacherProfile().catch(() => null)
       form.owner_name = auth.user?.name ?? ''
-      form.city = profile?.teaching_city ?? ''
-      form.district = profile?.teaching_district ?? ''
     }
   } catch (problem) {
     serverError.value = problem instanceof Error ? problem.message : '讀不到工作室資料。'
@@ -74,13 +70,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader
-    title="工作室資訊"
-    :description="studio ? '工作室編號由系統產生、不能修改，其他資料隨時可以更新。' : '還沒有工作室資料。填好按「建立工作室」，系統會產生工作室編號。'"
-  >
-    <button type="submit" form="studio-form" class="btn btn--primary" :disabled="saving || !loaded">
-      {{ saving ? '儲存中…' : studio ? '儲存' : '建立工作室' }}
-    </button>
+  <PageHeader title="工作室資訊">
+    <template #title-actions>
+      <button type="submit" form="studio-form" class="btn btn--primary" :disabled="saving || !loaded">
+        {{ saving ? '儲存中…' : studio ? '儲存' : '建立工作室' }}
+      </button>
+    </template>
   </PageHeader>
 
   <form v-if="loaded" id="studio-form" class="card" novalidate @submit.prevent="save">
@@ -106,19 +101,6 @@ onMounted(async () => {
         <input id="studio-owner" v-model="form.owner_name" class="input" maxlength="100" :aria-invalid="Boolean(errors.owner_name)" />
         <p v-if="errors.owner_name" class="error-text">{{ errors.owner_name }}</p>
       </div>
-      <div class="field">
-        <span class="field__label">教學地區</span>
-        <div class="studio__area">
-          <label class="visually-hidden" for="studio-city">縣市</label>
-          <select id="studio-city" v-model="form.city" class="select">
-            <option value="">選擇縣市</option>
-            <option v-if="form.city && !TAIWAN_CITIES.includes(form.city)" :value="form.city">{{ form.city }}</option>
-            <option v-for="city in TAIWAN_CITIES" :key="city" :value="city">{{ city }}</option>
-          </select>
-          <label class="visually-hidden" for="studio-district">區</label>
-          <input id="studio-district" v-model="form.district" class="input" maxlength="100" placeholder="例如：大安區" />
-        </div>
-      </div>
       <div class="field field--full">
         <label class="field__label" for="studio-intro">工作室介紹</label>
         <textarea
@@ -135,11 +117,3 @@ onMounted(async () => {
 
   <NoticeDialog :open="Boolean(saved)" :message="saved" @confirm="saved = ''" @cancel="saved = ''" />
 </template>
-
-<style scoped>
-.studio__area {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
-}
-</style>

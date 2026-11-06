@@ -54,7 +54,8 @@ const days = computed(() =>
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 12px 4px;
+  /* 下方留空間放「有課」的圓點，圓點畫在卡片裡 */
+  padding: 12px 4px 20px;
   border: 2px solid var(--home-line);
   border-radius: 22px;
   background: var(--home-paper);
@@ -81,7 +82,7 @@ const days = computed(() =>
 
 .day__dot {
   position: absolute;
-  bottom: -12px;
+  bottom: 7px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -94,12 +95,18 @@ const days = computed(() =>
   }
 
   .day {
-    padding: 8px 2px;
+    padding: 8px 2px 16px;
     font-size: 11px;
   }
 
   .day strong {
     font-size: 15px;
+  }
+
+  .day__dot {
+    bottom: 5px;
+    width: 6px;
+    height: 6px;
   }
 }
 </style>

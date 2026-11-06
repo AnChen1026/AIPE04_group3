@@ -1,58 +1,25 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import NotificationBell from './NotificationBell.vue'
 
 defineOptions({ name: 'HomeNavbar' })
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
-const solid = ref(false)
-
-function updateBar() {
-  const hero = document.querySelector('.hero')
-  // 沒有大圖的頁面（例如全部課程）一律用米色底，否則白字會看不到
-  if (!hero) {
-    solid.value = true
-    return
-  }
-  // 大圖還鋪滿畫面時，導覽列維持透明；大圖離開後才補上米色底
-  solid.value = hero.getBoundingClientRect().bottom < 80
-}
 
 async function handleLogout() {
   await authStore.logout()
   router.push({ name: 'home' })
 }
-
-onMounted(() => {
-  updateBar()
-  window.addEventListener('scroll', updateBar, { passive: true })
-  window.addEventListener('resize', updateBar)
-})
-
-// 導覽列只掛一次，換頁後重新判斷有沒有大圖
-watch(
-  () => route.path,
-  async () => {
-    await nextTick()
-    updateBar()
-  },
-)
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', updateBar)
-  window.removeEventListener('resize', updateBar)
-})
 </script>
 
 <template>
-  <header class="navbar" :class="{ 'navbar--solid': solid }">
+  <header class="navbar">
     <div class="navbar__inner">
-      <RouterLink to="/" class="navbar__brand" aria-label="melo">melo.</RouterLink>
+      <RouterLink to="/" class="navbar__brand navbar__glass" aria-label="melo">melo.</RouterLink>
 
-      <nav class="navbar__links" aria-label="首頁區塊">
+      <nav class="navbar__links navbar__glass" aria-label="首頁區塊">
         <RouterLink :to="{ path: '/', hash: '#about' }">關於</RouterLink>
         <RouterLink :to="{ path: '/', hash: '#courses' }">課程</RouterLink>
         <RouterLink :to="{ path: '/', hash: '#flow' }">上課流程</RouterLink>
@@ -62,19 +29,21 @@ onUnmounted(() => {
 
       <nav class="navbar__actions" aria-label="帳號">
         <template v-if="authStore.isLoggedIn">
-          <RouterLink :to="authStore.homePath" class="navbar__name">{{ authStore.user?.name }}</RouterLink>
-          <button type="button" class="navbar__text" @click="handleLogout">登出</button>
+          <NotificationBell v-if="authStore.user?.role !== 'admin'" class="navbar__glass navbar__bell" />
+          <RouterLink :to="authStore.homePath" class="navbar__name navbar__pill navbar__glass">{{ authStore.user?.name }}</RouterLink>
+          <button type="button" class="navbar__text navbar__pill navbar__glass" @click="handleLogout">登出</button>
         </template>
-        <template v-else>
+        <div v-else class="navbar__account navbar__glass">
           <RouterLink to="/login" class="navbar__text">Login</RouterLink>
           <RouterLink to="/signup" class="navbar__signup">Sign up</RouterLink>
-        </template>
+        </div>
       </nav>
     </div>
   </header>
 </template>
 
 <style scoped>
+/* 整列透明；只有 logo、選單、鈴鐺、帳號這幾塊各自是半透明毛玻璃的膠囊（UIUX 回饋） */
 .navbar {
   position: fixed;
   top: 0;
@@ -82,28 +51,47 @@ onUnmounted(() => {
   left: 0;
   z-index: 20;
   background: transparent;
-  border-bottom: 1px solid transparent;
-  transition: background 0.35s ease, border-color 0.35s ease;
+  pointer-events: none;
 }
 
-.navbar--solid {
-  background: rgba(251, 246, 239, 0.94);
-  border-bottom: 1px solid var(--home-line);
-  backdrop-filter: blur(10px);
+.navbar__inner > *,
+.navbar__actions > * {
+  pointer-events: auto;
 }
 
-/* 還在大圖上時，文字用米白色，和大圖上的標題一致 */
-.navbar:not(.navbar--solid) .navbar__brand,
-.navbar:not(.navbar--solid) .navbar__links,
-.navbar:not(.navbar--solid) .navbar__name,
-.navbar:not(.navbar--solid) .navbar__text {
-  color: var(--home-paper);
-  text-shadow: 0 1px 12px rgba(52, 42, 34, 0.25);
+.navbar__glass {
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-pill);
+  background: rgba(251, 246, 239, 0.45);
+  box-shadow: 0 6px 20px rgba(62, 52, 44, 0.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--header-height);
+  padding: 0 clamp(20px, 4vw, 48px);
+}
+
+.navbar__brand {
+  padding: 6px 20px 8px;
+  color: var(--home-ink);
+  font-family: var(--font-logo);
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
 }
 
 .navbar__links {
   display: flex;
   gap: 28px;
+  padding: 9px 28px;
   color: var(--home-ink);
   font-size: 15px;
 }
@@ -117,29 +105,21 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-.navbar__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: var(--header-height);
-  padding: 0 clamp(20px, 4vw, 48px);
-}
-
-.navbar__brand {
-  color: var(--home-ink);
-  font-family: var(--font-logo);
-  font-size: 28px;
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  transition: color 0.35s ease;
-}
-
 .navbar__actions {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
+}
+
+.navbar__bell {
+  color: var(--home-ink);
+}
+
+.navbar__account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 4px 4px 18px;
 }
 
 .navbar__name,
@@ -149,14 +129,29 @@ onUnmounted(() => {
 }
 
 .navbar__text {
-  border: 0;
-  background: transparent;
-  padding: 0;
   cursor: pointer;
 }
 
+/* 未登入時 Login 是膠囊裡的純文字；登入後的「登出」自己是一顆毛玻璃膠囊 */
+.navbar__text:not(.navbar__glass) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+/* 登入後姓名、登出各自一顆膠囊，高度和鈴鐺一樣 34px */
+.navbar__pill {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 15px;
+}
+
+/* Sign up 用主色的實心膠囊，和 Login 區分開 */
 .navbar__signup {
-  padding: 8px 16px;
+  padding: 7px 16px;
   border-radius: var(--radius-pill);
   background: var(--home-accent);
   color: var(--home-paper);
@@ -180,7 +175,13 @@ onUnmounted(() => {
   }
 
   .navbar__brand {
+    padding: 5px 14px 7px;
     font-size: 24px;
+  }
+
+  .navbar__account {
+    gap: 10px;
+    padding-left: 14px;
   }
 }
 </style>

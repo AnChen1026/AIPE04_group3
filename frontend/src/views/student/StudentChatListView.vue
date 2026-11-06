@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
 import ChatSplit from '@/components/console/ChatSplit.vue'
 import { fetchMyConversations } from '@/api/student'
@@ -10,6 +10,7 @@ import { formatShort } from '@/utils/format'
 
 // 左邊是對話列表，右邊直接顯示選到的對話（子路由 chat/:id、chat/admin）
 const route = useRoute()
+const router = useRouter()
 const conversations = ref<Conversation[]>([])
 // 和平台管理員的對話，固定在列表最上方
 const support = ref<SupportConversation | null>(null)
@@ -42,12 +43,24 @@ watch(
   () => window.setTimeout(load, 800),
 )
 
-onMounted(load)
+// 沒選對話就進來時，先打開和平台管理員的對話（和老師聊天頁一樣）。
+// 手機上對話會蓋住整個列表，所以只在寬螢幕自動打開
+const WIDE = '(min-width: 901px)'
+function openAdminByDefault() {
+  if (route.name === 'student-chat' && window.matchMedia(WIDE).matches) router.replace({ name: 'student-support' })
+}
+
+watch(() => route.name, openAdminByDefault)
+
+onMounted(() => {
+  openAdminByDefault()
+  load()
+})
 onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="聊天記錄" description="在課程按「聯繫老師」後，和老師的對話都在這裡。">
+  <PageHeader title="聊天記錄">
     <label class="search-input">
       <span class="visually-hidden">搜尋老師</span>
       <input v-model="keyword" class="input" type="search" placeholder="搜尋老師" />

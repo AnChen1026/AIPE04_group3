@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
 import QuizQuestionCard from '@/components/console/QuizQuestionCard.vue'
 import { useLeaveGuard } from '@/composables/useLeaveGuard'
@@ -343,11 +344,9 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
 </script>
 
 <template>
+  <!-- 有分頁（演奏／題庫）時，儲存放在分頁那一列最右邊；AI 出題結果沒有分頁，放在標題右邊 -->
   <PageHeader :title="previewing ? 'AI 出題結果' : '作業管理'">
-    <button v-if="!previewing" type="submit" form="assignment-form" class="btn btn--primary" :disabled="saving || submitting">
-      {{ saving ? '儲存中…' : '儲存' }}
-    </button>
-    <button v-else type="button" class="btn btn--primary" @click="keepQuestions">儲存</button>
+    <button v-if="previewing" type="button" class="btn btn--primary" @click="keepQuestions">儲存</button>
   </PageHeader>
 
   <!-- AI 出題結果：一題一題預覽 -->
@@ -397,14 +396,21 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
   </section>
 
   <template v-else>
-    <div class="chip-group upload__tabs" role="tablist" aria-label="作業類型">
-      <button type="button" role="tab" class="chip" :aria-pressed="kind === 'performance'" :aria-selected="kind === 'performance'" @click="kind = 'performance'">
-        演奏作業上傳
-      </button>
-      <button type="button" role="tab" class="chip" :aria-pressed="kind === 'quiz'" :aria-selected="kind === 'quiz'" @click="kind = 'quiz'">
-        題庫作業上傳
-      </button>
-    </div>
+    <PageToolbar divider>
+      <div class="chip-group" role="tablist" aria-label="作業類型">
+        <button type="button" role="tab" class="chip" :aria-pressed="kind === 'performance'" :aria-selected="kind === 'performance'" @click="kind = 'performance'">
+          演奏作業上傳
+        </button>
+        <button type="button" role="tab" class="chip" :aria-pressed="kind === 'quiz'" :aria-selected="kind === 'quiz'" @click="kind = 'quiz'">
+          題庫作業上傳
+        </button>
+      </div>
+      <template #actions>
+        <button type="submit" form="assignment-form" class="btn btn--primary" :disabled="saving || submitting">
+          {{ saving ? '儲存中…' : '儲存' }}
+        </button>
+      </template>
+    </PageToolbar>
 
     <div v-if="courseOptions.length === 0 && courses.length" class="card empty">
       還沒有學生綁定你的課程。學生用綁定碼加入後，才能發作業給他。
@@ -616,12 +622,6 @@ onBeforeUnmount(() => window.clearTimeout(pollTimer))
 </template>
 
 <style scoped>
-.upload__tabs {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--home-line);
-}
-
 .upload {
   max-width: 720px;
 }

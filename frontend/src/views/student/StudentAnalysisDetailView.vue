@@ -33,10 +33,10 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 
 <template>
   <PageHeader :title="heading">
-    <RouterLink :to="{ name: 'student-analysis-list', params: { kind: info.other } }" class="analysis__switch">
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind: info.other } }" class="analysis__switch">
       查看{{ KIND_INFO[info.other].label }}分析
     </RouterLink>
-    <RouterLink :to="{ name: 'student-analysis-attempts', params: { kind, id: assignmentId } }" class="btn btn--primary">返回</RouterLink>
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind } }" class="btn btn--primary">返回</RouterLink>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
   <p v-else-if="loaded && !attempt" class="card empty">找不到第 {{ attemptNo }} 次練習。</p>

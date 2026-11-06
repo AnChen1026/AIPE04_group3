@@ -64,7 +64,7 @@ onMounted(async () => {
 
 <template>
   <PageHeader :title="assignment ? `${assignment.title}｜單元測驗` : '題庫作業'">
-    <RouterLink to="/student/homework" class="btn btn--primary">返回</RouterLink>
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind: 'quiz' } }" class="btn btn--primary">返回</RouterLink>
   </PageHeader>
 
   <div v-if="assignment" class="quiz">

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import FeedbackView from '@/components/console/FeedbackView.vue'
 import ScoreCompare from '@/components/console/ScoreCompare.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
@@ -118,19 +119,22 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="學生作業詳情">
-    <RouterLink to="/teacher/practice" class="btn btn--ghost">返回</RouterLink>
-    <button v-if="current" type="button" class="btn btn--danger" @click="confirming = true">刪除作業</button>
-  </PageHeader>
+  <PageHeader title="學生作業詳情" />
 
-  <div class="chip-group detail__tabs" role="tablist" aria-label="作業類型">
-    <button type="button" role="tab" class="chip" :aria-pressed="tab === 'performance'" :aria-selected="tab === 'performance'" @click="switchTab('performance')">
-      演奏作業
-    </button>
-    <button type="button" role="tab" class="chip" :aria-pressed="tab === 'quiz'" :aria-selected="tab === 'quiz'" @click="switchTab('quiz')">
-      題庫作業
-    </button>
-  </div>
+  <PageToolbar divider>
+    <div class="chip-group" role="tablist" aria-label="作業類型">
+      <button type="button" role="tab" class="chip" :aria-pressed="tab === 'performance'" :aria-selected="tab === 'performance'" @click="switchTab('performance')">
+        演奏作業
+      </button>
+      <button type="button" role="tab" class="chip" :aria-pressed="tab === 'quiz'" :aria-selected="tab === 'quiz'" @click="switchTab('quiz')">
+        題庫作業
+      </button>
+    </div>
+    <template #actions>
+      <RouterLink to="/teacher/practice" class="btn btn--ghost">返回</RouterLink>
+      <button v-if="current" type="button" class="btn btn--danger" @click="confirming = true">刪除作業</button>
+    </template>
+  </PageToolbar>
   <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
   <div v-if="current && shown.length === 0" class="card empty">
@@ -238,12 +242,6 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </template>
 
 <style scoped>
-.detail__tabs {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--home-line);
-}
-
 .detail {
   position: relative;
   grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1.4fr) auto;

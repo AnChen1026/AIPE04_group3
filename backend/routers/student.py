@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.storage import file_response
 from backend.dependencies.common import get_current_user, require_roles
+from backend.models.student import Course, InquiryConversation
+from backend.models.teacher import TeacherDB
 from backend.models.user import User
 from backend.repositories.student import StudentRepository
 from backend.services.conversation import conversation_rows
@@ -24,8 +26,10 @@ from backend.schemas.student import (
     LessonResponse,
     MessageResponse,
     RecordingResponse,
+    StudentTeacherCourse,
+    StudentTeacherProfileResponse,
 )
-from backend.services.availability import book_slot, list_open_slots, reschedule_to_slot
+from backend.services.availability import book_slot, drop_expired_requests, list_open_slots, reschedule_to_slot
 from backend.services.weekly_schedule import extend_teacher_schedule
 from backend.services.practice import run_recording_analysis
 from backend.services.student import (
@@ -152,6 +156,53 @@ def api_bind_with_code(
     return {"bound": True, "course_id": str(conversation.course_id), "conversation_id": str(conversation.id)}
 
 
+@router.get("/teachers/{teacher_id}", response_model=StudentTeacherProfileResponse)
+def api_teacher_profile(
+    teacher_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """學生看老師資料頁。只看得到自己洽詢過或綁定的老師（和看老師時段一樣，透過自己的課，ADR 0009）。"""
+    conversations = (
+        db.query(InquiryConversation)
+        .filter(InquiryConversation.student_id == current_user.id, InquiryConversation.teacher_id == teacher_id)
+        .all()
+    )
+    teacher = db.query(TeacherDB).filter(TeacherDB.user_id == teacher_id).first()
+    if not conversations or teacher is None:
+        raise HTTPException(status_code=404, detail="找不到這位老師。")
+
+    teacher_user = db.get(User, teacher_id)
+    published = db.query(Course).filter(Course.teacher_id == teacher_id, Course.status == "published").all()
+    my_courses = {course.id: course for course in db.query(Course).filter(Course.id.in_([c.course_id for c in conversations])).all()}
+    return StudentTeacherProfileResponse(
+        teacher_id=teacher_id,
+        # 課程頁顯示的姓名以帳號為準
+        name=teacher_user.name if teacher_user else teacher.name,
+        gender=teacher.gender if teacher.gender in ("男", "女") else None,
+        seniority=teacher.seniority,
+        expertise=teacher.expertise,
+        short_intros=teacher.short_intros,
+        teaching_city=teacher.teaching_city,
+        teaching_district=teacher.teaching_district,
+        target_learning=teacher.target_learning,
+        teaching_method=teacher.teaching_method,
+        teaching_style=teacher.teaching_style,
+        photo_url=f"/api/images/teachers/{teacher_id}" if teacher.photo_path else None,
+        course_styles=sorted({course.style for course in published if course.style}),
+        courses=[
+            StudentTeacherCourse(
+                course_id=item.course_id,
+                course_title=my_courses[item.course_id].title if item.course_id in my_courses else None,
+                course_style=my_courses[item.course_id].style if item.course_id in my_courses else None,
+                conversation_id=item.id,
+                bound=StudentRepository.is_bound(db, current_user.id, item.course_id),
+            )
+            for item in conversations
+        ],
+    )
+
+
 @router.get("/courses/{course_id}/schedule", response_model=list[LessonResponse])
 def api_schedule(
     course_id: uuid.UUID,
@@ -172,11 +223,12 @@ def api_my_change_requests(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """我在這門課送出的約課、請假、調課，以及老師處理的結果。"""
+    """我在這門課送出的約課、請假、調課，以及老師處理的結果。時間已過還沒確認的約課會先取消。"""
     try:
         require_bound(db, current_user.id, course_id)
     except StudentBusinessError as error:
         _raise_business_error(error)
+    drop_expired_requests(db, student_id=current_user.id)
     return StudentRepository.list_change_requests_for_student(db, current_user.id, course_id)
 
 

@@ -7,7 +7,8 @@ import { useLeaveGuard } from '@/composables/useLeaveGuard'
 import { useAuthStore } from '@/stores/auth'
 
 // 學生與老師共用的帳號基本資料：姓名、性別、手機、生日。Email 是登入帳號，這裡不能改。
-const props = defineProps<{ description: string; idPrefix: string }>()
+// 學生註冊時沒填手機、生日、性別，這裡都是選填；老師的性別必填
+const props = defineProps<{ description?: string; idPrefix: string }>()
 const auth = useAuthStore()
 const form = reactive({
   name: '',
@@ -21,6 +22,7 @@ const serverError = ref('')
 const saving = ref(false)
 const saved = ref(false)
 
+const sexRequired = computed(() => auth.user?.role === 'teacher')
 const dirty = computed(() => original.value !== '' && JSON.stringify(form) !== original.value)
 const guard = useLeaveGuard(dirty)
 
@@ -41,7 +43,7 @@ async function save() {
   for (const key of Object.keys(errors)) delete errors[key]
   if (!form.name.trim()) errors.name = '請填姓名。'
   if (form.phone_number && !/^09\d{8}$/.test(form.phone_number.trim())) errors.phone_number = '手機號碼格式是 09 開頭的 10 碼。'
-  if (!form.sex) errors.sex = '請選擇性別。'
+  if (sexRequired.value && !form.sex) errors.sex = '請選擇性別。'
   if (Object.keys(errors).length) return
 
   saving.value = true
@@ -50,7 +52,7 @@ async function save() {
       name: form.name.trim(),
       phone_number: form.phone_number.trim() || null,
       birthdate: form.birthdate || null,
-      sex: form.sex as 'male' | 'female',
+      sex: form.sex || null,
     })
     auth.setUser(user)
     fill()
@@ -85,21 +87,21 @@ onMounted(async () => {
         <p v-if="errors.name" class="error-text">{{ errors.name }}</p>
       </div>
       <div class="field">
-        <label class="field__label" :for="`${idPrefix}-sex`">性別<span class="required">*</span></label>
+        <label class="field__label" :for="`${idPrefix}-sex`">性別<span v-if="sexRequired" class="required">*</span><template v-else>（選填）</template></label>
         <select :id="`${idPrefix}-sex`" v-model="form.sex" class="select" :aria-invalid="!!errors.sex">
-          <option value="" disabled>請選擇</option>
+          <option value="" :disabled="sexRequired">{{ sexRequired ? '請選擇' : '不填' }}</option>
           <option value="female">女</option>
           <option value="male">男</option>
         </select>
         <p v-if="errors.sex" class="error-text">{{ errors.sex }}</p>
       </div>
       <div class="field">
-        <label class="field__label" :for="`${idPrefix}-phone`">手機號碼</label>
+        <label class="field__label" :for="`${idPrefix}-phone`">手機號碼（選填）</label>
         <input :id="`${idPrefix}-phone`" v-model="form.phone_number" class="input" inputmode="tel" autocomplete="tel" placeholder="0912345678" :aria-invalid="!!errors.phone_number" />
         <p v-if="errors.phone_number" class="error-text">{{ errors.phone_number }}</p>
       </div>
       <div class="field">
-        <label class="field__label" :for="`${idPrefix}-birthdate`">生日</label>
+        <label class="field__label" :for="`${idPrefix}-birthdate`">生日（選填）</label>
         <input :id="`${idPrefix}-birthdate`" v-model="form.birthdate" class="input" type="date" />
       </div>
     </div>

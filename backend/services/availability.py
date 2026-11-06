@@ -173,8 +173,37 @@ def _pending_request(db: Session, slot_id: uuid.UUID) -> ChangeRequest | None:
     )
 
 
+def drop_expired_requests(
+    db: Session, teacher_id: uuid.UUID | None = None, student_id: uuid.UUID | None = None
+) -> None:
+    """還在等老師確認的約課、調課，選的時間已經過去：取消預約、時段放回，申請本身刪掉不再顯示。
+
+    沒有排程工作，學生或老師讀申請、時段時順便清。請假不看時間，不在這裡處理。
+    """
+    query = select(ChangeRequest).where(
+        ChangeRequest.status == "pending",
+        ChangeRequest.request_type.in_(("booking", "reschedule")),
+        ChangeRequest.proposed_starts_at <= datetime.now(timezone.utc),
+    )
+    if teacher_id is not None:
+        query = query.where(ChangeRequest.teacher_id == teacher_id)
+    if student_id is not None:
+        query = query.where(ChangeRequest.student_id == student_id)
+    expired = list(db.scalars(query.with_for_update()))
+    if not expired:
+        return
+    for change_request in expired:
+        if change_request.availability_slot_id is not None:
+            slot = db.get(AvailabilitySlot, change_request.availability_slot_id)
+            if slot is not None and slot.status == "held":
+                reopen_slot(db, slot)
+        db.delete(change_request)
+    _commit(db)
+
+
 def list_teacher_slots(db: Session, teacher_id: uuid.UUID) -> list[dict]:
     """老師自己的全部時段，連同預約的學生、課程與待處理的約課。"""
+    drop_expired_requests(db, teacher_id=teacher_id)
     slots = list(
         db.scalars(
             select(AvailabilitySlot)

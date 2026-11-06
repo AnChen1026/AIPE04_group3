@@ -160,6 +160,23 @@ def make_lesson(db):
     return make
 
 
+# 照片以外都填好的老師個人資料（帳號的姓名、性別、手機、生日也在這一份）；建立課程前要先存這一份
+FULL_TEACHER_PROFILE = {
+    "name": "林老師",
+    "sex": "female",
+    "phone_number": "0912345678",
+    "birthdate": "1990-01-01",
+    "seniority": 5,
+    "expertise": "古典鋼琴",
+    "short_intros": "喜歡陪學生慢慢進步。",
+    "teaching_city": "臺北市",
+    "teaching_district": "大安區",
+    "target_learning": "成人初學",
+    "teaching_method": "一對一",
+    "teaching_style": "耐心",
+}
+
+
 def start_conversation(client: TestClient, course: Course) -> str:
     response = client.post(f"/api/student/courses/{course.id}/conversation")
     assert response.status_code == 200, response.text
