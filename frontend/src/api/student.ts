@@ -1,10 +1,24 @@
 import { apiUrl, request } from './http'
-import type { Assignment, AvailabilitySlot, QuizAttempt, QuizQuestion, ChangeRequest, ChangeRequestType, Conversation, Lesson, Message, Recording } from '@/types/api'
+import type {
+  Assignment,
+  AvailabilitySlot,
+  QuizAttempt,
+  QuizQuestion,
+  ChangeRequest,
+  ChangeRequestType,
+  Conversation,
+  Lesson,
+  Message,
+  Recording,
+  StudentTeacherProfile,
+} from '@/types/api'
 
 // ---------- 接洽對話與綁定
 export const startConversation = (courseId: string) =>
   request<Conversation>(`/api/student/courses/${courseId}/conversation`, { method: 'POST' })
 export const fetchMyConversations = () => request<Conversation[]>('/api/student/conversations')
+// 老師資料頁：只看得到自己洽詢過或綁定的老師
+export const fetchTeacherForStudent = (teacherId: string) => request<StudentTeacherProfile>(`/api/student/teachers/${teacherId}`)
 export const fetchMyConversation = (id: string) => request<Conversation>(`/api/student/conversations/${id}`)
 export const fetchStudentMessages = (id: string) => request<Message[]>(`/api/student/conversations/${id}/messages`)
 export const sendStudentMessage = (id: string, body: string, clientMessageId: string) =>

@@ -103,14 +103,11 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <PageHeader title="作業管理">
-    <RouterLink to="/student/homework" class="btn btn--ghost">返回</RouterLink>
+  <PageHeader title="演奏作業上傳">
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind: 'performance' } }" class="btn btn--ghost">返回</RouterLink>
     <button type="button" class="btn btn--primary" :disabled="uploading || !assignment" @click="save">{{ uploading ? '繳交中…' : '儲存' }}</button>
   </PageHeader>
 
-  <div class="chip-group upload__tabs">
-    <span class="chip" aria-pressed="true">演奏作業上傳</span>
-  </div>
   <p v-if="error" class="error-text" role="alert">{{ error }}</p>
 
   <template v-if="assignment">
@@ -174,12 +171,6 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </template>
 
 <style scoped>
-.upload__tabs {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--home-line);
-}
-
 .upload {
   max-width: 720px;
   margin-bottom: 22px;

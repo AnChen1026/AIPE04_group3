@@ -1,16 +1,17 @@
 import { request } from './http'
 import type { CurrentUser } from '@/types/user'
 
+// 學生註冊只填姓名、Email、密碼；手機、生日、性別建好帳號後再到「基本資料」選填
 export interface StudentRegisterInput {
   email: string
   password: string
   name: string
-  phone_number: string
-  birthdate: string
-  sex: 'male' | 'female'
 }
 
 export interface TeacherRegisterInput extends StudentRegisterInput {
+  phone_number: string
+  birthdate: string
+  sex: 'male' | 'female'
   password_confirm: string
   teaching_subjects: string
   teaching_experience: string
@@ -63,7 +64,7 @@ export interface ProfileInput {
   name: string
   phone_number: string | null
   birthdate: string | null
-  sex: 'male' | 'female'
+  sex: 'male' | 'female' | null
 }
 
 // 學生、老師都能改自己的基本資料；Email 與角色不能在這裡改

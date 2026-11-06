@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import { fetchAssignments } from '@/api/teacher'
 import type { Assignment } from '@/types/api'
 import { ASSIGNMENT_KIND_LABELS, assignmentTone, dueText } from '@/utils/format'
@@ -49,36 +50,39 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="作業狀態">
-    <label class="search-input">
-      <span class="visually-hidden">搜尋學生</span>
-      <input v-model="keyword" class="input" type="search" placeholder="搜尋學生" />
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-      </svg>
-    </label>
-    <RouterLink :to="{ name: 'teacher-assignment-new', query: onlyCourse ? { course: onlyCourse } : {} }" class="btn btn--primary">
-      新增
-    </RouterLink>
-  </PageHeader>
+  <PageHeader title="作業狀態" />
 
-  <div class="chip-group homework__filters" role="group" aria-label="依繳交狀態篩選">
-    <button
-      v-for="item in filters"
-      :key="item.value"
-      type="button"
-      class="chip"
-      :aria-pressed="filter === item.value"
-      @click="filter = item.value"
-    >
-      {{ item.label }}
-    </button>
-    <RouterLink v-if="onlyCourse" :to="{ name: 'teacher-practice' }" class="chip">看全部課程</RouterLink>
-  </div>
+  <PageToolbar divider>
+    <div class="chip-group" role="group" aria-label="依繳交狀態篩選">
+      <button
+        v-for="item in filters"
+        :key="item.value"
+        type="button"
+        class="chip"
+        :aria-pressed="filter === item.value"
+        @click="filter = item.value"
+      >
+        {{ item.label }}
+      </button>
+      <RouterLink v-if="onlyCourse" :to="{ name: 'teacher-practice' }" class="chip">看全部課程</RouterLink>
+    </div>
+    <template #actions>
+      <label class="search-input">
+        <span class="visually-hidden">搜尋學生</span>
+        <input v-model="keyword" class="input" type="search" placeholder="搜尋學生" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </label>
+      <RouterLink :to="{ name: 'teacher-assignment-new', query: onlyCourse ? { course: onlyCourse } : {} }" class="btn btn--primary">
+        新增作業
+      </RouterLink>
+    </template>
+  </PageToolbar>
   <p v-if="error" class="error-text">{{ error }}</p>
 
   <div v-if="loaded && shown.length === 0" class="card empty">
-    {{ assignments.length === 0 ? '還沒有發過作業。按右上角「新增」替已綁定的學生發第一份作業。' : '沒有符合的作業。' }}
+    {{ assignments.length === 0 ? '還沒有發過作業。按「新增作業」替已綁定的學生發第一份作業。' : '沒有符合的作業。' }}
   </div>
   <article v-for="item in shown" :key="item.id" class="tone-card homework" :class="assignmentTone(item)">
     <p class="tone-card__cell tone-card__title homework__type">{{ ASSIGNMENT_KIND_LABELS[item.kind] }}</p>
@@ -97,12 +101,6 @@ onMounted(async () => {
 <style scoped>
 .search-input {
   width: min(220px, 100%);
-}
-
-.homework__filters {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 2px solid var(--home-line);
 }
 
 .homework {

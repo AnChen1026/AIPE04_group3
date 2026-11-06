@@ -12,21 +12,10 @@ from backend.models.user import User
 from backend.schemas.teacher import TeacherIn, TeacherProfileResponse
 from backend.services.images import MAX_IMAGE_BYTES, save_image
 from backend.services.student import StudentBusinessError
+from backend.services.teacher_profile import PROFILE_FIELDS, profile_complete
 from backend.services.teacher_sync import _ensure_teacher_profile
 
 router = APIRouter()
-
-PROFILE_FIELDS = (
-    "age",
-    "seniority",
-    "expertise",
-    "short_intros",
-    "teaching_city",
-    "teaching_district",
-    "target_learning",
-    "teaching_method",
-    "teaching_style",
-)
 
 
 def profile_response(teacher: TeacherDB) -> TeacherProfileResponse:
@@ -37,6 +26,7 @@ def profile_response(teacher: TeacherDB) -> TeacherProfileResponse:
         gender=teacher.gender,
         status=teacher.status,
         photo_url=f"/api/images/teachers/{teacher.user_id}" if teacher.photo_path else None,
+        profile_complete=profile_complete(teacher),
         **{field: getattr(teacher, field) for field in PROFILE_FIELDS},
     )
 
@@ -54,7 +44,7 @@ def save_teacher_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """建立或更新老師個人資料。只有姓名、性別必填，其他留空就存成空值。"""
+    """建立或更新老師個人資料。照片以外都必填，欄位檢查在 TeacherIn。"""
     if user.role != "teacher":
         raise HTTPException(status_code=403, detail="只有教師可以建立教師資料")
 
@@ -63,13 +53,10 @@ def save_teacher_profile(
         teacher = TeacherDB(id=uuid.uuid4(), user_id=user.id)
         db.add(teacher)
 
-    teacher.name = data.name.strip()
-    teacher.gender = data.gender.strip()
+    teacher.name = data.name
+    teacher.gender = data.gender
     for field in PROFILE_FIELDS:
-        value = getattr(data, field)
-        if isinstance(value, str):
-            value = value.strip() or None
-        setattr(teacher, field, value)
+        setattr(teacher, field, getattr(data, field))
     # 審核狀態只看帳號是否核准，不讓前端自己決定
     teacher.status = "active" if user.is_active else "pending"
     db.commit()

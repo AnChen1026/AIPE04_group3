@@ -8,14 +8,15 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserRegister(BaseModel):
-    """一般使用者註冊資料；公開註冊不允許 admin。"""
+    """學生註冊資料；公開註冊不允許 admin。
+    註冊時不用填手機、生日、性別，建好帳號後再到「基本資料」選填。"""
 
     email: EmailStr
     password: str = Field(min_length=1)
     name: str = Field(min_length=1, max_length=100)
-    phone_number: str = Field(pattern=r"^09\d{8}$")
-    birthdate: date
-    sex: Literal["male", "female"]
+    phone_number: str | None = Field(default=None, pattern=r"^09\d{8}$")
+    birthdate: date | None = None
+    sex: Literal["male", "female"] | None = None
     role: Literal["student"] = "student"
 
 
@@ -55,7 +56,8 @@ class UserUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     phone_number: str | None = Field(default=None, pattern=r"^09\d{8}$")
     birthdate: date | None = None
-    sex: Literal["male", "female"]
+    # 學生可以不填；老師註冊時已經必填，改資料時也不能清掉（在 services/user.py 檢查）
+    sex: Literal["male", "female"] | None = None
 
 
 class PasswordChange(BaseModel):

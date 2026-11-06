@@ -48,10 +48,10 @@ onMounted(load)
 
 <template>
   <PageHeader :title="assignment ? `${assignment.course_title} - ${assignment.title}` : '練習對比'">
-    <RouterLink :to="{ name: 'student-analysis-list', params: { kind: info.other } }" class="analysis__switch">
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind: info.other } }" class="analysis__switch">
       查看{{ KIND_INFO[info.other].label }}分析
     </RouterLink>
-    <RouterLink :to="{ name: 'student-analysis-attempts', params: { kind, id: assignmentId } }" class="btn btn--primary">返回</RouterLink>
+    <RouterLink :to="{ name: 'student-homework-kind', params: { kind } }" class="btn btn--primary">返回</RouterLink>
   </PageHeader>
 
   <h2 class="compare__kind" :class="`compare__kind--${kind}`"><span aria-hidden="true">{{ info.icon }}</span> 練習對比</h2>

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import CourseJoinCodes from '@/components/console/CourseJoinCodes.vue'
 import { fetchMyCourses, fetchTeacherConversations } from '@/api/teacher'
 import type { Conversation, Course } from '@/types/api'
 import { apiUrl } from '@/api/http'
 import { imageForCourse } from '@/assets/courseImages'
 import { COURSE_STATUS_LABELS, deliveryText, priceText } from '@/utils/format'
+import { styleColor } from '@/utils/courseStyle'
 
 const courses = ref<Course[]>([])
 // 還在洽詢、沒綁定的對話，課程卡上可以直接發一人一碼
@@ -31,6 +33,15 @@ const shown = computed(() => {
   )
 })
 
+// 上傳過的圖片檔不見時（例如換了儲存位置），改用預設的課程圖，不要留下空白灰框
+function useDefaultImage(event: Event, course: Course) {
+  const image = event.target as HTMLImageElement
+  // 只換一次，預設圖也讀不到時不要一直重試
+  if (image.dataset.fallback) return
+  image.dataset.fallback = '1'
+  image.src = imageForCourse(course.title, course.style)
+}
+
 function statusClass(value: Course['status']) {
   return value === 'published' ? 'badge--accent' : value === 'draft' ? 'badge--warn' : 'badge--muted'
 }
@@ -49,29 +60,32 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="課程管理" description="只有「已發布」的課會出現在首頁，學生也才能洽詢。">
-    <label class="search-input">
-      <span class="visually-hidden">搜尋課程</span>
-      <input v-model="keyword" class="input" type="search" placeholder="搜尋課程" />
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-      </svg>
-    </label>
-    <RouterLink to="/teacher/courses/new" class="btn btn--primary">新增課程</RouterLink>
-  </PageHeader>
+  <PageHeader title="課程管理" />
 
-  <div class="chip-group courses__filters" role="group" aria-label="依狀態篩選">
-    <button
-      v-for="filter in filters"
-      :key="filter.value"
-      type="button"
-      class="chip"
-      :aria-pressed="status === filter.value"
-      @click="status = filter.value"
-    >
-      {{ filter.label }}
-    </button>
-  </div>
+  <PageToolbar>
+    <div class="chip-group" role="group" aria-label="依狀態篩選">
+      <button
+        v-for="filter in filters"
+        :key="filter.value"
+        type="button"
+        class="chip"
+        :aria-pressed="status === filter.value"
+        @click="status = filter.value"
+      >
+        {{ filter.label }}
+      </button>
+    </div>
+    <template #actions>
+      <label class="search-input">
+        <span class="visually-hidden">搜尋課程</span>
+        <input v-model="keyword" class="input" type="search" placeholder="搜尋課程" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </label>
+      <RouterLink to="/teacher/courses/new" class="btn btn--primary">新增課程</RouterLink>
+    </template>
+  </PageToolbar>
   <p v-if="error" class="error-text">{{ error }}</p>
 
   <div v-if="shown.length === 0" class="card empty">
@@ -83,6 +97,7 @@ onMounted(async () => {
       :src="course.image_url ? apiUrl(course.image_url) : imageForCourse(course.title, course.style)"
       :alt="course.title"
       loading="lazy"
+      @error="useDefaultImage($event, course)"
     />
     <div class="course__body">
     <header class="course__head">
@@ -90,7 +105,14 @@ onMounted(async () => {
       <RouterLink :to="`/teacher/courses/${course.id}/edit`" class="btn btn--ghost btn--small">編輯</RouterLink>
     </header>
     <ul class="course__meta">
-      <li>{{ course.style || '風格未填' }}</li>
+      <li>
+        <span
+          v-if="course.style"
+          class="course__style"
+          :style="{ background: styleColor(course.style).bg, color: styleColor(course.style).ink }"
+        >{{ course.style }}</span>
+        <template v-else>風格未填</template>
+      </li>
       <li>{{ course.level || '程度未填' }}</li>
       <li>{{ deliveryText(course.delivery_mode) }}{{ course.region ? `・${course.region}` : '' }}</li>
       <li>{{ priceText(course.price_per_lesson) }}</li>
@@ -114,10 +136,6 @@ onMounted(async () => {
 <style scoped>
 .search-input {
   width: min(220px, 100%);
-}
-
-.courses__filters {
-  margin-bottom: 16px;
 }
 
 .course {
@@ -177,6 +195,12 @@ onMounted(async () => {
   content: '・';
   margin-right: 6px;
   color: var(--home-wood);
+}
+
+.course__style {
+  padding: 1px 10px;
+  border-radius: var(--radius-pill);
+  font-weight: 700;
 }
 
 .course__hint {

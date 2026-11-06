@@ -2,16 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import PageHeader from '@/components/console/PageHeader.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
-import { fetchMyCourses, fetchMyStudents, fetchTeacherConversations, issueBindingCode, unbindStudent } from '@/api/teacher'
-import type { BoundStudent, Conversation, Course } from '@/types/api'
-import { formatDate, toneClass } from '@/utils/format'
+import { fetchMyStudents, fetchTeacherConversations, issueBindingCode, unbindStudent } from '@/api/teacher'
+import type { BoundStudent, Conversation } from '@/types/api'
+import { formatDate } from '@/utils/format'
 
 const students = ref<BoundStudent[]>([])
 const conversations = ref<Conversation[]>([])
-const courses = ref<Course[]>([])
 const keyword = ref('')
-// 設計稿上方每門課一張卡；按「查看詳細資訊」只看那門課的洽詢與學生
-const courseFilter = ref('')
 const error = ref('')
 const pendingUnbind = ref<{ student: BoundStudent; courseId: string; courseTitle: string } | null>(null)
 const issuing = ref('')
@@ -19,18 +16,8 @@ const copied = ref('')
 
 // 還在洽詢、沒有加入課程的學生。老師決定收學生時，在這裡（或聊天裡）發綁定碼
 const inquiries = computed(() =>
-  conversations.value.filter((item) => !item.bound && (!courseFilter.value || item.course_id === courseFilter.value)),
+  conversations.value.filter((item) => !item.bound),
 )
-
-const courseKeys = computed(() => courses.value.map((course) => course.id))
-const courseSummaries = computed(() =>
-  courses.value.map((course) => ({
-    course,
-    studentCount: students.value.filter((student) => student.courses.some((item) => item.course_id === course.id)).length,
-    pendingCount: conversations.value.filter((item) => !item.bound && item.course_id === course.id).length,
-  })),
-)
-const filterTitle = computed(() => courses.value.find((course) => course.id === courseFilter.value)?.title ?? '')
 
 async function issue(conversation: Conversation) {
   issuing.value = conversation.id
@@ -53,11 +40,8 @@ async function copy(code: string) {
 
 const shown = computed(() => {
   const text = keyword.value.trim().toLowerCase()
-  const inCourse = courseFilter.value
-    ? students.value.filter((student) => student.courses.some((course) => course.course_id === courseFilter.value))
-    : students.value
-  if (!text) return inCourse
-  return inCourse.filter((student) =>
+  if (!text) return students.value
+  return students.value.filter((student) =>
     [student.name, student.email, ...student.courses.map((course) => course.course_title)].some((value) =>
       value.toLowerCase().includes(text),
     ),
@@ -70,11 +54,7 @@ function conversationFor(studentId: string, courseId: string) {
 
 async function load() {
   try {
-    ;[students.value, conversations.value, courses.value] = await Promise.all([
-      fetchMyStudents(),
-      fetchTeacherConversations(),
-      fetchMyCourses().then((list) => list.filter((course) => course.status !== 'archived')),
-    ])
+    ;[students.value, conversations.value] = await Promise.all([fetchMyStudents(), fetchTeacherConversations()])
   } catch (problem) {
     error.value = problem instanceof Error ? problem.message : '讀不到學生名單。'
   }
@@ -96,50 +76,18 @@ onMounted(load)
 </script>
 
 <template>
-  <PageHeader title="所有學生人數" description="已用綁定碼進入你課程的學生。新的洽詢在「聊天」裡回覆並發綁定碼。">
-    <label class="search-input">
-      <span class="visually-hidden">搜尋學生</span>
-      <input v-model="keyword" class="input" type="search" placeholder="搜尋學生或課程" />
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
-      </svg>
-    </label>
+  <PageHeader title="所有學生人數">
+    <template #title-actions>
+      <label class="search-input">
+        <span class="visually-hidden">搜尋學生</span>
+        <input v-model="keyword" class="input" type="search" placeholder="搜尋學生或課程" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+        </svg>
+      </label>
+    </template>
   </PageHeader>
   <p v-if="error" class="error-text">{{ error }}</p>
-
-  <section class="summaries" aria-label="各課程學生人數">
-    <article
-      v-for="item in courseSummaries"
-      :key="item.course.id"
-      class="tone-card summary"
-      :class="toneClass(item.course.id, courseKeys)"
-    >
-      <p class="tone-card__cell tone-card__title summary__title">{{ item.course.title }}</p>
-      <div class="tone-card__cell summary__counts">
-        <div>
-          <p class="tone-card__line">目前學生人數</p>
-          <strong>{{ item.studentCount }} 人</strong>
-        </div>
-        <div>
-          <p class="tone-card__line">待確認申請人數</p>
-          <strong>{{ item.pendingCount }} 人</strong>
-        </div>
-      </div>
-      <button
-        type="button"
-        class="tone-btn"
-        :aria-pressed="courseFilter === item.course.id"
-        @click="courseFilter = courseFilter === item.course.id ? '' : item.course.id"
-      >
-        {{ courseFilter === item.course.id ? '收合詳細資訊' : '查看詳細資訊' }}
-      </button>
-    </article>
-  </section>
-
-  <p v-if="courseFilter" class="filter-note">
-    目前只看「{{ filterTitle }}」
-    <button type="button" class="btn btn--ghost btn--small" @click="courseFilter = ''">看全部課程</button>
-  </p>
 
   <section v-if="inquiries.length" class="card inquiries">
     <h2 class="card__title">洽詢中、還沒加入的學生</h2>
@@ -168,7 +116,6 @@ onMounted(load)
     </ul>
   </section>
 
-  <h2 class="students__title">已加入課程的學生</h2>
   <div v-if="shown.length === 0" class="card empty">
     {{ students.length === 0 ? '還沒有學生綁定你的課程。' : '找不到符合的學生。' }}
   </div>
@@ -223,39 +170,6 @@ onMounted(load)
   width: min(260px, 100%);
 }
 
-.summaries {
-  margin-bottom: 24px;
-}
-
-.summary {
-  grid-template-columns: 150px minmax(0, 1fr) auto;
-}
-
-.summary__title {
-  text-align: center;
-}
-
-.summary__counts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  text-align: center;
-}
-
-.summary__counts strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 17px;
-}
-
-.filter-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 16px;
-  color: var(--home-muted);
-}
-
 .inquiries {
   margin-bottom: 24px;
 }
@@ -304,12 +218,6 @@ onMounted(load)
   color: var(--home-accent-dark);
   font-size: 15px;
   letter-spacing: 0.12em;
-}
-
-.students__title {
-  margin: 0 0 12px;
-  font-size: 17px;
-  font-weight: 500;
 }
 
 .student__head {

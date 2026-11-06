@@ -29,8 +29,10 @@ function itemsOn(day: Date) {
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
 }
 
+// 老師的時段（可預約、待完成約課）和週課表一樣畫成虛線框，顏色在 CSS 裡
 function chipStyle(item: TimetableItem) {
-  const palette = lessonColor(item.colorKey)
+  if (item.slot) return {}
+  const palette = lessonColor(item)
   return { background: palette.bg, color: palette.ink }
 }
 </script>
@@ -59,12 +61,17 @@ function chipStyle(item: TimetableItem) {
           :key="item.id"
           type="button"
           class="month__chip"
-          :class="{ 'month__chip--cancelled': item.cancelled }"
+          :class="{
+            'month__chip--cancelled': item.cancelled,
+            'month__chip--open': item.slot === 'open',
+            'month__chip--held': item.slot === 'held',
+          }"
           :style="chipStyle(item)"
           :title="item.subtitle ? `${item.title}・${item.subtitle}` : item.title"
           @click="emit('select', item.id)"
         >
-          {{ formatTime(item.starts_at) }} {{ item.title }}
+          <span class="month__chip-time">{{ formatTime(item.starts_at) }}</span>
+          <span class="month__chip-title">{{ item.title }}</span>
         </button>
         <button v-if="itemsOn(day).length > MAX_PER_DAY" type="button" class="month__more" @click="emit('day', day)">
           還有 {{ itemsOn(day).length - MAX_PER_DAY }} 堂
@@ -142,17 +149,45 @@ function chipStyle(item: TimetableItem) {
 }
 
 .month__chip {
-  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 4px;
+  min-width: 0;
   padding: 2px 6px;
   border: 0;
   border-radius: 6px;
   font: inherit;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
+}
+
+/* 格子窄時時間和標題分兩行，標題可以換行，不再被切成「可…」 */
+.month__chip-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.month__chip-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 和週課表的時段同色：可預約綠色虛線、待完成約課橘色虛線 */
+.month__chip--open,
+.month__chip--held {
+  border: 1.5px dashed currentColor;
+}
+
+.month__chip--open {
+  background: #eef3e6;
+  color: #55623f;
+}
+
+.month__chip--held {
+  background: #fbefd9;
+  color: #8a5a1f;
 }
 
 .month__chip--cancelled {

@@ -43,10 +43,7 @@ onMounted(() => auth.ensureLoaded())
 </script>
 
 <template>
-  <PageHeader
-    title="修改密碼"
-    :description="hasPassword ? '新密碼至少 8 個字元。改完之後，下次登入請用新密碼。' : '你是用 Google 建立帳號的，設定密碼後也能用 Email 和密碼登入。'"
-  />
+  <PageHeader title="修改密碼" />
 
   <form class="card password" novalidate @submit.prevent="save">
     <div v-if="hasPassword" class="field">

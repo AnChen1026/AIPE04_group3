@@ -6,6 +6,7 @@
 import uuid
 from datetime import datetime
 from io import BytesIO
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from fastapi import status
@@ -15,13 +16,17 @@ from sqlalchemy.orm import Session
 from backend.core.uploads import ASSIGNMENT_UPLOAD_DIR
 from backend.core.storage import save_file, cleanup_files
 from backend.models.assignment import Assignment, AssignmentMaterial, AssignmentQuizQuestion, QuizAttempt, QuizAttemptAnswer
-from backend.models.student import Course, CourseBinding, PracticeRecording
+from backend.models.student import Course, CourseBinding, ConversationMessage, InquiryConversation, PracticeRecording
 from backend.models.user import User
 from backend.services.ai_quiz import MAX_QUESTIONS, clean_question, grade
+from backend.services.chat_hub import chat_hub, message_event
 from backend.services.course import MAX_MIDI_BYTES, MIDI_SUFFIXES
 from backend.services.student import StudentBusinessError, _commit, require_bound
 
 KINDS = ("performance", "quiz")
+KIND_LABELS = {"performance": "演奏作業", "quiz": "題庫作業"}
+# 提醒訊息裡的繳交日期用台灣時間
+LOCAL_TZ = ZoneInfo("Asia/Taipei")
 MAX_MATERIAL_BYTES = 30 * 1024 * 1024
 MAX_MATERIALS = 10
 # 節拍器與練習速度的範圍
@@ -58,6 +63,37 @@ def _check_midi(filename: str, content: bytes) -> None:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "這不是有效的 MIDI 檔。")
     if len(content) > MAX_MIDI_BYTES:
         raise StudentBusinessError(status.HTTP_400_BAD_REQUEST, "參考 MIDI 最大 2 MB。")
+
+
+def assignment_reminder_text(kind: str, title: str, due_at: datetime | None) -> str:
+    due = due_at.astimezone(LOCAL_TZ).strftime("%Y-%m-%d") if due_at else "待定"
+    return f"【作業提醒】老師發了新的{KIND_LABELS.get(kind, '作業')}「{title}」，繳交期限：{due}。請到「作業」查看。"
+
+
+def _add_reminder(db: Session, assignment: Assignment) -> ConversationMessage:
+    """在這門課的聊天室寫一則作業提醒，由老師送出。綁定碼綁課的學生可能還沒有對話，就順便建一段。"""
+    conversation = db.scalar(
+        select(InquiryConversation).where(
+            InquiryConversation.student_id == assignment.student_id,
+            InquiryConversation.course_id == assignment.course_id,
+        )
+    )
+    if conversation is None:
+        conversation = InquiryConversation(
+            id=uuid.uuid4(),
+            student_id=assignment.student_id,
+            teacher_id=assignment.teacher_id,
+            course_id=assignment.course_id,
+        )
+        db.add(conversation)
+        db.flush()
+    message = ConversationMessage(
+        conversation_id=conversation.id,
+        sender_id=assignment.teacher_id,
+        body=assignment_reminder_text(assignment.kind, assignment.title, assignment.due_at),
+    )
+    db.add(message)
+    return message
 
 
 def create_assignment(
@@ -170,12 +206,16 @@ def create_assignment(
                     file_size_bytes=len(content),
                 )
             )
+        reminder = _add_reminder(db, assignment)
         _commit(db)
     except Exception:
         db.rollback()
         cleanup_files(written)
         raise
     db.refresh(assignment)
+    db.refresh(reminder)
+    # 存檔後才推播；學生正開著聊天室就會即時看到
+    chat_hub.publish(reminder.conversation_id, message_event(reminder))
     return assignment
 
 

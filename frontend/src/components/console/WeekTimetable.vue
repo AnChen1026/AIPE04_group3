@@ -89,7 +89,7 @@ function blockStyle(item: TimetableItem) {
   const top = (start.getHours() - firstHour + start.getMinutes() / 60) * HOUR_HEIGHT
   const height = Math.max(((end.getTime() - start.getTime()) / 3_600_000) * HOUR_HEIGHT - 4, 26)
   if (item.slot) return { top: `${top}px`, height: `${height}px` }
-  const palette = lessonColor(item.colorKey)
+  const palette = lessonColor(item)
   return { top: `${top}px`, height: `${height}px`, background: palette.bg, color: palette.ink }
 }
 
@@ -202,9 +202,10 @@ function allowDrop(event: DragEvent) {
 
 .week__grid {
   display: grid;
-  grid-template-columns: 64px repeat(7, minmax(96px, 1fr));
+  grid-template-columns: 56px repeat(7, minmax(64px, 1fr));
   grid-template-rows: auto calc(var(--rows) * var(--hour));
-  min-width: 760px;
+  /* 約 800px 寬的視窗也放得下星期日；更窄（手機）才橫向捲動 */
+  min-width: 504px;
 }
 
 /* 編輯時段時右側多一欄拖曳框，課表縮到容器寬度，不出現橫向捲軸 */

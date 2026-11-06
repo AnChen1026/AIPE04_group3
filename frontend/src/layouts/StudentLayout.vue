@@ -32,7 +32,7 @@ watch(
 </script>
 
 <template>
-  <ConsoleShell heading="學生課程與學習管理平台" :items="items" home-to="/student" role-label="學生">
+  <ConsoleShell heading="學生課程與學習管理平台" :items="items" home-to="/student" role-label="學生" :top-actions="false">
     <RouterView />
   </ConsoleShell>
 </template>

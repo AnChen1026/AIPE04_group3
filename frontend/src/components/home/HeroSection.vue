@@ -97,7 +97,7 @@ function onPointerMove(event: PointerEvent) {
       y: last.y + dy * t,
       vx: dx * 0.012 + (Math.random() - 0.5) * 0.25,
       vy: dy * 0.012 - 0.18 - Math.random() * 0.2,
-      size: 26 + Math.random() * 22,
+      size: 40 + Math.random() * 30,
       born: now,
       life: 1300 + Math.random() * 700,
     })
@@ -144,7 +144,8 @@ function drawSmoke(now: number) {
 
     const radius = puff.size * (0.6 + easeOut(age) * 2.4)
     // 先淡入再慢慢散掉，避免一出現就是一顆亮點
-    const alpha = Math.min(1, age * 6) * (1 - age) ** 1.6 * 0.13
+    // 原本 0.13 疊上模糊後在大圖上幾乎看不見（UIUX 回饋），加濃
+    const alpha = Math.min(1, age * 6) * (1 - age) ** 1.6 * 0.32
     const glow = context.createRadialGradient(puff.x, puff.y, 0, puff.x, puff.y, radius)
     glow.addColorStop(0, `rgba(255, 249, 238, ${alpha})`)
     glow.addColorStop(0.45, `rgba(255, 246, 232, ${alpha * 0.5})`)
@@ -301,7 +302,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  filter: blur(14px);
+  filter: blur(8px);
 }
 
 .hero__scrim {

@@ -44,12 +44,13 @@ function validate(): boolean {
   if (!role.value) errors.role = '請先選擇註冊身分。'
   if (!form.name.trim()) errors.name = '請輸入真實姓名。'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = '請輸入正確的電子郵件。'
-  if (!/^09\d{8}$/.test(form.phone_number.trim())) errors.phone_number = '請輸入手機號碼，例如 0912345678。'
-  if (!form.birthdate) errors.birthdate = '請選擇生日。'
-  if (!form.sex) errors.sex = '請選擇性別。'
   if (form.password.length < 8) errors.password = '密碼至少 8 個字元。'
   if (form.password !== form.password_confirm) errors.password_confirm = '兩次輸入的密碼不一樣。'
   if (isTeacher.value) {
+    // 學生註冊不用填手機、生日、性別，老師才要
+    if (!/^09\d{8}$/.test(form.phone_number.trim())) errors.phone_number = '請輸入手機號碼，例如 0912345678。'
+    if (!form.birthdate) errors.birthdate = '請選擇生日。'
+    if (!form.sex) errors.sex = '請選擇性別。'
     if (!form.teaching_subjects.trim()) errors.teaching_subjects = '請填教學科目。'
     if (!form.teaching_experience.trim()) errors.teaching_experience = '請簡單說明教學經歷。'
     if (!form.bio.trim()) errors.bio = '請寫一段自我介紹。'
@@ -65,15 +66,15 @@ async function submit() {
     email: form.email.trim(),
     password: form.password,
     name: form.name.trim(),
-    phone_number: form.phone_number.trim(),
-    birthdate: form.birthdate,
-    sex: form.sex as 'male' | 'female',
   }
   try {
     if (isTeacher.value) {
       await registerTeacher(
         {
           ...base,
+          phone_number: form.phone_number.trim(),
+          birthdate: form.birthdate,
+          sex: form.sex as 'male' | 'female',
           password_confirm: form.password_confirm,
           teaching_subjects: form.teaching_subjects.trim(),
           teaching_experience: form.teaching_experience.trim(),
@@ -129,23 +130,23 @@ function finish() {
       <AuthField id="signup-password" v-model="form.password" label="密碼" type="password" autocomplete="new-password" placeholder="至少 8 個字元" required :error="errors.password" />
       <AuthField id="signup-confirm" v-model="form.password_confirm" label="確認密碼" type="password" autocomplete="new-password" placeholder="再輸入一次密碼" required :error="errors.password_confirm" />
 
-      <p class="auth-section-title">基本資料</p>
-      <AuthField id="signup-phone" v-model="form.phone_number" label="手機號碼" inputmode="tel" autocomplete="tel" placeholder="0912345678" required :error="errors.phone_number" />
-      <div class="auth-pair">
-        <AuthField id="signup-birthdate" label="生日" required :error="errors.birthdate">
-          <input id="signup-birthdate" v-model="form.birthdate" class="auth-input" type="date" :aria-invalid="!!errors.birthdate || undefined" />
-        </AuthField>
-        <AuthField id="signup-sex" label="性別" required :error="errors.sex">
-          <select id="signup-sex" v-model="form.sex" class="auth-input" required :aria-invalid="!!errors.sex || undefined">
-            <option value="" disabled>請選擇</option>
-            <option value="female">女</option>
-            <option value="male">男</option>
-          </select>
-        </AuthField>
-      </div>
-
       <Transition name="signup-teacher">
         <div v-if="isTeacher" class="signup__teacher">
+          <p class="auth-section-title">基本資料</p>
+          <AuthField id="signup-phone" v-model="form.phone_number" label="手機號碼" inputmode="tel" autocomplete="tel" placeholder="0912345678" required :error="errors.phone_number" />
+          <div class="auth-pair">
+            <AuthField id="signup-birthdate" label="生日" required :error="errors.birthdate">
+              <input id="signup-birthdate" v-model="form.birthdate" class="auth-input" type="date" :aria-invalid="!!errors.birthdate || undefined" />
+            </AuthField>
+            <AuthField id="signup-sex" label="性別" required :error="errors.sex">
+              <select id="signup-sex" v-model="form.sex" class="auth-input" required :aria-invalid="!!errors.sex || undefined">
+                <option value="" disabled>請選擇</option>
+                <option value="female">女</option>
+                <option value="male">男</option>
+              </select>
+            </AuthField>
+          </div>
+
           <p class="auth-section-title">教學資料</p>
           <p class="auth-note">老師帳號送出後由平台審核，通過後就能開課。</p>
           <AuthField id="signup-subjects" v-model="form.teaching_subjects" label="教學科目" :maxlength="200" required :error="errors.teaching_subjects" />

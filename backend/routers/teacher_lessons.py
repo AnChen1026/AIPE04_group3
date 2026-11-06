@@ -16,7 +16,7 @@ from backend.schemas.student import (
     TeacherLessonIn,
     TeacherLessonResponse,
 )
-from backend.services.availability import cancel_teacher_lesson, create_teacher_lesson
+from backend.services.availability import cancel_teacher_lesson, create_teacher_lesson, drop_expired_requests
 from backend.services.lesson_summary import get_lesson_summary
 from backend.services.student import StudentBusinessError, decide_change_request
 from backend.services.weekly_schedule import extend_teacher_schedule
@@ -104,7 +104,8 @@ def list_change_requests(
     db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
-    """學生送來的約課、請假、調課。預設只列待處理的；status=all 列出全部。"""
+    """學生送來的約課、請假、調課。預設只列待處理的；status=all 列出全部。時間已過還沒確認的約課會先取消。"""
+    drop_expired_requests(db, teacher_id=teacher.user_id)
     query = (
         db.query(ChangeRequest, User.name, Course.title)
         .join(User, User.id == ChangeRequest.student_id)

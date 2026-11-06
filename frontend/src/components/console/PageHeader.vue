@@ -2,8 +2,9 @@
 import { inject } from 'vue'
 import { SHELL_TOP_ACTIONS } from './shell'
 
-// 每頁的標題與說明。老師後台、學生專區照設計稿把按鈕、搜尋框放到外框上方的標題列；管理員後台維持放在標題右邊。
-// title-actions 是一定留在頁面標題同一行右邊的按鈕（例如課表的「編輯時段」），不會被搬到外框上方
+// 每頁的標題與說明。學生專區照設計稿把按鈕、搜尋框放到外框上方的標題列；
+// 老師後台（UIUX 回饋）和管理員後台放在頁面標題同一列的最右邊。
+// title-actions 是一定留在頁面標題同一行右邊的按鈕，不會被搬到外框上方
 defineProps<{ title: string; description?: string }>()
 
 const topActions = inject(SHELL_TOP_ACTIONS, false)
@@ -14,11 +15,14 @@ const topActions = inject(SHELL_TOP_ACTIONS, false)
     <div class="page-header__main">
       <div class="page-header__title">
         <h1>{{ title }}</h1>
-        <div v-if="$slots['title-actions']" class="page-header__title-actions"><slot name="title-actions" /></div>
+        <div v-if="$slots['title-actions'] || (!topActions && $slots.default)" class="page-header__title-actions">
+          <slot name="title-actions" />
+          <slot v-if="!topActions" />
+        </div>
       </div>
       <p v-if="description">{{ description }}</p>
     </div>
-    <Teleport v-if="$slots.default" defer to="#shell-actions" :disabled="!topActions">
+    <Teleport v-if="$slots.default && topActions" defer to="#shell-actions">
       <div class="page-header__actions"><slot /></div>
     </Teleport>
   </div>
@@ -51,6 +55,17 @@ const topActions = inject(SHELL_TOP_ACTIONS, false)
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.page-header__title-actions :slotted(.btn) {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* 搜尋框給固定寬度，放在標題右邊時才不會被擠窄 */
+.page-header__title-actions :slotted(.search-input) {
+  width: 220px;
+  max-width: 100%;
 }
 
 .page-header h1 {

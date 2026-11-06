@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/console/PageHeader.vue'
+import PageToolbar from '@/components/console/PageToolbar.vue'
 import CalendarPager, { type CalendarMode } from '@/components/console/CalendarPager.vue'
 import DayStrip from '@/components/console/DayStrip.vue'
 import WeekTimetable from '@/components/console/WeekTimetable.vue'
 import MonthCalendar from '@/components/console/MonthCalendar.vue'
+import ScheduleLegend from '@/components/console/ScheduleLegend.vue'
 import type { TimetableItem } from '@/components/console/timetable'
 import ModalPanel from '@/components/console/ModalPanel.vue'
 import NoticeDialog from '@/components/console/NoticeDialog.vue'
@@ -29,8 +31,8 @@ import {
   formatTime,
   sameDay,
   startOfWeek,
-  toneClass,
 } from '@/utils/format'
+import { styleToneVars } from '@/utils/courseStyle'
 
 // 學生課表：所有已綁定課程的課，待老師確認的約課也一起畫上去。右上方切換日／週／月；
 // 「日」是設計稿的樣子，列出那天的課，可以在那裡調課、請假
@@ -45,7 +47,6 @@ const weekStart = computed(() => startOfWeek(anchor.value))
 
 const pendingFor = (lessonId: string) =>
   requests.value.find((item) => item.session_id === lessonId && item.status === 'pending')
-const courseKeys = computed(() => courses.bound.value.map((item) => item.course_id))
 
 interface DayCard {
   key: string
@@ -67,8 +68,11 @@ const allCards = computed<DayCard[]>(() => {
     status: lesson.status === 'cancelled' ? 'cancelled' : 'confirmed',
     lesson,
   }))
+  const now = new Date()
   for (const item of requests.value) {
     if (item.request_type !== 'booking' || item.status !== 'pending' || !item.proposed_starts_at || !item.proposed_ends_at) continue
+    // 時間已經過去、老師還沒確認的約課不顯示（後端讀取時也會自動取消）
+    if (new Date(item.proposed_starts_at) <= now) continue
     list.push({
       key: item.id,
       starts_at: item.proposed_starts_at,
@@ -128,7 +132,7 @@ const items = computed<TimetableItem[]>(() => [
     ends_at: card.ends_at,
     title: card.status === 'pending' ? '待完成約課' : (card.course.course_title ?? '課程'),
     subtitle: card.status === 'pending' ? `${card.course.course_title ?? ''}・等老師確認` : `${card.course.teacher_name}老師`,
-    colorKey: card.course.course_id,
+    style: card.course.course_style,
     cancelled: card.status === 'cancelled',
     slot: card.status === 'pending' ? ('held' as const) : undefined,
   })),
@@ -138,14 +142,14 @@ const items = computed<TimetableItem[]>(() => [
     ends_at: slot.ends_at,
     title: '可預約',
     subtitle: slotCourse.value ? `${slotCourse.value.teacher_name}老師・點一下選時間` : '點一下選時間',
-    colorKey: 'availability',
     slot: 'open' as const,
   })),
 ])
 
+// 日檢視上方有課的日子畫圓點：已確認、已取消、待老師確認的約課都算
 const weekDates = computed(() =>
-  lessons.value
-    .map((lesson) => new Date(lesson.starts_at))
+  allCards.value
+    .map((card) => new Date(card.starts_at))
     .filter((date) => date >= weekStart.value && date < addDays(weekStart.value, 7)),
 )
 
@@ -283,12 +287,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <PageHeader title="課表" description="約課和調課請從老師開放的時段選，要等老師同意後課表才會改。">
-    <CalendarPager v-model="anchor" v-model:mode="mode" />
-    <button v-if="courses.bound.value.length" type="button" class="btn btn--primary" @click="openForm('booking')">新增申請</button>
-  </PageHeader>
+  <PageHeader title="課表" />
   <p v-if="error" class="error-text">{{ error }}</p>
 
+  <!-- 第一列選要疊上哪位老師的時段；第二列左邊是圖例，右邊是日／週／月切換和新增申請（和老師課表一樣） -->
   <div class="slot-bar">
     <label class="slot-bar__label" for="slot-course">老師可預約時段</label>
     <select v-if="courses.bound.value.length" id="slot-course" v-model="slotCourseId" class="select slot-bar__select">
@@ -299,12 +301,15 @@ onMounted(async () => {
     </select>
     <span v-else-if="courses.loaded.value" class="muted">還沒有綁定課程，先輸入老師給的綁定碼才看得到老師的時段。</span>
     <span v-if="slotCourse && slots.length === 0 && !slotError" class="muted">這位老師目前沒有開放的時段。</span>
-    <span v-if="slotCourse && slots.length" class="slot-bar__legend">
-      <span class="slot-bar__swatch slot-bar__swatch--open"></span>可預約
-      <span class="slot-bar__swatch slot-bar__swatch--held"></span>待完成約課
-    </span>
   </div>
   <p v-if="slotError" class="error-text" role="alert">{{ slotError }}</p>
+  <PageToolbar>
+    <ScheduleLegend v-if="mode !== 'day' && courses.bound.value.length" slots />
+    <template #actions>
+      <CalendarPager v-model="anchor" v-model:mode="mode" />
+      <button v-if="courses.bound.value.length" type="button" class="btn btn--primary" @click="openForm('booking')">新增申請</button>
+    </template>
+  </PageToolbar>
 
   <div v-if="courses.loaded.value && courses.bound.value.length === 0" class="card empty">
     還沒有進入任何課程。先在「老師」頁輸入老師給的綁定碼，就會看到課表。
@@ -327,7 +332,7 @@ onMounted(async () => {
       v-for="card in dayCards"
       :key="card.key"
       class="tone-card lesson-card"
-      :class="toneClass(card.course.course_id, courseKeys)"
+      :style="styleToneVars(card.course.course_style)"
     >
       <div class="tone-card__cell lesson-card__time">
         <p class="tone-card__title">{{ formatTime(card.starts_at) }} - {{ formatTime(card.ends_at) }}</p>
@@ -414,6 +419,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+
 .change-hint {
   margin: 0 0 12px;
   padding: 10px 14px;
@@ -427,7 +433,7 @@ onMounted(async () => {
   align-items: center;
   gap: 10px 14px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   font-size: 14px;
 }
 
@@ -439,32 +445,6 @@ onMounted(async () => {
   width: auto;
   min-width: 220px;
   max-width: 100%;
-}
-
-.slot-bar__legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--home-muted);
-}
-
-.slot-bar__swatch {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-left: 6px;
-  border: 1.5px dashed currentColor;
-  border-radius: 4px;
-}
-
-.slot-bar__swatch--open {
-  background: #eef3e6;
-  color: #55623f;
-}
-
-.slot-bar__swatch--held {
-  background: #fbefd9;
-  color: #8a5a1f;
 }
 
 .day-slots {

@@ -184,7 +184,7 @@ export interface LessonSummary {
   generated_at: string
 }
 
-// 只有姓名、性別必填，其他都可以留空
+// 照片以外都必填；profile_complete 是後端判斷的「填完了沒」，沒填完不能建立課程
 export interface TeacherProfile {
   id: string
   user_id: string
@@ -201,9 +201,10 @@ export interface TeacherProfile {
   teaching_style: string | null
   status: string
   photo_url: string | null
+  profile_complete: boolean
 }
 
-export type TeacherProfileInput = Omit<TeacherProfile, 'id' | 'user_id' | 'status' | 'photo_url'>
+export type TeacherProfileInput = Omit<TeacherProfile, 'id' | 'user_id' | 'status' | 'photo_url' | 'profile_complete'>
 
 export interface BoundStudent {
   id: string
@@ -348,3 +349,21 @@ export interface Studio {
 }
 
 export type StudioInput = Pick<Studio, 'name' | 'owner_name' | 'city' | 'district' | 'intro'>
+
+// 學生看老師資料頁。年齡、帳號資料不給學生
+export interface StudentTeacherProfile {
+  teacher_id: string
+  name: string
+  gender: string | null
+  seniority: number | null
+  expertise: string | null
+  short_intros: string | null
+  teaching_city: string | null
+  teaching_district: string | null
+  target_learning: string | null
+  teaching_method: string | null
+  teaching_style: string | null
+  photo_url: string | null
+  course_styles: string[]
+  courses: { course_id: string; course_title: string | null; course_style: string | null; conversation_id: string; bound: boolean }[]
+}

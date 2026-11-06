@@ -8,7 +8,7 @@ from backend.core.security import verify_password
 from backend.main import app
 from backend.models.teacher import TeacherDB
 from backend.models.user import User
-from tests.conftest import PASSWORD
+from tests.conftest import FULL_TEACHER_PROFILE, PASSWORD
 
 NEW_PASSWORD = "New-Password-2026"
 
@@ -81,7 +81,7 @@ def test_只用Google註冊的帳號可以直接設定密碼(db, login):
 def test_老師改基本資料的姓名_個人資料與課程頁一起更新(db, make_user, make_course, login):
     teacher = make_user("teacher", name="舊名字")
     client = login(teacher)
-    assert client.post("/teacher/profile", json={"name": "舊名字", "gender": "女"}).status_code == 200
+    assert client.post("/teacher/profile", json={**FULL_TEACHER_PROFILE, "name": "舊名字"}).status_code == 200
     course = make_course(teacher, title="姓名同步課")
 
     response = client.patch("/api/auth/me", json={"name": "林新名", "phone_number": "0912345678", "birthdate": "1990-01-01", "sex": "female"})
@@ -92,3 +92,24 @@ def test_老師改基本資料的姓名_個人資料與課程頁一起更新(db,
     assert client.get("/teacher/me").json()["name"] == "林新名"
     public = {row["id"]: row for row in TestClient(app).get("/api/courses").json()}
     assert public[str(course.id)]["teacher_name"] == "林新名"
+
+
+def test_學生註冊不用填手機生日性別_之後在基本資料選填(make_user):
+    client = TestClient(app)
+    email = f"new-{uuid.uuid4().hex[:8]}@aipe04-test.tw"
+    response = client.post("/api/auth/register", json={"email": email, "password": PASSWORD, "name": "新同學"})
+    assert response.status_code == 201, response.text
+    assert client.post("/api/auth/login", json={"email": email, "password": PASSWORD}).status_code == 200
+    me = client.get("/api/auth/me").json()
+    assert (me["phone_number"], me["birthdate"], me["sex"]) == (None, None, None)
+
+    # 學生改姓名時性別可以不填，之後也可以補
+    assert client.patch("/api/auth/me", json={"name": "新同學二"}).status_code == 200
+    filled = client.patch("/api/auth/me", json={"name": "新同學二", "sex": "male", "phone_number": "0912345678"})
+    assert filled.status_code == 200, filled.text
+    assert filled.json()["sex"] == "male"
+
+
+def test_老師改基本資料不能清掉性別(make_user, login):
+    client = login(make_user("teacher"))
+    assert client.patch("/api/auth/me", json={"name": "林老師"}).status_code == 400

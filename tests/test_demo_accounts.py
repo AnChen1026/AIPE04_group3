@@ -49,9 +49,13 @@ def test_demo_accounts_are_bound_with_schedule(db, demo_env):
     conversations = student_client.get("/api/student/conversations").json()
     assert len(conversations) == 1
     messages = student_client.get(f"/api/student/conversations/{conversations[0]['id']}/messages").json()
-    assert len(messages) == len(demo_accounts.MESSAGES)
-
     assignments = {item["kind"]: item for item in student_client.get("/api/student/assignments").json()}
+    # 對話之後是每份作業各一則作業提醒
+    assert [item["body"] for item in messages[: len(demo_accounts.MESSAGES)]] == [body for _, body in demo_accounts.MESSAGES]
+    reminders = messages[len(demo_accounts.MESSAGES) :]
+    assert len(reminders) == len(assignments)
+    assert all(item["body"].startswith("【作業提醒】") for item in reminders)
+
     assert assignments["performance"]["submission_count"] == len(demo_accounts.RECORDING_FEEDBACK)
     assert assignments["quiz"]["question_count"] == len(demo_accounts.QUIZ_QUESTIONS)
     assert assignments["quiz"]["submission_count"] == 1

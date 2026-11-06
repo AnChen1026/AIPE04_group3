@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from backend.models.student import ReferenceMidi
 from backend.services import course as course_service
-from tests.conftest import bind, issue_code, start_conversation
+from tests.conftest import FULL_TEACHER_PROFILE, bind, issue_code, start_conversation
 
 SAMPLE_MIDI = Path(__file__).resolve().parents[1] / "backend" / "audio_scoring" / "midi_test_data" / "test1.mid"
 SAMPLE_MIDI_2 = Path(__file__).resolve().parents[1] / "backend" / "audio_scoring" / "midi_test_data" / "test2.mid"
@@ -52,6 +52,7 @@ def test_課程欄位要符合規格(make_user, make_course, login):
         {"title": "   "},
     ):
         assert client.patch(f"/courses/{course.id}", json=body).status_code == 400, body
+    assert client.post("/teacher/profile", json=FULL_TEACHER_PROFILE).status_code == 200
     assert client.post("/courses", json={"title": "新課", "level": "大師"}).status_code == 400
 
 

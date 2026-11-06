@@ -20,9 +20,12 @@ const props = defineProps<{
   // 有給的話，選單最上方顯示「姓名＋身分」，點了回資訊總覽；各頁按鈕也改放到上方標題列
   homeTo?: string
   roleLabel?: string
+  // false：各頁按鈕留在頁面標題同一列最右邊，不送到上方標題列（老師後台，UIUX 回饋）
+  topActions?: boolean
 }>()
 
-provide(SHELL_TOP_ACTIONS, Boolean(props.homeTo))
+const sendActionsUp = Boolean(props.homeTo) && props.topActions !== false
+provide(SHELL_TOP_ACTIONS, sendActionsUp)
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -65,8 +68,9 @@ async function logout() {
         <RouterLink to="/" class="shell__brand" aria-label="melo">melo.</RouterLink>
         <span class="shell__heading">{{ heading }}</span>
         <!-- 各頁 PageHeader 的按鈕會傳送到這裡 -->
-        <div v-if="homeTo" id="shell-actions" class="shell__actions"></div>
-        <span v-else class="shell__user">{{ auth.user?.name }}</span>
+        <div v-if="sendActionsUp" id="shell-actions" class="shell__actions"></div>
+        <!-- 管理員後台左側沒有姓名，才在這裡顯示；老師後台的姓名已在選單最上方 -->
+        <span v-else-if="!homeTo" class="shell__user">{{ auth.user?.name }}</span>
       </header>
 
       <div class="shell__body">

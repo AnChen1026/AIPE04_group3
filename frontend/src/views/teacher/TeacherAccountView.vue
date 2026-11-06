@@ -5,5 +5,5 @@ import AccountProfileForm from '@/components/console/AccountProfileForm.vue'
 </script>
 
 <template>
-  <AccountProfileForm id-prefix="ta" description="姓名會顯示在課程頁、聊天與學生名單；個人資料頁的姓名也會一起更新。Email 是登入帳號，不能修改。" />
+  <AccountProfileForm id-prefix="ta" />
 </template>

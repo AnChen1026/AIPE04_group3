@@ -418,3 +418,33 @@ class TeacherLessonIn(BaseModel):
     starts_at: datetime
     ends_at: datetime
     slot_id: uuid.UUID | None = None
+
+
+class StudentTeacherCourse(BaseModel):
+    """老師資料頁上，學生和這位老師有關的課（洽詢中或已綁定）。"""
+
+    course_id: uuid.UUID
+    course_title: str | None
+    course_style: str | None
+    conversation_id: uuid.UUID
+    bound: bool
+
+
+class StudentTeacherProfileResponse(BaseModel):
+    """學生看老師資料頁：老師對學生公開的個人資料。年齡、帳號資料不給。"""
+
+    teacher_id: uuid.UUID
+    name: str
+    gender: str | None = None
+    seniority: int | None = None
+    expertise: str | None = None
+    short_intros: str | None = None
+    teaching_city: str | None = None
+    teaching_district: str | None = None
+    target_learning: str | None = None
+    teaching_method: str | None = None
+    teaching_style: str | None = None
+    photo_url: str | None = None
+    # 這位老師所有已發布課程的風格（古典鋼琴、流行鋼琴…），頁首的標籤用
+    course_styles: list[str] = []
+    courses: list[StudentTeacherCourse] = []

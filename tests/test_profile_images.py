@@ -1,26 +1,38 @@
-"""老師個人資料選填、老師照片與課程圖片、只輸入綁定碼加入課程。"""
+"""老師個人資料必填、老師照片與課程圖片、只輸入綁定碼加入課程。"""
 
-from tests.conftest import issue_code, start_conversation
+from tests.conftest import FULL_TEACHER_PROFILE, issue_code, start_conversation
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 JPG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
 
 
-def test_老師資料只有姓名性別必填(make_user, login):
+def test_老師資料照片以外都必填(make_user, login):
     client = login(make_user("teacher"))
-    saved = client.post("/teacher/profile", json={"name": "林老師", "gender": "女"})
+    assert client.get("/teacher/me").json()["profile_complete"] is False
+
+    saved = client.post("/teacher/profile", json=FULL_TEACHER_PROFILE)
     assert saved.status_code == 200, saved.text
     data = saved.json()
     assert data["name"] == "林老師"
-    assert data["teaching_city"] is None
-    assert data["age"] is None
+    assert data["teaching_city"] == "臺北市"
+    assert data["profile_complete"] is True
     assert "photo_path" not in data
 
-    # 空白字串存成空值
-    updated = client.post("/teacher/profile", json={"name": "林老師", "gender": "女", "expertise": "  "}).json()
-    assert updated["expertise"] is None
-    assert client.post("/teacher/profile", json={"name": "", "gender": "女"}).status_code == 422
-    assert client.post("/teacher/profile", json={"name": "林老師"}).status_code == 422
+    # 少一欄、只有空白、性別選「不透露」都不行
+    for patch in ({"name": ""}, {"expertise": "  "}, {"age": None}, {"gender": "不透露"}):
+        assert client.post("/teacher/profile", json={**FULL_TEACHER_PROFILE, **patch}).status_code == 422, patch
+    missing = {key: value for key, value in FULL_TEACHER_PROFILE.items() if key != "teaching_style"}
+    assert client.post("/teacher/profile", json=missing).status_code == 422
+
+
+def test_個人資料沒填完不能建立課程(make_user, login):
+    client = login(make_user("teacher"))
+    blocked = client.post("/courses", json={"title": "新課"})
+    assert blocked.status_code == 400
+    assert "個人資料" in blocked.json()["detail"]
+
+    assert client.post("/teacher/profile", json=FULL_TEACHER_PROFILE).status_code == 200
+    assert client.post("/courses", json={"title": "新課"}).status_code == 200
 
 
 def test_老師照片只收圖片_沒上傳時沒有網址(make_user, login):
@@ -109,3 +121,30 @@ def test_草稿圖片只有擁有者可讀(make_user, make_course, login):
     assert client.get(url).headers['cache-control'] == 'no-store'
     assert TestClient(app).get(url).status_code == 404
     assert login(make_user('teacher')).get(url).status_code == 404
+
+
+def test_學生只看得到洽詢過或綁定的老師資料(make_user, make_course, login):
+    teacher = make_user("teacher", name="林老師")
+    teacher_client = login(teacher)
+    assert teacher_client.post("/teacher/profile", json=FULL_TEACHER_PROFILE).status_code == 200
+    course = make_course(teacher, title="古典入門")
+    course.style = "古典鋼琴"
+    student_client = login(make_user("student"))
+    stranger_client = login(make_user("student"))
+
+    # 還沒洽詢過：看不到
+    assert student_client.get(f"/api/student/teachers/{teacher.id}").status_code == 404
+
+    conversation_id = start_conversation(student_client, course)
+    response = student_client.get(f"/api/student/teachers/{teacher.id}")
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["name"] == "林老師"
+    assert data["seniority"] == 5
+    assert data["teaching_style"] == "耐心"
+    assert data["course_styles"] == ["古典鋼琴"]
+    assert "age" not in data
+    assert [(item["conversation_id"], item["bound"]) for item in data["courses"]] == [(conversation_id, False)]
+
+    assert stranger_client.get(f"/api/student/teachers/{teacher.id}").status_code == 404
+    assert teacher_client.get(f"/api/student/teachers/{teacher.id}").status_code == 403

@@ -34,11 +34,11 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | --- | --- | --- |
 | `/` | 所有人 | 首頁。熱門課程一排 4 門（平板 2 門、手機 1 門），右側箭頭換下一組，可依程度篩選；精選老師、學習流程、常見問題是頁面文案 |
 | `/courses` | 所有人 | 全部課程。一次列出所有已發布課程，可用關鍵字、風格、程度、上課方式、地區、每堂價格篩選並排序；條件記在網址上 |
-| `/login`、`/signup` | 所有人 | 登入、學生註冊、老師註冊 |
+| `/login`、`/signup` | 所有人 | 登入、學生註冊、老師註冊。學生只填姓名、Email、密碼；手機、生日、性別之後在設定選填 |
 | `/forgot-password` | 所有人 | 忘記密碼（地端版本）：送出 Email 後由管理員在後台重設成臨時密碼，不寄信 |
 | `/courses/:id/contact` | 學生 | 從課程詳情「與老師接洽」。訪客先註冊，註冊後自動登入，建立對話並打開聊天 |
-| `/teacher/...` | 老師 | 總覽、工作室、課表、學生、課程、作業、聊天、設定（個人資料、基本資料、修改密碼；舊的 `/teacher/profile` 會導到設定） |
-| `/student/...` | 學生 | 資訊總覽、課表、老師（輸入綁定碼）、課程、作業（演奏作業錄音、作業分析）、聊天、設定 |
+| `/teacher/...` | 老師 | 總覽、工作室、課表、學生、課程、作業、聊天（預設打開平台管理員）、設定（個人資料、基本資料、修改密碼；舊的 `/teacher/profile` 會導到設定） |
+| `/student/...` | 學生 | 資訊總覽、課表、老師（輸入綁定碼、老師資料頁）、課程、作業（先選演奏或題庫，同一頁看繳交狀態與每次練習分析）、聊天（預設打開平台管理員）、設定 |
 | `/admin/...` | 管理員 | 總覽、老師申請審核、老師名單、學生名單、重設密碼 |
 | `/search`、`/courses/:id` | 所有人 | 還沒做，顯示開發中 |
 
@@ -98,10 +98,11 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/student/StudentOverviewView.vue` | 學生資訊總覽：今日課程、待老師確認的申請、待處理事項。 |
 | `src/views/student/StudentTeachersView.vue` | 已綁定的老師，輸入綁定碼加入課程。 |
 | `src/views/student/StudentCoursesView.vue` | 洽詢過的課程資訊（進行中／待確認）。 |
-| `src/views/student/StudentHomeworkView.vue` | 作業狀態：老師發給自己的每份作業有沒有繳交。 |
-| `src/views/student/StudentAssignmentView.vue` | 一份作業：下載參考 MIDI 與教材、錄音繳交、看每次回饋。 |
+| `src/views/student/StudentHomeworkView.vue` | 作業入口：先選演奏作業或題庫作業。 |
+| `src/views/student/StudentHomeworkKindView.vue` | 選了類型之後：每份作業的繳交狀態（上傳／開始測驗）與每次練習（作業分析、練習對比）。舊的 `/student/homework/analysis/...` 會導到這裡。 |
+| `src/views/student/StudentTeacherProfileView.vue` | 學生看老師資料：照片、風格、年資與介紹。只看得到洽詢過或綁定的老師。 |
+| `src/views/student/StudentAssignmentView.vue` | 演奏作業上傳：下載參考 MIDI 與教材、錄音繳交、看每次回饋。 |
 | `src/views/student/StudentSupportView.vue` | 和平台管理員的對話。 |
-| `src/views/student/StudentAnalysisView.vue` | 作業分析入口：演奏作業；題庫作業尚未開放。 |
 | `src/views/student/StudentChatListView.vue` | 學生的聊天頁：左邊對話列表，右邊是選到的對話（子路由），換人不用返回。 |
 | `src/views/student/StudentChatRoomView.vue` | 學生聊天室（聊天頁右欄）。 |
 | `src/views/student/StudentScheduleView.vue` | 學生課表（日／週／月切換）與約課／請假／調課申請。 |
@@ -111,14 +112,14 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/teacher/TeacherStudioView.vue` | 工作室資料：老師自己建立與修改，編號由系統產生。 |
 | `src/views/teacher/TeacherSettingsView.vue` | 老師設定的外框：個人資料／基本資料／修改密碼三個分頁。 |
 | `src/views/teacher/TeacherProfileView.vue` | 設定 → 個人資料：學生看到的老師介紹。 |
-| `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料。姓名唯讀，在基本資料修改。 |
-| `src/views/teacher/TeacherAccountView.vue` | 設定 → 基本資料：姓名、性別、手機、生日（Email 不能改）。 |
+| `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料。照片以外都必填，填完才能建立課程；姓名唯讀，在基本資料修改。 |
+| `src/views/teacher/TeacherAccountView.vue` | 設定 → 基本資料：姓名、性別、手機、生日（Email 不能改）。學生的同一頁手機、生日、性別是選填。 |
 | `src/views/teacher/TeacherPasswordView.vue` | 設定 → 修改密碼。只用 Google 註冊的帳號不用輸入目前密碼。 |
 | `src/components/console/AccountProfileForm.vue` | 學生與老師共用的基本資料表單。 |
 | `src/views/teacher/TeacherScheduleView.vue` | 老師課表（日／週／月切換）與課務申請。 |
-| `src/views/teacher/TeacherStudentsView.vue` | 各課程學生人數與已綁定的學生。 |
+| `src/views/teacher/TeacherStudentsView.vue` | 已綁定的學生，以及洽詢中、還沒加入的學生（發綁定碼）。 |
 | `src/views/teacher/TeacherCoursesView.vue` | 老師的課程列表，每門已發布的課可以產生限時綁定碼、替洽詢中的學生發碼。 |
-| `src/views/teacher/TeacherCourseFormView.vue` | 新增或修改課程，可上傳圖片和 MIDI。 |
+| `src/views/teacher/TeacherCourseFormView.vue` | 新增或修改課程，可上傳圖片和 MIDI。圖片以外都必填；風格三選一，可上課時段用勾選。 |
 | `src/views/teacher/TeacherPracticeView.vue` | 作業狀態：發出的每份作業有沒有繳交。 |
 | `src/views/teacher/TeacherAssignmentFormView.vue` | 作業上傳：選課程、學生、期限，附參考 MIDI 與教材（演奏／題庫兩個分頁）。 |
 | `src/views/teacher/TeacherAssignmentDetailView.vue` | 學生作業詳情：檔案、繳交紀錄與回饋、刪除作業。 |
@@ -159,7 +160,10 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/components/console/FeedbackView.vue` | 顯示練習回饋。 |
 | `src/components/console/ModalPanel.vue` | 後台共用的彈出視窗。 |
 | `src/components/console/NoticeDialog.vue` | 提示或確認視窗。 |
-| `src/components/console/PageHeader.vue` | 後台頁面標題。 |
+| `src/components/console/PageHeader.vue` | 後台頁面標題。老師、學生後台的按鈕放在標題同一列最右邊。 |
+| `src/components/console/PageToolbar.vue` | 標題下面有篩選或圖例時的那一列：左邊篩選，右邊搜尋與按鈕。 |
+| `src/components/console/ScheduleLegend.vue` | 週課表、月曆的圖例：三種風格顏色、可預約、待完成約課。 |
+| `src/components/home/NotificationBell.vue` | 首頁登入後名字左邊的鈴鐺：有新約課申請、申請結果或未讀訊息時亮紅點，點開列出通知。 |
 | `src/components/console/ConsoleIcon.vue` | 側邊選單圖示。 |
 | `src/components/console/TeacherApplicationForm.vue` | Google 註冊的老師補填教學科目、經歷、自我介紹與證明文件。 |
 | `src/components/common/AiAssistButton.vue` | 右下角「AI 找課」。已接正式推薦 API，最多追問兩題並顯示已發布課程。 |
@@ -167,8 +171,10 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/composables/useConversation.ts` | 聊天：先用 API 讀舊訊息，再用 WebSocket 收新訊息。 |
 | `src/composables/useBoundCourses.ts` | 學生已綁定的課程。課表和練習用網址上的 `?course=` 記住目前選的課。 |
 | `src/composables/useLeaveGuard.ts` | 表單還沒存就離開時，先問要不要放棄。 |
+| `src/composables/useNotifications.ts` | 鈴鐺的通知：從課務申請與聊天未讀整理出來，「看過了沒」記在瀏覽器。 |
 | `src/directives/reveal.ts` | `v-reveal`。元素捲進畫面時輕輕出現。 |
 | `src/utils/format.ts` | 把日期、時間和後端代碼轉成畫面上的中文。 |
+| `src/utils/courseStyle.ts` | 古典、流行、爵士三種風格的固定顏色，以及課程表單的風格與時段選項。 |
 | `src/utils/redirect.ts` | 登入後要回去的網址。只接受這個角色能進的站內路徑。 |
 | `src/utils/courseCard.ts` | 把後端課程轉成課程卡欄位，首頁與全部課程頁共用。 |
 

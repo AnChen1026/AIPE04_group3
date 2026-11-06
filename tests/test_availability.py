@@ -2,7 +2,7 @@
 
 from datetime import timedelta
 
-from backend.models.student import AvailabilitySlot, LessonSession
+from backend.models.student import AvailabilitySlot, ChangeRequest, LessonSession
 from tests.conftest import bind, issue_code, next_week, start_conversation
 
 
@@ -196,4 +196,27 @@ def test_取消待確認的預約會退回申請(db, make_user, make_course, log
     assert teacher_client.post(f"/teacher/availability/{slot_id}/release").status_code == 200
     requests = student_client.get(f"/api/student/courses/{course.id}/change-requests").json()
     assert next(item for item in requests if item["id"] == request_id)["status"] == "rejected"
+    assert db.get(AvailabilitySlot, slot_id).status == "open"
+
+
+def test_時間過了還沒確認的約課自動取消_不再顯示(db, make_user, make_course, login):
+    _, _, course, teacher_client, student_client = _bound_student(make_user, make_course, login)
+    slot_id = _add_slot(teacher_client, next_week(10)).json()["id"]
+    request_id = _book(student_client, course, slot_id).json()["id"]
+    assert db.get(AvailabilitySlot, slot_id).status == "held"
+
+    # 模擬時間過去：把約的時間和時段都移到昨天
+    shift = timedelta(days=8)
+    change_request = db.get(ChangeRequest, request_id)
+    change_request.proposed_starts_at -= shift
+    change_request.proposed_ends_at -= shift
+    slot = db.get(AvailabilitySlot, slot_id)
+    slot.starts_at -= shift
+    slot.ends_at -= shift
+    db.commit()
+
+    assert student_client.get(f"/api/student/courses/{course.id}/change-requests").json() == []
+    assert teacher_client.get("/teacher/change-requests").json() == []
+    db.expire_all()
+    assert db.get(ChangeRequest, request_id) is None
     assert db.get(AvailabilitySlot, slot_id).status == "open"
