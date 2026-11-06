@@ -63,7 +63,8 @@ const router = createRouter({
             { path: '', name: 'teacher-settings', redirect: '/teacher/settings/profile' },
             { path: 'profile', name: 'teacher-profile', component: () => import('@/views/teacher/TeacherProfileView.vue'), meta: { title: '個人資料' } },
             { path: 'profile/edit', name: 'teacher-profile-edit', component: () => import('@/views/teacher/TeacherProfileEditView.vue'), meta: { title: '個人資料維護' } },
-            { path: 'account', name: 'teacher-account', component: () => import('@/views/teacher/TeacherAccountView.vue'), meta: { title: '基本資料' } },
+            // 基本資料已併進個人資料（UIUX 回饋），舊網址導過去
+            { path: 'account', redirect: '/teacher/settings/profile' },
             { path: 'password', name: 'teacher-password', component: () => import('@/views/teacher/TeacherPasswordView.vue'), meta: { title: '修改密碼' } },
           ],
         },

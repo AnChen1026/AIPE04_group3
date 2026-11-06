@@ -12,30 +12,36 @@ from backend.models.user import User
 from backend.schemas.teacher import TeacherIn, TeacherProfileResponse
 from backend.services.images import MAX_IMAGE_BYTES, save_image
 from backend.services.student import StudentBusinessError
-from backend.services.teacher_profile import PROFILE_FIELDS, profile_complete
+from backend.services.teacher_profile import PROFILE_FIELDS, RESPONSE_FIELDS, account_of, gender_of, profile_complete
 from backend.services.teacher_sync import _ensure_teacher_profile
 
 router = APIRouter()
 
 
-def profile_response(teacher: TeacherDB) -> TeacherProfileResponse:
+def profile_response(teacher: TeacherDB, user: User | None) -> TeacherProfileResponse:
     return TeacherProfileResponse(
         id=str(teacher.id),
         user_id=str(teacher.user_id),
-        name=teacher.name,
-        gender=teacher.gender,
+        name=user.name if user else teacher.name,
+        # 只看帳號性別；以前個人資料另外存的「不透露」不再顯示
+        gender=gender_of(user) or "",
         status=teacher.status,
         photo_url=f"/api/images/teachers/{teacher.user_id}" if teacher.photo_path else None,
-        profile_complete=profile_complete(teacher),
-        **{field: getattr(teacher, field) for field in PROFILE_FIELDS},
+        profile_complete=profile_complete(teacher, user),
+        email=user.email if user else None,
+        sex=user.sex if user else None,
+        phone_number=user.phone_number if user else None,
+        birthdate=user.birthdate if user else None,
+        **{field: getattr(teacher, field) for field in RESPONSE_FIELDS},
     )
 
 
 @router.get("/teacher/me", response_model=TeacherProfileResponse)
 def get_my_teacher(
+    db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
-    return profile_response(teacher)
+    return profile_response(teacher, account_of(db, teacher))
 
 
 @router.post("/teacher/profile", response_model=TeacherProfileResponse)
@@ -44,7 +50,7 @@ def save_teacher_profile(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """建立或更新老師個人資料。照片以外都必填，欄位檢查在 TeacherIn。"""
+    """建立或更新老師個人資料，帳號的姓名、性別、手機、生日一起存（同一個交易）。照片以外都必填，欄位檢查在 TeacherIn。"""
     if user.role != "teacher":
         raise HTTPException(status_code=403, detail="只有教師可以建立教師資料")
 
@@ -53,15 +59,20 @@ def save_teacher_profile(
         teacher = TeacherDB(id=uuid.uuid4(), user_id=user.id)
         db.add(teacher)
 
+    user.name = data.name
+    user.sex = data.sex
+    user.phone_number = data.phone_number
+    user.birthdate = data.birthdate
     teacher.name = data.name
-    teacher.gender = data.gender
+    # 學生看到的性別就是帳號性別
+    teacher.gender = gender_of(user)
     for field in PROFILE_FIELDS:
         setattr(teacher, field, getattr(data, field))
     # 審核狀態只看帳號是否核准，不讓前端自己決定
     teacher.status = "active" if user.is_active else "pending"
     db.commit()
     db.refresh(teacher)
-    return profile_response(teacher)
+    return profile_response(teacher, user)
 
 
 @router.post("/teacher/photo", response_model=TeacherProfileResponse)
@@ -83,7 +94,7 @@ def upload_teacher_photo(
         cleanup_files([storage_key])
         raise
     db.refresh(teacher)
-    return profile_response(teacher)
+    return profile_response(teacher, account_of(db, teacher))
 
 @router.get("/teacher/auth-status")
 def teacher_auth_status(

@@ -20,7 +20,7 @@ from backend.services.course import (
     update_course,
 )
 from backend.services.images import MAX_IMAGE_BYTES
-from backend.services.teacher_profile import profile_complete
+from backend.services.teacher_profile import account_of, profile_complete
 from backend.services.student import (
     StudentBusinessError,
     active_course_join_code,
@@ -41,7 +41,7 @@ def create_my_course(
     db: Session = Depends(get_db),
     teacher: TeacherDB = Depends(get_current_teacher),
 ):
-    if not profile_complete(teacher):
+    if not profile_complete(teacher, account_of(db, teacher)):
         raise HTTPException(status_code=400, detail="請先到「設定」把個人資料填完，才能建立課程。")
     try:
         return create_course(db, teacher.user_id, data.model_dump())

@@ -9,10 +9,13 @@ import defaultPhoto from '@/assets/images/女老師3.png'
 const profile = ref<TeacherProfile | null>(null)
 const error = ref('')
 
+// 帳號資料和學生看到的介紹在同一頁；性別就是學生看到的性別
 const rows: { key: keyof TeacherProfile; label: string; suffix?: string }[] = [
   { key: 'name', label: '姓名' },
   { key: 'gender', label: '性別' },
-  { key: 'age', label: '年齡', suffix: ' 歲' },
+  { key: 'email', label: '電子郵件' },
+  { key: 'phone_number', label: '手機號碼' },
+  { key: 'birthdate', label: '生日' },
   { key: 'seniority', label: '年資', suffix: ' 年' },
   { key: 'expertise', label: '專業' },
   { key: 'teaching_city', label: '教學城市' },

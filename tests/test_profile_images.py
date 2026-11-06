@@ -17,9 +17,12 @@ def test_老師資料照片以外都必填(make_user, login):
     assert data["teaching_city"] == "臺北市"
     assert data["profile_complete"] is True
     assert "photo_path" not in data
+    # 帳號資料一起存；學生看到的性別就是帳號性別
+    assert (data["sex"], data["gender"], data["phone_number"], data["birthdate"]) == ("female", "女", "0912345678", "1990-01-01")
+    assert client.get("/api/auth/me").json()["name"] == "林老師"
 
-    # 少一欄、只有空白、性別選「不透露」都不行
-    for patch in ({"name": ""}, {"expertise": "  "}, {"age": None}, {"gender": "不透露"}):
+    # 少一欄、只有空白、性別不是男女、手機格式不對都不行
+    for patch in ({"name": ""}, {"expertise": "  "}, {"seniority": None}, {"sex": "other"}, {"phone_number": "123"}, {"birthdate": None}):
         assert client.post("/teacher/profile", json={**FULL_TEACHER_PROFILE, **patch}).status_code == 422, patch
     missing = {key: value for key, value in FULL_TEACHER_PROFILE.items() if key != "teaching_style"}
     assert client.post("/teacher/profile", json=missing).status_code == 422

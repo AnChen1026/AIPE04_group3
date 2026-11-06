@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
 
-// 老師設定：個人資料（學生看到的介紹）、基本資料（帳號）、修改密碼。各分頁是子路由
+// 老師設定：個人資料（帳號資料和學生看到的介紹在同一頁）、修改密碼。各分頁是子路由
 const tabs = [
   { to: '/teacher/settings/profile', label: '個人資料' },
-  { to: '/teacher/settings/account', label: '基本資料' },
   { to: '/teacher/settings/password', label: '修改密碼' },
 ]
 

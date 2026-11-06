@@ -160,11 +160,12 @@ def make_lesson(db):
     return make
 
 
-# 照片以外都填好的老師個人資料；建立課程前要先存這一份
+# 照片以外都填好的老師個人資料（帳號的姓名、性別、手機、生日也在這一份）；建立課程前要先存這一份
 FULL_TEACHER_PROFILE = {
     "name": "林老師",
-    "gender": "女",
-    "age": 30,
+    "sex": "female",
+    "phone_number": "0912345678",
+    "birthdate": "1990-01-01",
     "seniority": 5,
     "expertise": "古典鋼琴",
     "short_intros": "喜歡陪學生慢慢進步。",

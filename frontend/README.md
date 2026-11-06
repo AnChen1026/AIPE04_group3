@@ -37,7 +37,7 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `/login`、`/signup` | 所有人 | 登入、學生註冊、老師註冊。學生只填姓名、Email、密碼；手機、生日、性別之後在設定選填 |
 | `/forgot-password` | 所有人 | 忘記密碼（地端版本）：送出 Email 後由管理員在後台重設成臨時密碼，不寄信 |
 | `/courses/:id/contact` | 學生 | 從課程詳情「與老師接洽」。訪客先註冊，註冊後自動登入，建立對話並打開聊天 |
-| `/teacher/...` | 老師 | 總覽、工作室、課表、學生、課程、作業、聊天（預設打開平台管理員）、設定（個人資料、基本資料、修改密碼；舊的 `/teacher/profile` 會導到設定） |
+| `/teacher/...` | 老師 | 總覽、工作室、課表、學生、課程、作業、聊天（預設打開平台管理員）、設定（個人資料、修改密碼；基本資料已併進個人資料，舊的 `/teacher/profile`、`/teacher/settings/account` 會導到個人資料） |
 | `/student/...` | 學生 | 資訊總覽、課表、老師（輸入綁定碼、老師資料頁）、課程、作業（先選演奏或題庫，同一頁看繳交狀態與每次練習分析）、聊天（預設打開平台管理員）、設定 |
 | `/admin/...` | 管理員 | 總覽、老師申請審核、老師名單、學生名單、重設密碼 |
 | `/search`、`/courses/:id` | 所有人 | 還沒做，顯示開發中 |
@@ -110,12 +110,11 @@ Google 登入也走這條轉址：本機的 `GOOGLE_REDIRECT_URI` 設成 `http:/
 | `src/views/student/StudentProfileView.vue` | 學生個人資料（用 `AccountProfileForm`）。 |
 | `src/views/teacher/TeacherDashboardView.vue` | 老師資訊總覽。 |
 | `src/views/teacher/TeacherStudioView.vue` | 工作室資料：老師自己建立與修改，編號由系統產生。 |
-| `src/views/teacher/TeacherSettingsView.vue` | 老師設定的外框：個人資料／基本資料／修改密碼三個分頁。 |
-| `src/views/teacher/TeacherProfileView.vue` | 設定 → 個人資料：學生看到的老師介紹。 |
-| `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料。照片以外都必填，填完才能建立課程；姓名唯讀，在基本資料修改。 |
-| `src/views/teacher/TeacherAccountView.vue` | 設定 → 基本資料：姓名、性別、手機、生日（Email 不能改）。學生的同一頁手機、生日、性別是選填。 |
+| `src/views/teacher/TeacherSettingsView.vue` | 老師設定的外框：個人資料／修改密碼兩個分頁。 |
+| `src/views/teacher/TeacherProfileView.vue` | 設定 → 個人資料：帳號資料（姓名、性別、Email、手機、生日）和學生看到的老師介紹。 |
+| `src/views/teacher/TeacherProfileEditView.vue` | 修改老師個人資料：帳號資料和介紹一起存，照片以外都必填，填完才能建立課程。學生看到的性別就是帳號性別，不填年齡。 |
 | `src/views/teacher/TeacherPasswordView.vue` | 設定 → 修改密碼。只用 Google 註冊的帳號不用輸入目前密碼。 |
-| `src/components/console/AccountProfileForm.vue` | 學生與老師共用的基本資料表單。 |
+| `src/components/console/AccountProfileForm.vue` | 學生的基本資料表單（手機、生日、性別選填）。 |
 | `src/views/teacher/TeacherScheduleView.vue` | 老師課表（日／週／月切換）與課務申請。 |
 | `src/views/teacher/TeacherStudentsView.vue` | 已綁定的學生，以及洽詢中、還沒加入的學生（發綁定碼）。 |
 | `src/views/teacher/TeacherCoursesView.vue` | 老師的課程列表，每門已發布的課可以產生限時綁定碼、替洽詢中的學生發碼。 |
