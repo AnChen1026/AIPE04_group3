@@ -81,6 +81,13 @@ onMounted(async () => {
   </PageToolbar>
   <p v-if="error" class="error-text">{{ error }}</p>
 
+  <!-- 這頁的卡片顏色看繳交狀態，不是課程風格（見 utils/format.ts 的 assignmentTone） -->
+  <ul v-if="assignments.length" class="status-legend" aria-label="圖例">
+    <li><span class="status-legend__swatch status-legend__swatch--done"></span>已繳交／已作答</li>
+    <li><span class="status-legend__swatch status-legend__swatch--play"></span>演奏作業未繳交</li>
+    <li><span class="status-legend__swatch status-legend__swatch--quiz"></span>題庫作業未作答</li>
+  </ul>
+
   <div v-if="loaded && shown.length === 0" class="card empty">
     {{ assignments.length === 0 ? '還沒有發過作業。按「新增作業」替已綁定的學生發第一份作業。' : '沒有符合的作業。' }}
   </div>
@@ -101,6 +108,46 @@ onMounted(async () => {
 <style scoped>
 .search-input {
   width: min(220px, 100%);
+}
+
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: -4px 0 14px;
+  padding: 0;
+  color: var(--home-muted);
+  font-size: 13px;
+  list-style: none;
+}
+
+.status-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 和 console.css 的 .tone-card、.tone-card--1、.tone-card--2 同色 */
+.status-legend__swatch {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid;
+  border-radius: 4px;
+}
+
+.status-legend__swatch--done {
+  border-color: #6aa2e2;
+  background: #dbe5fa;
+}
+
+.status-legend__swatch--play {
+  border-color: #f3cf9f;
+  background: #fdecd2;
+}
+
+.status-legend__swatch--quiz {
+  border-color: #9fc07a;
+  background: #e9eedf;
 }
 
 .homework {
